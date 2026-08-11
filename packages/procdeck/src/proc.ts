@@ -1,4 +1,7 @@
 import { execFile } from "node:child_process"
+import { chmodSync, statSync } from "node:fs"
+import { createRequire } from "node:module"
+import { dirname, join } from "node:path"
 import { spawn } from "node-pty"
 import type { IPty } from "node-pty"
 import type { ProcSpec } from "./config.ts"
@@ -9,6 +12,25 @@ import type { ProcSpec } from "./config.ts"
  * Plain Node on purpose — the Effect layer sits on top of this in
  * `supervisor.ts`, so the tricky OS bits stay independently readable.
  */
+
+// pnpm ≥10 and Bun skip dependency install scripts unless the consumer
+// explicitly approves them, so node-pty's postinstall (which `chmod +x`es the
+// darwin spawn-helper prebuild) may never run — and then every spawn dies with
+// `posix_spawnp failed`. Restore the execute bit ourselves: idempotent, and
+// spares users a trip through `pnpm approve-builds`.
+const fixSpawnHelperExecBit = (): void => {
+  if (process.platform !== "darwin") return
+  try {
+    const require = createRequire(import.meta.url)
+    const packageRoot = dirname(require.resolve("node-pty/package.json"))
+    const helper = join(packageRoot, "prebuilds", `darwin-${process.arch}`, "spawn-helper")
+    const mode = statSync(helper).mode
+    if ((mode & 0o111) === 0) chmodSync(helper, mode | 0o755)
+  } catch {
+    // No prebuild for this arch — node-pty was built from source, nothing to fix.
+  }
+}
+fixSpawnHelperExecBit()
 
 export type SpawnedProc = {
   pty: IPty

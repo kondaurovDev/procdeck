@@ -15,7 +15,7 @@ import { defineConfig } from "procdeck"
  * subdomain of the UI port, whatever port it actually got.
  */
 export default defineConfig({
-  port: 4820,
+  port: 4830,
   procs: [
     {
       id: "api",

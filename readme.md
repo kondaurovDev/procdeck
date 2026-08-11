@@ -55,6 +55,15 @@ pnpm install
 pnpm dev          # builds the UI, starts the example stack
 ```
 
+> **Native dependency note.** procdeck runs panes through [node-pty](https://github.com/microsoft/node-pty),
+> which ships a native prebuild. npm and yarn set it up automatically. pnpm ≥ 10 and Bun
+> block dependency install scripts by default — in your own project run
+> `pnpm approve-builds` and allow `node-pty` (Bun: add it to `trustedDependencies`).
+> procdeck also repairs the most common fallout by itself at startup (the darwin
+> `spawn-helper` prebuild arriving without its execute bit), so approving is only
+> strictly required when node-pty must compile from source (no prebuild for your
+> platform).
+
 Open <http://localhost:4820> for the panes, then <http://web.localhost:4820> and
 <http://api.localhost:4820> — the example's two servers found each other (and their own
 ports) entirely through `${port}` templates. See [`example/`](example/).
@@ -154,10 +163,10 @@ kills, SIGTERM-ignoring survivors, scope teardown. Mocking any of that would tes
 mock. They need a real PTY (`/dev/ptmx`), so they won't run inside sandboxes that block
 PTY allocation.
 
-Gotcha: if every spawn fails with `posix_spawnp failed.`, check
-`node_modules/.pnpm/node-pty@*/node_modules/node-pty/prebuilds/<platform>/spawn-helper` —
-the prebuild can arrive without its execute bit (`chmod +x` fixes it). The same message
-also appears when PTY allocation itself is blocked.
+Gotcha: if every spawn fails with `posix_spawnp failed.`, the usual culprit is the
+node-pty `spawn-helper` prebuild arriving without its execute bit (pnpm/Bun skipping
+its install script). `proc.ts` restores the bit at import time, so this should
+self-heal — if it still fails, PTY allocation itself is probably blocked (sandboxes).
 
 ## Status
 
