@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "isolatedModules": true,
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "types": [],
+    "target": "esnext",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "noFallthroughCasesInSwitch": true,
+    "noEmit": true,
+    "module": "esnext"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["esnext"],
+    "types": ["node"],
+    // Node runs these files directly (type stripping), so relative imports
+    // carry their .ts extensions.
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "tests", "vitest.config.ts"]
+}

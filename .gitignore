@@ -1,0 +1,3 @@
+node_modules/
+packages/procdeck/ui/dist/
+.DS_Store

@@ -1,0 +1,32 @@
+{
+  "name": "procdeck",
+  "version": "0.1.0",
+  "description": "Interactive dev-process multiplexer with a web UI: terminal panes in a browser tab, declarative dependencies, assigned ports and a *.localhost reverse proxy.",
+  "type": "module",
+  "bin": {
+    "procdeck": "./src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/config.ts"
+  },
+  "scripts": {
+    "ui:dev": "vite ui",
+    "build": "vite build ui",
+    "check:types": "tsc --noEmit && tsc -p ui --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "effect": "4.0.0-beta.106",
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "@effect/platform-browser": "4.0.0-beta.106",
+    "@types/node": "^22.10.1",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "foldkit": "^0.141.2",
+    "typescript": "^7.0.2",
+    "vite": "^6.2.0",
+    "vitest": "^3.2.4"
+  }
+}

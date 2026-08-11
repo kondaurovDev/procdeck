@@ -1,0 +1,8 @@
+packages:
+  - packages/*
+  - example
+
+allowBuilds:
+  # PTY support is the whole point: panes must look exactly like a terminal.
+  node-pty: true
+  esbuild: true

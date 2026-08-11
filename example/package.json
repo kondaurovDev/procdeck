@@ -1,0 +1,11 @@
+{
+  "name": "example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter procdeck build && procdeck procdeck.config.ts"
+  },
+  "dependencies": {
+    "procdeck": "workspace:*"
+  }
+}
