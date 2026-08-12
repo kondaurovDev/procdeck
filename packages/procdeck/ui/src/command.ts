@@ -55,6 +55,65 @@ export const WriteTerminal = Command.define("WriteTerminal", {
     }),
 })
 
+/** Wipe the pane's screen and scrollback (the shell keeps running). */
+export const ClearTerminal = Command.define("ClearTerminal", {
+  args: { id: S.String },
+  messages: [CompletedRequest],
+  execute: ({ id }) =>
+    Effect.sync(() => {
+      registry.get(id)?.term.clear()
+      return CompletedRequest()
+    }),
+})
+
+/** Drive the xterm search addon: live-narrowing while typing, stepping on Enter. */
+export const FindInTerminal = Command.define("FindInTerminal", {
+  args: { id: S.String, query: S.String, mode: S.Literals(["incremental", "next", "previous"]) },
+  messages: [CompletedRequest],
+  execute: ({ id, query, mode }) =>
+    Effect.sync(() => {
+      const entry = registry.get(id)
+      if (entry === undefined) return CompletedRequest()
+      if (query === "") entry.term.clearSelection()
+      else if (mode === "previous") entry.search.findPrevious(query)
+      else entry.search.findNext(query, { incremental: mode === "incremental" })
+      return CompletedRequest()
+    }),
+})
+
+/** Drop the search highlight and hand the keyboard back to the terminal. */
+export const EndSearch = Command.define("EndSearch", {
+  args: { id: S.String },
+  messages: [CompletedRequest],
+  execute: ({ id }) =>
+    Effect.sync(() => {
+      const entry = registry.get(id)
+      if (entry !== undefined) {
+        entry.term.clearSelection()
+        entry.term.focus()
+      }
+      return CompletedRequest()
+    }),
+})
+
+/**
+ * Focus the search input. Runs after the next frame so it also works on the
+ * render that just created the input (Commands can outrun the DOM patch).
+ */
+export const FocusSearch = Command.define("FocusSearch", {
+  messages: [CompletedRequest],
+  execute: Effect.promise(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+  ).pipe(
+    Effect.map(() => {
+      const input = document.querySelector<HTMLInputElement>("input.search")
+      input?.focus()
+      input?.select()
+      return CompletedRequest()
+    }),
+  ),
+})
+
 /**
  * Fit the pane's terminal to its container, then tell the PTY the new size.
  * Only ever called for the visible pane — xterm cannot measure a hidden one.

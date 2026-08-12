@@ -1,6 +1,16 @@
+import { Option as O } from "effect"
 import type { Document, Html, HtmlBuilder } from "foldkit/html"
 import type { Message } from "./message.ts"
-import { ClickedProc, ClickedRestart, ClickedStart, ClickedStop } from "./message.ts"
+import {
+  ChangedSearch,
+  ClickedClear,
+  ClickedProc,
+  ClickedRestart,
+  ClickedStart,
+  ClickedStop,
+  ClosedSearch,
+  SteppedSearch,
+} from "./message.ts"
 import type { Model } from "./model.ts"
 import type { ProcInfo, ProcStatus } from "./schema.ts"
 import { MountTerminal } from "./terminal.ts"
@@ -60,7 +70,13 @@ const describeStatus = (status: ProcStatus): string => {
   return status.alert === undefined ? base : `${base} · ⚠ ${status.alert}`
 }
 
-const procRow = (info: ProcInfo, isActive: boolean, now: number, h: HtmlBuilder<Message>): Html => {
+const procRow = (
+  info: ProcInfo,
+  isActive: boolean,
+  unread: number,
+  now: number,
+  h: HtmlBuilder<Message>,
+): Html => {
   const ports = usefulPorts(info)
   const uptime =
     info.status.state === "running" && info.status.startedAt !== undefined
@@ -84,9 +100,20 @@ const procRow = (info: ProcInfo, isActive: boolean, now: number, h: HtmlBuilder<
         [
           h.div(
             [h.Class("name")],
-            info.status.alert === undefined
-              ? [info.id]
-              : [info.id, h.span([h.Class("badge")], [info.status.alert])],
+            [
+              info.id,
+              ...(info.status.alert === undefined
+                ? []
+                : [h.span([h.Class("badge")], [info.status.alert])]),
+              ...(unread === 0
+                ? []
+                : [
+                    h.span(
+                      [h.Class("badge err"), h.Title("errors in the log since you last looked")],
+                      [unread > 99 ? "99+" : String(unread)],
+                    ),
+                  ]),
+            ],
           ),
           h.div([h.Class("cmd")], [info.command]),
           ...(sub.length === 0 ? [] : [h.div([h.Class("sub")], sub)]),
@@ -135,12 +162,44 @@ const header = (model: Model, h: HtmlBuilder<Message>): Html => {
     [],
     [
       h.button(
-        [h.Disabled(active === undefined || !busy), h.OnClick(ClickedRestart())],
+        [h.Disabled(active === undefined || !busy), h.Title("⌥R"), h.OnClick(ClickedRestart())],
         ["Restart"],
       ),
       // For "waiting" Stop means "cancel waiting for deps" — keep it enabled.
-      h.button([h.Disabled(active === undefined || idle), h.OnClick(ClickedStop())], ["Stop"]),
-      h.button([h.Disabled(active === undefined || !idle), h.OnClick(ClickedStart())], ["Start"]),
+      h.button(
+        [h.Disabled(active === undefined || idle), h.Title("⌥S"), h.OnClick(ClickedStop())],
+        ["Stop"],
+      ),
+      h.button(
+        [h.Disabled(active === undefined || !idle), h.Title("⌥S"), h.OnClick(ClickedStart())],
+        ["Start"],
+      ),
+      h.button(
+        [h.Disabled(active === undefined), h.Title("⌘K"), h.OnClick(ClickedClear())],
+        ["Clear"],
+      ),
+      ...(model.search === undefined
+        ? []
+        : [
+            h.input(
+              [
+                h.Class("search"),
+                h.Type("text"),
+                h.Value(model.search),
+                h.Placeholder("find…"),
+                h.Title("Enter next · ⇧Enter prev · Esc close"),
+                h.Autofocus(true),
+                h.OnInput((query) => ChangedSearch({ query })),
+                h.OnKeyDownPreventDefault((key, modifiers) =>
+                  key === "Enter"
+                    ? O.some(SteppedSearch({ backwards: modifiers.shiftKey }))
+                    : key === "Escape"
+                      ? O.some(ClosedSearch())
+                      : O.none(),
+                ),
+              ],
+            ),
+          ]),
       h.span([h.Class("links")], active === undefined ? [] : paneLinks(active, h)),
       h.span(
         [h.Class("meta")],
@@ -167,7 +226,13 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
           h.h1([], ["procdeck"]),
           h.div(
             [],
-            model.procs.map((info) => procRow(info, info.id === model.active, model.now, h)),
+            model.procs.map((info) =>
+              procRow(info, info.id === model.active, model.unread[info.id] ?? 0, model.now, h),
+            ),
+          ),
+          h.div(
+            [h.Class("hints")],
+            ["⌥↑↓ switch · ⌥R restart · ⌥S stop/start · ⌘K clear · ⌘F find"],
           ),
         ],
       ),

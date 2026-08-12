@@ -2,9 +2,10 @@ import { Effect, Queue, Schema as S, Stream } from "effect"
 import { Mount } from "foldkit"
 import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
+import { SearchAddon } from "@xterm/addon-search"
 import { MountedTerminal, TypedInput } from "./message.ts"
 
-type Entry = { term: Terminal; fit: FitAddon }
+type Entry = { term: Terminal; fit: FitAddon; search: SearchAddon }
 
 /**
  * The imperative side of the page. xterm owns its DOM and its scrollback —
@@ -42,11 +43,27 @@ export const MountTerminal = Mount.defineStream(
             })
             const fit = new FitAddon()
             term.loadAddon(fit)
+            const search = new SearchAddon()
+            term.loadAddon(search)
             term.open(element as HTMLElement)
             term.onData((data) => {
               Queue.offerUnsafe(queue, TypedInput({ id, data }))
             })
-            registry.set(id, { term, fit })
+            // xterm keeps the viewport pinned when the user scrolls up; this
+            // overlay is the way back down once new output lands off-screen.
+            const toBottom = document.createElement("button")
+            toBottom.className = "to-bottom"
+            toBottom.textContent = "↓ output below"
+            toBottom.hidden = true
+            toBottom.addEventListener("click", () => term.scrollToBottom())
+            ;(element as HTMLElement).appendChild(toBottom)
+            const syncToBottom = () => {
+              const buffer = term.buffer.active
+              toBottom.hidden = buffer.viewportY >= buffer.baseY
+            }
+            term.onScroll(syncToBottom)
+            term.onWriteParsed(syncToBottom)
+            registry.set(id, { term, fit, search })
             Queue.offerUnsafe(queue, MountedTerminal({ id }))
             return term
           }),

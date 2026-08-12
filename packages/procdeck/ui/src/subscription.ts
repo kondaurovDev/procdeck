@@ -1,7 +1,17 @@
 import { Effect, Queue, Schema as S, Stream } from "effect"
 import { Subscription } from "foldkit"
 import { API, ProcEvent } from "./schema.ts"
-import { ReceivedLog, ReceivedStatus, ResizedWindow, Ticked } from "./message.ts"
+import {
+  ClickedClear,
+  ClickedRestart,
+  OpenedSearch,
+  PressedToggle,
+  ReceivedLog,
+  ReceivedStatus,
+  ResizedWindow,
+  SelectedProcOffset,
+  Ticked,
+} from "./message.ts"
 import type { Message } from "./message.ts"
 import type { Model } from "./model.ts"
 
@@ -15,13 +25,25 @@ const sseStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
   Effect.acquireRelease(
     Effect.sync(() => {
       const source = new EventSource(`${API}/events`)
+      // The server replays its ring buffer on every (re)connect; it arrives
+      // as a burst right after `open`. There is no end-of-replay marker, so
+      // anything inside this window after connecting is treated as backlog.
+      const REPLAY_WINDOW_MS = 500
+      let openedAt = Number.POSITIVE_INFINITY
+      source.addEventListener("open", () => {
+        openedAt = Date.now()
+      })
       source.addEventListener("message", (message) => {
         try {
           const event = decodeEvent(JSON.parse(message.data))
           Queue.offerUnsafe(
             queue,
             event.type === "log"
-              ? ReceivedLog({ id: event.id, data: event.data })
+              ? ReceivedLog({
+                  id: event.id,
+                  data: event.data,
+                  live: Date.now() - openedAt > REPLAY_WINDOW_MS,
+                })
               : ReceivedStatus({ status: event.status }),
           )
         } catch {
@@ -46,6 +68,55 @@ const resizeStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
     (onResize) => Effect.sync(() => window.removeEventListener("resize", onResize)),
   ),
 ).pipe(Stream.debounce("150 millis"))
+
+const isMac = /Mac|iP/.test(navigator.platform)
+
+/**
+ * Hotkeys are modifier-only on purpose: bare keys must keep reaching the PTY
+ * (the panes are real interactive terminals). ⌘ on macOS / Ctrl elsewhere for
+ * browser-ish chords, ⌥ for procdeck actions. Plain Ctrl is left alone — the
+ * shell owns Ctrl+K, Ctrl+F and friends.
+ */
+const hotkeyMessage = (event: KeyboardEvent): Message | undefined => {
+  const mod = isMac ? event.metaKey : event.ctrlKey
+  if (mod && !event.altKey) {
+    if (event.code === "KeyK") return ClickedClear()
+    if (event.code === "KeyF") return OpenedSearch()
+    return undefined
+  }
+  if (event.altKey && !event.metaKey && !event.ctrlKey) {
+    switch (event.code) {
+      case "ArrowUp":
+        return SelectedProcOffset({ delta: -1 })
+      case "ArrowDown":
+        return SelectedProcOffset({ delta: 1 })
+      case "KeyR":
+        return ClickedRestart()
+      case "KeyS":
+        return PressedToggle()
+    }
+  }
+  return undefined
+}
+
+const hotkeyStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
+  Effect.acquireRelease(
+    Effect.sync(() => {
+      // Capture phase, so a recognised chord never reaches xterm's textarea
+      // (which would forward it to the PTY as input).
+      const onKeyDown = (event: KeyboardEvent) => {
+        const message = hotkeyMessage(event)
+        if (message === undefined) return
+        event.preventDefault()
+        event.stopPropagation()
+        Queue.offerUnsafe(queue, message)
+      }
+      window.addEventListener("keydown", onKeyDown, true)
+      return onKeyDown
+    }),
+    (onKeyDown) => Effect.sync(() => window.removeEventListener("keydown", onKeyDown, true)),
+  ),
+)
 
 const tickStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
   Effect.acquireRelease(
@@ -78,6 +149,13 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
     {
       modelToDependencies: (model) => ({ active: model.active }),
       dependenciesToStream: ({ active }) => (active === undefined ? Stream.empty : resizeStream),
+    },
+  ),
+  hotkeys: entry(
+    { enabled: S.Boolean },
+    {
+      modelToDependencies: (model) => ({ enabled: model.procs.length > 0 }),
+      dependenciesToStream: ({ enabled }) => (enabled ? hotkeyStream : Stream.empty),
     },
   ),
   // Uptime clock — only ticks while something is actually running.

@@ -12,6 +12,13 @@ export const Model = S.Struct({
    */
   mounted: S.Array(S.String),
   error: S.UndefinedOr(S.String),
+  /** Log search query; undefined means the search box is closed. */
+  search: S.UndefinedOr(S.String),
+  /**
+   * Per-proc count of error-looking log lines that arrived while another pane
+   * was visible. Cleared the moment the proc is selected.
+   */
+  unread: S.Record(S.String, S.Number),
   /** Wall clock driving the uptime display; advanced by Ticked. */
   now: S.Number,
 })
