@@ -1,3 +1,9 @@
 node_modules/
+packages/procdeck/dist/
 packages/procdeck/ui/dist/
+# Copied from the repo root at build time so npm ships them with the package.
+packages/procdeck/readme.md
+packages/procdeck/license
 .DS_Store
+packages/procdeck/schema.json
+packages/procdeck/tests/.tmp-deck-*

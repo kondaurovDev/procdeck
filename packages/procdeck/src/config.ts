@@ -1,87 +1,141 @@
+import { existsSync } from "node:fs"
+import { readFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
 import * as path from "node:path"
 import { Effect, Schema } from "effect"
 
 /**
- * A single supervised process.
+ * The config schema, and the loader for the two file formats it accepts.
  *
- * Exactly one of `shell` / `cmd` is used: `shell` goes through `sh -c` (pipes,
- * `&&`, globs work, at the cost of one extra process in the tree), `cmd` is an
- * argv array executed directly.
+ * Every user-facing sentence lives in a `description` annotation rather than a
+ * JSDoc comment: `scripts/gen-schema.ts` turns this schema into the published
+ * `schema.json`, so a JSON config gets the same prose as editor tooltips, from
+ * a single source that cannot drift.
  */
+
+const isRegex = Schema.makeFilter((pattern: string) => {
+  try {
+    new RegExp(pattern)
+    return undefined
+  } catch {
+    return "expected a valid regular expression"
+  }
+})
+
 /**
- * A gate that must pass before the process spawns — e.g. `wrangler whoami`
- * before a proc whose tree needs a Cloudflare token. Keeps interactive
- * auth flows out of supervised panes, where a restart would kill their
- * callback servers mid-handshake.
+ * Annotations go on the schema *before* its checks: a description attached
+ * afterwards lands inside the JSON Schema's `allOf`, where editors don't look
+ * for it. Same reason the length-checked fields below are built in that order.
  */
-const regexSource = Schema.String.pipe(
-  Schema.check(
-    Schema.makeFilter((pattern: string) => {
-      try {
-        new RegExp(pattern)
-        return undefined
-      } catch {
-        return "expected a valid regular expression"
-      }
-    }),
-  ),
-)
+const regexSource = (annotations: { description: string; examples: Array<string> }) =>
+  Schema.String.annotate(annotations).pipe(Schema.check(isRegex))
 
 export const PreflightSchema = Schema.Struct({
-  /** Shell command; exit 0 lets the proc spawn. */
-  shell: Schema.String.pipe(Schema.check(Schema.isMinLength(1))),
-  /**
-   * Regex that must also match the check's output. For checks that exit 0
-   * either way — `wrangler whoami` reports "not authenticated" with exit 0 —
-   * so the config doesn't need `| grep` pipelines.
-   */
-  expect: Schema.optionalKey(regexSource),
-  /** What the human should do when the check fails. */
-  hint: Schema.optionalKey(Schema.String),
+  shell: Schema.String.annotate({
+    description: "Shell command; exit 0 lets the proc spawn.",
+    examples: ["wrangler whoami"],
+  }).pipe(Schema.check(Schema.isMinLength(1))),
+  expect: Schema.optionalKey(
+    regexSource({
+      description:
+        "Regex the check's output must also match. For checks that exit 0 either way — `wrangler whoami` reports \"not authenticated\" with exit 0 — so the config needs no `| grep` pipelines.",
+      examples: ["You are logged in"],
+    }),
+  ),
+  hint: Schema.optionalKey(
+    Schema.String.annotate({
+      description: "What the human should do when the check fails; shown on the blocked pane.",
+      examples: ["run `wrangler login`, then Start"],
+    }),
+  ),
+}).annotate({
+  description:
+    "A gate that must pass before the process spawns — e.g. `wrangler whoami` before a proc whose tree needs a Cloudflare token. Keeps interactive auth flows out of supervised panes, where a restart would kill their callback servers mid-handshake.",
 })
 
 export type Preflight = typeof PreflightSchema.Type
 
-/** A regex watched in the pane output; a match raises a badge in the UI. */
 export const AlertSchema = Schema.Struct({
-  pattern: regexSource,
-  /** Badge text. */
-  label: Schema.String.pipe(Schema.check(Schema.isMinLength(1))),
+  pattern: regexSource({
+    description: "Regex matched against a rolling tail of the pane's output.",
+    examples: ["ERROR", "not authenticated"],
+  }),
+  label: Schema.String.annotate({
+    description: "Badge text shown in the UI when the pattern matches.",
+    examples: ["needs login"],
+  }).pipe(Schema.check(Schema.isMinLength(1))),
+}).annotate({
+  description: "A regex watched in the pane output; a match raises a badge in the UI.",
 })
 
 export type Alert = typeof AlertSchema.Type
 
 export const ProcSpecSchema = Schema.Struct({
-  /** Stable identifier, also the tab label. */
-  id: Schema.String.pipe(Schema.check(Schema.isMinLength(1))),
-  /** Command line handed to `$SHELL -c`. */
-  shell: Schema.optionalKey(Schema.String),
-  /** argv, executed without a shell. */
-  cmd: Schema.optionalKey(Schema.Array(Schema.String).pipe(Schema.check(Schema.isMinLength(1)))),
-  /** Working directory; defaults to the config file's directory. */
-  cwd: Schema.optionalKey(Schema.String),
-  /** Extra environment on top of the inherited one. */
-  env: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
-  /** Spawn on startup. Defaults to true. */
-  autostart: Schema.optionalKey(Schema.Boolean),
-  /** URL this process serves, shown in the UI as a link. */
-  url: Schema.optionalKey(Schema.String),
-  /**
-   * Names of procs that must be ready before this one spawns. Declarative:
-   * readiness is auto-detected, no port numbers in the config.
-   */
-  needs: Schema.optionalKey(Schema.Array(Schema.String)),
-  /**
-   * What "ready" means for dependents: "listening" (default) — the process
-   * tree opened a TCP port; "started" — it merely spawned (for procs that
-   * never listen).
-   */
-  readyWhen: Schema.optionalKey(Schema.Literals(["listening", "started"])),
-  /** Check that must pass before this proc spawns; failure shows as "blocked". */
+  id: Schema.String.annotate({
+    description:
+      "Stable identifier: the pane label, and the proxy subdomain (`api` → http://api.localhost:4820).",
+    examples: ["api", "web"],
+  }).pipe(Schema.check(Schema.isMinLength(1))),
+  shell: Schema.optionalKey(
+    Schema.String.annotate({
+      description:
+        "Command line handed to `$SHELL -c` — pipes, `&&` and globs work. Exactly one of `shell` or `cmd` must be set.",
+      examples: ["pnpm --filter api dev"],
+    }),
+  ),
+  cmd: Schema.optionalKey(
+    Schema.Array(Schema.String)
+      .annotate({
+        description:
+          "argv, executed directly without a shell. Exactly one of `shell` or `cmd` must be set.",
+        examples: [["node", "server.js"]],
+      })
+      .pipe(Schema.check(Schema.isMinLength(1))),
+  ),
+  cwd: Schema.optionalKey(
+    Schema.String.annotate({
+      description: "Working directory; defaults to the config file's directory.",
+      examples: ["packages/api"],
+    }),
+  ),
+  env: Schema.optionalKey(
+    Schema.Record(Schema.String, Schema.String).annotate({
+      description:
+        "Extra environment on top of the inherited one. Values may use `${port}` / `${port:other}` templates.",
+      examples: [{ PORT: "${port}", API_URL: "http://localhost:${port:api}" }],
+    }),
+  ),
+  autostart: Schema.optionalKey(
+    Schema.Boolean.annotate({
+      description: "Spawn on startup. Defaults to true; false leaves the pane idle until Start.",
+    }),
+  ),
+  url: Schema.optionalKey(
+    Schema.String.annotate({
+      description:
+        "URL this process serves, shown in the UI as a link. Also pins readiness to that URL's port.",
+      examples: ["http://localhost:${port}"],
+    }),
+  ),
+  needs: Schema.optionalKey(
+    Schema.Array(Schema.String).annotate({
+      description:
+        "Ids of procs that must be ready before this one spawns. Declarative: readiness is auto-detected, no port numbers in the config.",
+      examples: [["api"]],
+    }),
+  ),
+  readyWhen: Schema.optionalKey(
+    Schema.Literals(["listening", "started"]).annotate({
+      description:
+        'What "ready" means for dependents: "listening" (default) — the process tree opened a TCP port; "started" — it merely spawned, for procs that never listen.',
+    }),
+  ),
   preflight: Schema.optionalKey(PreflightSchema),
-  /** Output patterns that raise a badge when they appear in the pane. */
-  alerts: Schema.optionalKey(Schema.Array(AlertSchema)),
+  alerts: Schema.optionalKey(
+    Schema.Array(AlertSchema).annotate({
+      description: "Output patterns that raise a badge when they appear in the pane.",
+    }),
+  ),
 }).pipe(
   Schema.check(
     Schema.makeFilter((spec: { shell?: string; cmd?: ReadonlyArray<string> }) =>
@@ -90,7 +144,10 @@ export const ProcSpecSchema = Schema.Struct({
         : undefined,
     ),
   ),
-)
+).annotate({
+  description:
+    "A single supervised process. Exactly one of `shell` / `cmd` is used: `shell` goes through `sh -c` (pipes, `&&`, globs work, at the cost of one extra process in the tree), `cmd` is an argv array executed directly.",
+})
 
 export type ProcSpec = typeof ProcSpecSchema.Type
 
@@ -194,14 +251,30 @@ const validatePortTemplates = (procs: ReadonlyArray<ProcSpec>): string | undefin
 }
 
 export const ProcdeckConfigSchema = Schema.Struct({
-  /**
-   * Deck name — the tab title and the name of the installed web app.
-   * Defaults to the config directory's basename.
-   */
-  name: Schema.optionalKey(Schema.String),
-  /** Port for the web UI. Defaults to 4820. */
-  port: Schema.optionalKey(Schema.Number),
-  procs: Schema.Array(ProcSpecSchema),
+  // JSON configs point at the published schema for editor completion; the key
+  // is meaningless at runtime but must be accepted, because Struct is exact.
+  $schema: Schema.optionalKey(
+    Schema.String.annotate({
+      description: "URL of the procdeck JSON schema, for editor completion and validation.",
+      examples: ["https://unpkg.com/procdeck/schema.json"],
+    }),
+  ),
+  name: Schema.optionalKey(
+    Schema.String.annotate({
+      description:
+        "Deck name — the tab title and the name of the installed web app. Defaults to the config directory's basename.",
+      examples: ["my-app"],
+    }),
+  ),
+  port: Schema.optionalKey(
+    Schema.Number.annotate({
+      description: "Port for the web UI and the `*.localhost` proxy. Defaults to 4820.",
+      examples: [4820],
+    }).pipe(Schema.check(Schema.isInt(), Schema.isBetween({ minimum: 1, maximum: 65535 }))),
+  ),
+  procs: Schema.Array(ProcSpecSchema).annotate({
+    description: "The processes this deck supervises.",
+  }),
 }).pipe(
   Schema.check(
     Schema.makeFilter(
@@ -209,7 +282,9 @@ export const ProcdeckConfigSchema = Schema.Struct({
         validateGraph(config.procs) ?? validatePortTemplates(config.procs),
     ),
   ),
-)
+).annotate({
+  description: "A procdeck deck: the web UI's settings and the processes it supervises.",
+})
 
 export type ProcdeckConfig = typeof ProcdeckConfigSchema.Type
 
@@ -229,14 +304,46 @@ export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError"
   message: Schema.String,
 }) {}
 
+/**
+ * Config file names the CLI looks for when started without an argument, in
+ * order. JSON comes first because it needs nothing from the toolchain: no
+ * TypeScript, and no procdeck in the project's dependencies.
+ */
+export const CONFIG_FILENAMES = [
+  "procdeck.config.json",
+  "procdeck.config.ts",
+  "procdeck.config.js",
+  "procdeck.config.mjs",
+] as const
+
+/** The first config file present in `dir`, if any. */
+export const discoverConfig = (dir: string): string | undefined =>
+  CONFIG_FILENAMES.map((name) => path.join(dir, name)).find((candidate) => existsSync(candidate))
+
+/**
+ * JSON is parsed; everything else is imported as a module and must default-export
+ * the deck. Node strips the types of a `.ts` config itself — that, and nothing
+ * else, is why procdeck asks for Node ≥ 22.18.
+ */
+const readSource = async (absolute: string): Promise<unknown> => {
+  if (path.extname(absolute) === ".json") {
+    return JSON.parse(await readFile(absolute, "utf8")) as unknown
+  }
+  const module = (await import(pathToFileURL(absolute).href)) as { default?: unknown }
+  return module.default
+}
+
 export const loadConfig = Effect.fn("procdeck.loadConfig")(function* (file: string) {
   const absolute = path.resolve(file)
-  const module = yield* Effect.tryPromise({
-    try: () => import(pathToFileURL(absolute).href) as Promise<{ default?: unknown }>,
+  if (!existsSync(absolute)) {
+    return yield* new ConfigError({ file: absolute, message: "config file not found" })
+  }
+  const source = yield* Effect.tryPromise({
+    try: () => readSource(absolute),
     catch: (cause) => new ConfigError({ file: absolute, message: String(cause) }),
   })
   const config = yield* Effect.try({
-    try: () => Schema.decodeUnknownSync(ProcdeckConfigSchema)(module.default),
+    try: () => Schema.decodeUnknownSync(ProcdeckConfigSchema)(source),
     catch: (cause) => new ConfigError({ file: absolute, message: String(cause) }),
   })
   const root = path.dirname(absolute)

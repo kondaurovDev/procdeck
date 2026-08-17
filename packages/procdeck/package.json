@@ -2,16 +2,58 @@
   "name": "procdeck",
   "version": "0.1.0",
   "description": "Interactive dev-process multiplexer with a web UI: terminal panes in a browser tab, declarative dependencies, assigned ports and a *.localhost reverse proxy.",
+  "keywords": [
+    "cli",
+    "dev-server",
+    "multiplexer",
+    "process-manager",
+    "pty",
+    "reverse-proxy",
+    "terminal",
+    "xterm"
+  ],
+  "homepage": "https://github.com/kondaurovDev/procdeck",
+  "bugs": "https://github.com/kondaurovDev/procdeck/issues",
+  "license": "MIT",
+  "author": {
+    "name": "Aleksandr Kondaurov",
+    "email": "kondaurov.dev@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kondaurovDev/procdeck",
+    "directory": "packages/procdeck"
+  },
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "schema.json",
+    "ui/dist"
+  ],
   "bin": {
-    "procdeck": "./src/cli.ts"
+    "procdeck": "./dist/cli.js"
   },
   "exports": {
-    ".": "./src/config.ts"
+    ".": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "ui:dev": "vite ui",
-    "build": "vite build ui",
+    "prepublishOnly": "pnpm run build",
+    "build": "pnpm run build:meta && pnpm run build:schema && pnpm run build:ui && pnpm run build:js && pnpm run build:types",
+    "build:meta": "cp ../../readme.md ../../license .",
+    "build:schema": "node scripts/gen-schema.ts",
+    "build:ui": "vite build ui",
+    "build:js": "tsup",
+    "build:types": "tsc -p tsconfig.build.json",
     "check:types": "tsc --noEmit && tsc -p ui --noEmit",
     "test": "vitest run"
   },
@@ -26,6 +68,7 @@
     "@xterm/addon-search": "^0.16.0",
     "@xterm/xterm": "^6.0.0",
     "foldkit": "^0.141.2",
+    "tsup": "^8.5.1",
     "typescript": "^7.0.2",
     "vite": "^6.2.0",
     "vitest": "^3.2.4"

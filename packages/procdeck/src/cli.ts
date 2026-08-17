@@ -1,10 +1,16 @@
 #!/usr/bin/env node
 import { Effect, Fiber } from "effect"
-import { DEFAULT_UI_PORT, loadConfig } from "./config.ts"
+import { CONFIG_FILENAMES, DEFAULT_UI_PORT, discoverConfig, loadConfig } from "./config.ts"
 import { makeSupervisor } from "./supervisor.ts"
 import { serve } from "./server.ts"
 
-const configPath = process.argv[2] ?? "procdeck.config.ts"
+// Without an argument, take whichever config file the directory has.
+const configPath = process.argv[2] ?? discoverConfig(process.cwd())
+
+if (configPath === undefined) {
+  console.error(`procdeck: no config file here — expected one of ${CONFIG_FILENAMES.join(", ")}`)
+  process.exit(1)
+}
 
 const main = Effect.gen(function* () {
   const loaded = yield* loadConfig(configPath)

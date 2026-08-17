@@ -28,7 +28,7 @@ const MIME: Record<string, string> = {
   ".woff2": "font/woff2",
 }
 
-const NO_DIST = "procdeck UI is not built — run `pnpm --filter @tools/procdeck build` first."
+const NO_DIST = "procdeck UI is not built — run `pnpm --filter procdeck build` first."
 
 const serveStatic = (pathname: string) =>
   Effect.gen(function* () {

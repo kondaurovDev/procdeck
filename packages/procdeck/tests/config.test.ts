@@ -1,6 +1,14 @@
-import { describe, expect, test } from "vitest"
-import { Schema } from "effect"
-import { ProcdeckConfigSchema, resolveSpec, usesOwnPort } from "../src/config.ts"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import * as path from "node:path"
+import { afterAll, describe, expect, test } from "vitest"
+import { Effect, Schema } from "effect"
+import {
+  discoverConfig,
+  loadConfig,
+  ProcdeckConfigSchema,
+  resolveSpec,
+  usesOwnPort,
+} from "../src/config.ts"
 
 const decode = Schema.decodeUnknownSync(ProcdeckConfigSchema)
 
@@ -136,5 +144,99 @@ describe("resolveSpec", () => {
   test("leaves unresolvable templates untouched", () => {
     const spec = decode({ procs: [{ id: "a", shell: "x ${port}" }] }).procs[0]!
     expect(resolveSpec(spec, new Map()).shell).toBe("x ${port}")
+  })
+})
+
+// Temp decks live next to the tests, not in the OS temp dir: loading a `.mjs`
+// config goes through vite-node here, which only serves files under the project
+// root.
+const scratch: Array<string> = []
+const dir = (): string => {
+  const created = mkdtempSync(path.join(import.meta.dirname, ".tmp-deck-"))
+  scratch.push(created)
+  return created
+}
+const deck = (root: string, file: string, contents: string): string => {
+  const target = path.join(root, file)
+  writeFileSync(target, contents)
+  return target
+}
+
+afterAll(() => {
+  for (const created of scratch) rmSync(created, { recursive: true, force: true })
+})
+
+describe("loadConfig", () => {
+
+  test("loads a JSON config, ignoring the $schema key", async () => {
+    const file = deck(
+      dir(),
+      "procdeck.config.json",
+      JSON.stringify({
+        $schema: "https://unpkg.com/procdeck/schema.json",
+        name: "json-deck",
+        procs: [{ id: "api", shell: "serve --port ${port}" }],
+      }),
+    )
+    const loaded = await Effect.runPromise(loadConfig(file))
+    expect(loaded.name).toBe("json-deck")
+    expect(loaded.config.procs).toHaveLength(1)
+  })
+
+  test("a JSON config is validated by the same rules as a TS one", async () => {
+    const file = deck(
+      dir(),
+      "procdeck.config.json",
+      JSON.stringify({ procs: [{ id: "web", shell: "web", needs: ["ghost"] }] }),
+    )
+    await expect(Effect.runPromise(loadConfig(file))).rejects.toThrow(/unknown proc/)
+  })
+
+  test("reports malformed JSON against the file, not as a crash", async () => {
+    const file = deck(dir(), "procdeck.config.json", "{ procs: [ }")
+    await expect(Effect.runPromise(loadConfig(file))).rejects.toThrow()
+  })
+
+  test("loads a JS config through its default export", async () => {
+    const file = deck(
+      dir(),
+      "procdeck.config.mjs",
+      'export default { name: "mjs-deck", procs: [{ id: "a", shell: "x" }] }\n',
+    )
+    const loaded = await Effect.runPromise(loadConfig(file))
+    expect(loaded.name).toBe("mjs-deck")
+  })
+
+  test("names the deck after its directory when the config does not", async () => {
+    const root = dir()
+    const file = deck(root, "procdeck.config.json", JSON.stringify({ procs: [] }))
+    const loaded = await Effect.runPromise(loadConfig(file))
+    expect(loaded.name).toBe(path.basename(root))
+    expect(loaded.root).toBe(root)
+  })
+
+  test("fails with a plain message when the file is missing", async () => {
+    await expect(
+      Effect.runPromise(loadConfig(path.join(dir(), "procdeck.config.json"))),
+    ).rejects.toThrow(/not found/)
+  })
+})
+
+describe("discoverConfig", () => {
+  test("prefers JSON over TypeScript", () => {
+    const root = dir()
+    writeFileSync(path.join(root, "procdeck.config.ts"), "export default {}")
+    writeFileSync(path.join(root, "procdeck.config.json"), "{}")
+    expect(discoverConfig(root)).toBe(path.join(root, "procdeck.config.json"))
+  })
+
+  test("finds a TypeScript config when there is no JSON one", () => {
+    const root = dir()
+    writeFileSync(path.join(root, "procdeck.config.ts"), "export default {}")
+    expect(discoverConfig(root)).toBe(path.join(root, "procdeck.config.ts"))
+  })
+
+  test("returns undefined when the directory has no config", () => {
+    expect(discoverConfig(dir())).toBeUndefined()
   })
 })

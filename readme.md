@@ -54,7 +54,27 @@ which port is which**.
   Add to Dock in Safari — gives each project its own window and Dock icon. Works over
   plain `http://localhost`, no HTTPS needed.
 
-## Try it
+## Install
+
+Nothing to install, if you don't want to — write a `procdeck.config.json` (see
+[Config](#config)) and run:
+
+```sh
+npx procdeck                      # picks up ./procdeck.config.json
+npx procdeck decks/backend.json   # or point it at any config file
+```
+
+Open <http://localhost:4820> for the panes. Requires **Node ≥ 22**.
+
+Or add it to the project, which is what you want if you keep the config in TypeScript:
+
+```sh
+pnpm add -D procdeck      # npm i -D procdeck · bun add -d procdeck
+```
+
+## Try the example
+
+In a clone of this repo:
 
 ```sh
 pnpm install
@@ -76,7 +96,31 @@ ports) entirely through `${port}` templates. See [`example/`](example/).
 
 ## Config
 
-`procdeck.config.ts` — a TypeScript file, validated by an Effect schema:
+Two formats, one schema. **JSON** needs nothing from your toolchain — no TypeScript, and
+procdeck itself doesn't have to be a dependency. Point `$schema` at the published schema
+and the editor completes and validates every field:
+
+```jsonc
+{
+  "$schema": "https://unpkg.com/procdeck/schema.json",
+  "port": 4820,
+  "procs": [
+    { "id": "api", "shell": "pnpm --filter api dev", "env": { "PORT": "${port}" } },
+    {
+      "id": "web",
+      "shell": "pnpm --filter web dev",
+      "env": { "PORT": "${port}", "API_URL": "http://localhost:${port:api}" },
+      "needs": ["api"]
+    }
+  ]
+}
+```
+
+(Installed locally, `"./node_modules/procdeck/schema.json"` works too and needs no
+network.)
+
+**TypeScript** buys comments and computed configs, at the price of Node ≥ 22.18 (native
+type stripping) and procdeck in your dependencies:
 
 ```ts
 import { defineConfig } from "procdeck"
@@ -111,7 +155,9 @@ export default defineConfig({
 ```
 
 Full field reference: [`packages/procdeck/src/config.ts`](packages/procdeck/src/config.ts)
-(the schema is the documentation).
+(the schema is the documentation — `schema.json` is generated from it at build time, so
+the two formats validate identically). Config files are looked up in this order when no
+path is given: `procdeck.config.json`, `.ts`, `.js`, `.mjs`.
 
 Tips:
 
