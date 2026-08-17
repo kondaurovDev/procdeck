@@ -123,6 +123,11 @@ const routes = (supervisor: Supervisor) =>
  * implementation detail. Browsers hardcode `*.localhost` → 127.0.0.1, so no
  * /etc/hosts changes are needed. The Host header is rewritten to
  * `localhost:<port>` so dev servers with host allowlists (vite) stay happy.
+ *
+ * Upstream is dialed as `localhost` with `autoSelectFamily`, not a literal
+ * `127.0.0.1`: dev servers bound with `listen(port, "localhost")` on modern
+ * Node often end up on `[::1]` only, and a v4-only dial gets ECONNREFUSED
+ * while the browser (which tries both families) works fine.
  */
 const hostProcId = (host: string | undefined): string | undefined => {
   if (host === undefined) return undefined
@@ -131,8 +136,9 @@ const hostProcId = (host: string | undefined): string | undefined => {
 }
 
 const upstreamOptions = (req: IncomingMessage, port: number) => ({
-  host: "127.0.0.1",
+  host: "localhost",
   port,
+  autoSelectFamily: true,
   method: req.method,
   path: req.url,
   headers: { ...req.headers, host: `localhost:${port}` },
