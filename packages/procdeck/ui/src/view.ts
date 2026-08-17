@@ -3,15 +3,16 @@ import type { Document, Html, HtmlBuilder } from "foldkit/html"
 import type { Message } from "./message.ts"
 import {
   ChangedSearch,
-  ClickedClear,
+  ChoseLayout,
+  ClickedPaneAction,
   ClickedProc,
-  ClickedRestart,
-  ClickedStart,
-  ClickedStop,
+  ClickedRestartAll,
+  ClickedStopAll,
   ClosedSearch,
   SteppedSearch,
+  ZoomedProc,
 } from "./message.ts"
-import type { Model } from "./model.ts"
+import type { Layout, Model } from "./model.ts"
 import type { ProcInfo, ProcStatus } from "./schema.ts"
 import { MountTerminal } from "./terminal.ts"
 
@@ -70,6 +71,19 @@ const describeStatus = (status: ProcStatus): string => {
   return status.alert === undefined ? base : `${base} · ⚠ ${status.alert}`
 }
 
+/** Alert + unread-error badges, shared by the sidebar row and the grid tile. */
+const badges = (info: ProcInfo, unread: number, h: HtmlBuilder<Message>): Array<Html> => [
+  ...(info.status.alert === undefined ? [] : [h.span([h.Class("badge")], [info.status.alert])]),
+  ...(unread === 0
+    ? []
+    : [
+        h.span(
+          [h.Class("badge err"), h.Title("errors in the log since you last looked")],
+          [unread > 99 ? "99+" : String(unread)],
+        ),
+      ]),
+]
+
 const procRow = (
   info: ProcInfo,
   isActive: boolean,
@@ -98,23 +112,7 @@ const procRow = (
       h.div(
         [h.Class("proc-body")],
         [
-          h.div(
-            [h.Class("name")],
-            [
-              info.id,
-              ...(info.status.alert === undefined
-                ? []
-                : [h.span([h.Class("badge")], [info.status.alert])]),
-              ...(unread === 0
-                ? []
-                : [
-                    h.span(
-                      [h.Class("badge err"), h.Title("errors in the log since you last looked")],
-                      [unread > 99 ? "99+" : String(unread)],
-                    ),
-                  ]),
-            ],
-          ),
+          h.div([h.Class("name")], [info.id, ...badges(info, unread, h)]),
           h.div([h.Class("cmd")], [info.command]),
           ...(sub.length === 0 ? [] : [h.div([h.Class("sub")], sub)]),
         ],
@@ -123,20 +121,105 @@ const procRow = (
   )
 }
 
+/** Restart / Stop-or-Start / Clear for one pane, as compact icon buttons. */
+const paneActions = (info: ProcInfo, h: HtmlBuilder<Message>): Html => {
+  const { state } = info.status
+  const idle = state === "stopped" || state === "exited" || state === "blocked"
+  const busy = state === "running" || state === "starting"
+  const action = (action: "start" | "stop" | "restart" | "clear") =>
+    ClickedPaneAction({ id: info.id, action })
+  return h.span(
+    [h.Class("pane-actions")],
+    [
+      h.button(
+        [h.Disabled(!busy), h.Title("restart (⌥R)"), h.OnClick(action("restart"))],
+        ["↻"],
+      ),
+      // For "waiting" Stop means "cancel waiting for deps" — keep it enabled.
+      idle
+        ? h.button([h.Title("start (⌥S)"), h.OnClick(action("start"))], ["▶"])
+        : h.button([h.Title("stop (⌥S)"), h.OnClick(action("stop"))], ["■"]),
+      h.button([h.Title("clear (⌘K)"), h.OnClick(action("clear"))], ["⌫"]),
+    ],
+  )
+}
+
+/**
+ * One pane in the main area: a header (dot, id, badges, addresses, status,
+ * controls) over its terminal. The same element serves both layouts, so the
+ * terminal element keeps its position under the wrapper across switches (a
+ * re-created element would remount xterm and lose the scrollback).
+ */
+const tile = (info: ProcInfo, model: Model, h: HtmlBuilder<Message>): Html => {
+  const isActive = info.id === model.active
+  return h.div(
+    [
+      h.Key(info.id),
+      h.Class(isActive ? "tile active" : "tile"),
+      h.Hidden(model.layout === "single" && !isActive),
+      h.OnClick(ClickedProc({ id: info.id })),
+    ],
+    [
+      // Double-click zooms only from the header: inside xterm it selects a word.
+      h.div(
+        [
+          h.Class("tile-head"),
+          h.Title(model.layout === "grid" ? "double-click to zoom" : ""),
+          h.OnDoubleClick(ZoomedProc({ id: info.id })),
+        ],
+        [
+          h.span([h.Class(`dot ${info.status.state}`)], []),
+          h.span([h.Class("name")], [info.id, ...badges(info, model.unread[info.id] ?? 0, h)]),
+          h.span([h.Class("links")], paneLinks(info, h)),
+          h.span([h.Class("meta")], [describeStatus(info.status)]),
+          paneActions(info, h),
+        ],
+      ),
+      h.div([h.Class("term"), h.OnMount(MountTerminal({ id: info.id }))], []),
+    ],
+  )
+}
+
+const LAYOUT_OPTIONS: ReadonlyArray<{ layout: Layout; label: string; hint: string }> = [
+  { layout: "single", label: "▣", hint: "single pane" },
+  { layout: "grid", label: "⊞", hint: "grid — all panes tiled" },
+]
+
+const layoutSwitch = (model: Model, h: HtmlBuilder<Message>): Html =>
+  h.span(
+    [h.Class("segmented")],
+    LAYOUT_OPTIONS.map(({ layout, label, hint }) =>
+      h.button(
+        [
+          h.Class(model.layout === layout ? "on" : ""),
+          h.Title(`${hint} (⌥G)`),
+          h.OnClick(ChoseLayout({ layout })),
+        ],
+        [label],
+      ),
+    ),
+  )
+
+/**
+ * The address a human opens for this pane: the stable subdomain once there is
+ * anything to proxy to, else the declared url, else nothing.
+ */
+const primaryUrl = (info: ProcInfo): string | undefined =>
+  info.proxyUrl !== undefined && (info.url !== undefined || usefulPorts(info).length > 0)
+    ? info.proxyUrl
+    : info.url
+
+const bareUrl = (url: string): string => url.replace(/^https?:\/\//, "")
+
 const paneLinks = (info: ProcInfo, h: HtmlBuilder<Message>): Array<Html> => {
   const links: Array<Html> = []
   const link = (href: string, label: string) =>
     h.a([h.Href(href), h.Target("_blank"), h.Class("port")], [label])
-  const ports = usefulPorts(info)
-  // The stable subdomain address is the primary link once there is anything to
-  // proxy to; the raw ports stay available as chips for scripts and curl.
-  const proxyable = info.url !== undefined || ports.length > 0
-  if (info.proxyUrl !== undefined && proxyable) {
-    links.push(link(info.proxyUrl, info.proxyUrl.replace(/^https?:\/\//, "")))
-  } else if (info.url !== undefined) {
-    links.push(link(info.url, info.url.replace(/^https?:\/\//, "")))
-  }
-  for (const port of ports) {
+  // The primary address first; the raw ports stay available as chips for
+  // scripts and curl.
+  const primary = primaryUrl(info)
+  if (primary !== undefined) links.push(link(primary, bareUrl(primary)))
+  for (const port of usefulPorts(info)) {
     links.push(link(portHref(info, port), `:${port}`))
   }
   // Inspector/ephemeral machinery — collapsed into a hoverable count.
@@ -152,32 +235,19 @@ const paneLinks = (info: ProcInfo, h: HtmlBuilder<Message>): Array<Html> => {
   return links
 }
 
-const header = (model: Model, h: HtmlBuilder<Message>): Html => {
-  const active = model.procs.find((info) => info.id === model.active)
-  const state = active?.status.state
-  const idle = state === "stopped" || state === "exited" || state === "blocked"
-  const busy = state === "running" || state === "starting"
-
+/**
+ * The global bar: brand, layout switch, log search, deck-wide actions. Nothing
+ * here is about one pane — per-pane controls live in the pane header.
+ */
+const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
+  const anyBusy = model.procs.some(
+    (info) => info.status.state !== "stopped" && info.status.state !== "exited",
+  )
   return h.header(
     [],
     [
-      h.button(
-        [h.Disabled(active === undefined || !busy), h.Title("⌥R"), h.OnClick(ClickedRestart())],
-        ["Restart"],
-      ),
-      // For "waiting" Stop means "cancel waiting for deps" — keep it enabled.
-      h.button(
-        [h.Disabled(active === undefined || idle), h.Title("⌥S"), h.OnClick(ClickedStop())],
-        ["Stop"],
-      ),
-      h.button(
-        [h.Disabled(active === undefined || !idle), h.Title("⌥S"), h.OnClick(ClickedStart())],
-        ["Start"],
-      ),
-      h.button(
-        [h.Disabled(active === undefined), h.Title("⌘K"), h.OnClick(ClickedClear())],
-        ["Clear"],
-      ),
+      h.h1([], ["procdeck"]),
+      layoutSwitch(model, h),
       ...(model.search === undefined
         ? []
         : [
@@ -200,15 +270,22 @@ const header = (model: Model, h: HtmlBuilder<Message>): Html => {
               ],
             ),
           ]),
-      h.span([h.Class("links")], active === undefined ? [] : paneLinks(active, h)),
+      ...(model.error === undefined ? [] : [h.span([h.Class("meta error")], [model.error])]),
       h.span(
-        [h.Class("meta")],
+        [h.Class("deck-actions")],
         [
-          model.error !== undefined
-            ? model.error
-            : active === undefined
-              ? ""
-              : describeStatus(active.status),
+          h.button(
+            [
+              h.Disabled(model.procs.length === 0),
+              h.Title("restart every proc (stopped ones start)"),
+              h.OnClick(ClickedRestartAll()),
+            ],
+            ["↻ all"],
+          ),
+          h.button(
+            [h.Disabled(!anyBusy), h.Title("stop every proc"), h.OnClick(ClickedStopAll())],
+            ["■ all"],
+          ),
         ],
       ),
     ],
@@ -218,12 +295,12 @@ const header = (model: Model, h: HtmlBuilder<Message>): Html => {
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: "procdeck",
   body: h.div(
-    [h.Class("layout")],
+    [h.Class(`layout ${model.layout}`)],
     [
+      globalBar(model, h),
       h.aside(
         [],
         [
-          h.h1([], ["procdeck"]),
           h.div(
             [],
             model.procs.map((info) =>
@@ -232,27 +309,16 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
           ),
           h.div(
             [h.Class("hints")],
-            ["⌥↑↓ switch · ⌥R restart · ⌥S stop/start · ⌘K clear · ⌘F find"],
+            ["⌥↑↓ switch · ⌥R restart · ⌥S stop/start · ⌥G layout · ⌘K clear · ⌘F find"],
           ),
         ],
       ),
       h.main(
         [],
         [
-          header(model, h),
           h.div(
-            [h.Class("terminals")],
-            model.procs.map((info) =>
-              h.div(
-                [
-                  h.Key(info.id),
-                  h.Class("term"),
-                  h.Hidden(info.id !== model.active),
-                  h.OnMount(MountTerminal({ id: info.id })),
-                ],
-                [],
-              ),
-            ),
+            [h.Class(`terminals ${model.layout}`)],
+            model.procs.map((info) => tile(info, model, h)),
           ),
         ],
       ),

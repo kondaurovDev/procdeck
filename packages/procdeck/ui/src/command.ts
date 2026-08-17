@@ -114,23 +114,34 @@ export const FocusSearch = Command.define("FocusSearch", {
   ),
 })
 
+const nextFrame = Effect.promise(
+  () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+)
+
 /**
- * Fit the pane's terminal to its container, then tell the PTY the new size.
- * Only ever called for the visible pane — xterm cannot measure a hidden one.
+ * Fit the given panes' terminals to their containers, then tell each PTY its
+ * new size; `focus` names the one that should own the keyboard afterwards.
+ * Only ever called for visible panes — xterm cannot measure a hidden one.
+ * Waits a frame first: a layout switch or pane change is still being patched
+ * into the DOM when the Command runs, and fitting against the old boxes
+ * would size the terminals for the layout that just went away.
  */
-export const FitTerminal = Command.define("FitTerminal", {
-  args: { id: S.String },
+export const FitTerminals = Command.define("FitTerminals", {
+  args: { ids: S.Array(S.String), focus: S.UndefinedOr(S.String) },
   messages: [CompletedRequest],
-  execute: ({ id }) =>
+  execute: ({ ids, focus }) =>
     Effect.gen(function* () {
-      const entry = registry.get(id)
-      if (entry === undefined) return CompletedRequest()
-      entry.fit.fit()
-      entry.term.focus()
-      yield* postJson(`/procs/${encodeURIComponent(id)}/resize`, {
-        cols: entry.term.cols,
-        rows: entry.term.rows,
-      }).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      yield* nextFrame
+      for (const id of ids) {
+        const entry = registry.get(id)
+        if (entry === undefined) continue
+        entry.fit.fit()
+        yield* postJson(`/procs/${encodeURIComponent(id)}/resize`, {
+          cols: entry.term.cols,
+          rows: entry.term.rows,
+        }).pipe(Effect.catch(() => Effect.succeed(undefined)))
+      }
+      if (focus !== undefined) registry.get(focus)?.term.focus()
       return CompletedRequest()
     }),
 })

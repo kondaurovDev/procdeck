@@ -47,6 +47,8 @@ which port is which**.
 - **Whole-tree restarts.** `pnpm` → `wrangler` → `workerd`: killing the pid would leave
   the grandchild holding the port. procdeck signals the process group, escalating
   SIGTERM → SIGKILL, and Ctrl-C tears down every tree it spawned.
+- **Single or grid layout.** One pane at a time with a sidebar, or every pane tiled
+  (⌥G); each pane header carries its address, status and restart/stop/clear.
 
 ## Try it
 

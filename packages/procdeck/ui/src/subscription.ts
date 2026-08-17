@@ -2,9 +2,10 @@ import { Effect, Queue, Schema as S, Stream } from "effect"
 import { Subscription } from "foldkit"
 import { API, ProcEvent } from "./schema.ts"
 import {
-  ClickedClear,
-  ClickedRestart,
+  CycledLayout,
   OpenedSearch,
+  PressedClear,
+  PressedRestart,
   PressedToggle,
   ReceivedLog,
   ReceivedStatus,
@@ -80,7 +81,7 @@ const isMac = /Mac|iP/.test(navigator.platform)
 const hotkeyMessage = (event: KeyboardEvent): Message | undefined => {
   const mod = isMac ? event.metaKey : event.ctrlKey
   if (mod && !event.altKey) {
-    if (event.code === "KeyK") return ClickedClear()
+    if (event.code === "KeyK") return PressedClear()
     if (event.code === "KeyF") return OpenedSearch()
     return undefined
   }
@@ -91,9 +92,11 @@ const hotkeyMessage = (event: KeyboardEvent): Message | undefined => {
       case "ArrowDown":
         return SelectedProcOffset({ delta: 1 })
       case "KeyR":
-        return ClickedRestart()
+        return PressedRestart()
       case "KeyS":
         return PressedToggle()
+      case "KeyG":
+        return CycledLayout()
     }
   }
   return undefined

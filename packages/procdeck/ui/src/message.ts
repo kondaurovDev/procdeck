@@ -1,5 +1,6 @@
 import { Schema as S } from "effect"
 import { m } from "foldkit/message"
+import { Layout } from "./model.ts"
 import { ProcInfo, ProcStatus } from "./schema.ts"
 
 // Server data arriving
@@ -18,16 +19,28 @@ export const TypedInput = m("TypedInput", { id: S.String, data: S.String })
 
 // User intent
 export const ClickedProc = m("ClickedProc", { id: S.String })
-export const ClickedStart = m("ClickedStart")
-export const ClickedStop = m("ClickedStop")
-export const ClickedRestart = m("ClickedRestart")
-export const ClickedClear = m("ClickedClear")
+/** Pane-header buttons — each pane carries its own controls. */
+export const PaneAction = S.Literals(["start", "stop", "restart", "clear"])
+export const ClickedPaneAction = m("ClickedPaneAction", { id: S.String, action: PaneAction })
+export const ClickedRestartAll = m("ClickedRestartAll")
+export const ClickedStopAll = m("ClickedStopAll")
 export const ResizedWindow = m("ResizedWindow")
 
-// Hotkeys (the button-shaped intents above double as hotkey targets)
+// Layout
+export const ChoseLayout = m("ChoseLayout", { layout: Layout })
+/** Grid tile double-click: back to single with that pane active. */
+export const ZoomedProc = m("ZoomedProc", { id: S.String })
+
+// Hotkeys — all act on the active pane
 export const SelectedProcOffset = m("SelectedProcOffset", { delta: S.Number })
-/** Stop the active proc if it is busy, start it if it is idle. */
+/** ⌥R */
+export const PressedRestart = m("PressedRestart")
+/** ⌥S: stop the active proc if it is busy, start it if it is idle. */
 export const PressedToggle = m("PressedToggle")
+/** ⌘K */
+export const PressedClear = m("PressedClear")
+/** ⌥G: step to the next layout mode. */
+export const CycledLayout = m("CycledLayout")
 
 // Log search
 export const OpenedSearch = m("OpenedSearch")
@@ -50,13 +63,17 @@ export const Message = S.Union([
   MountedTerminal,
   TypedInput,
   ClickedProc,
-  ClickedStart,
-  ClickedStop,
-  ClickedRestart,
-  ClickedClear,
+  ClickedPaneAction,
+  ClickedRestartAll,
+  ClickedStopAll,
   ResizedWindow,
+  ChoseLayout,
+  ZoomedProc,
   SelectedProcOffset,
+  PressedRestart,
   PressedToggle,
+  PressedClear,
+  CycledLayout,
   OpenedSearch,
   ChangedSearch,
   SteppedSearch,

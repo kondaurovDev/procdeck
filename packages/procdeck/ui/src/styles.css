@@ -22,24 +22,52 @@ body {
     system-ui,
     sans-serif;
 }
+/* Global bar across the top; sidebar + main below. minmax(0) rows so tall
+   content can never stretch the page past the viewport. */
 .layout {
   height: 100vh;
   display: grid;
   grid-template-columns: 260px 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+/* Grid layout shows every pane with its own header — the sidebar is redundant. */
+.layout.grid {
+  grid-template-columns: 1fr;
+}
+.layout.grid aside {
+  display: none;
+}
+header {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+header h1 {
+  margin: 0 8px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+header .meta {
+  margin-left: 0;
+}
+header .meta.error {
+  color: var(--bad);
+}
+.deck-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
 }
 aside {
   background: var(--panel);
   border-right: 1px solid var(--border);
   overflow-y: auto;
-}
-aside h1 {
-  margin: 0;
-  padding: 14px 16px;
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-  border-bottom: 1px solid var(--border);
 }
 .proc {
   padding: 10px 16px;
@@ -125,16 +153,9 @@ aside h1 {
 }
 main {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: minmax(0, 1fr);
   min-width: 0;
-}
-header {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
+  min-height: 0;
 }
 .meta {
   color: var(--muted);
@@ -221,15 +242,129 @@ input.search:focus {
 .to-bottom[hidden] {
   display: none;
 }
+.segmented {
+  display: inline-flex;
+  margin-left: 4px;
+}
+.segmented button {
+  padding: 4px 9px;
+  border-radius: 0;
+  font-size: 13px;
+  line-height: 1.2;
+}
+.segmented button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.segmented button:last-child {
+  border-radius: 0 6px 6px 0;
+  margin-left: -1px;
+}
+.segmented button.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: #16202e;
+  position: relative;
+  z-index: 1;
+}
 .terminals {
   position: relative;
   min-height: 0;
   background: var(--bg);
 }
-.term {
-  position: absolute;
-  inset: 8px 4px 4px 10px;
+/* A tile is a pane header + terminal column, in both layouts. */
+.tile {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
 }
-.term[hidden] {
+.tile[hidden] {
   display: none;
+}
+.term {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.terminals.single .tile {
+  position: absolute;
+  inset: 0;
+}
+.terminals.single .term {
+  margin: 8px 4px 4px 10px;
+}
+/*
+ * Compact tiles: as many columns as fit at ≥420px, rows at least 240px tall.
+ * With few panes the rows stretch to fill the area; with many, the grid
+ * scrolls. Terminals auto-scroll to their tail, so a short tile still shows
+ * what matters.
+ */
+.terminals.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  grid-auto-rows: minmax(240px, 1fr);
+  gap: 6px;
+  padding: 6px;
+  overflow-y: auto;
+}
+.terminals.grid .tile {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.terminals.grid .tile.active {
+  border-color: var(--accent);
+}
+.terminals.grid .term {
+  margin: 4px 2px 2px 6px;
+}
+.tile-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  min-width: 0;
+}
+.terminals.grid .tile-head {
+  cursor: pointer;
+}
+.tile-head .name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tile-head .links {
+  flex-shrink: 1;
+}
+.tile-head .meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+/* Per-pane controls: quiet until the pane is hovered or active. */
+.pane-actions {
+  display: inline-flex;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0.4;
+  transition: opacity 120ms;
+}
+.tile:hover .pane-actions,
+.tile.active .pane-actions {
+  opacity: 1;
+}
+.pane-actions button {
+  padding: 1px 7px;
+  font-size: 12px;
+  line-height: 1.3;
+  background: transparent;
+  border-color: transparent;
+}
+.pane-actions button:hover:not(:disabled) {
+  background: #1f2630;
+  border-color: var(--accent);
 }

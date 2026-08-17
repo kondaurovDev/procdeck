@@ -1,10 +1,22 @@
 import { Schema as S } from "effect"
 import { ProcInfo } from "./schema.ts"
 
+/**
+ * How the main area shows the panes. One switch, not independent toggles —
+ * a future "merged" (single chronological stream) is the third position of
+ * the same control. See docs/plan.md, "Layout modes".
+ */
+export const Layout = S.Literals(["single", "grid"])
+export type Layout = typeof Layout.Type
+
 export const Model = S.Struct({
   procs: S.Array(ProcInfo),
-  /** Selected pane id. */
+  /**
+   * Selected pane id. Every layout has exactly one active proc: header
+   * buttons, ⌥R/⌥S and ⌘K/⌘F act on it; grid marks it with a frame.
+   */
   active: S.UndefinedOr(S.String),
+  layout: Layout,
   /**
    * Ids whose xterm instance has mounted. The SSE subscription is gated on
    * every pane being mounted, so the replayed backlog always has somewhere to
