@@ -38,4 +38,8 @@ export const ProcEvent = S.Union([
 ])
 export type ProcEvent = typeof ProcEvent.Type
 
+/** The deck as a whole (`GET /deck`). */
+export const DeckInfo = S.Struct({ name: S.String })
+export type DeckInfo = typeof DeckInfo.Type
+
 export const API = "/__procdeck/api"

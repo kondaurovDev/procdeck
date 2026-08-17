@@ -59,10 +59,20 @@ header .meta {
 header .meta.error {
   color: var(--bad);
 }
+.deck-name {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 6px;
+}
 .deck-actions {
   margin-left: auto;
   display: inline-flex;
   gap: 6px;
+}
+.deck-actions .install {
+  color: var(--accent);
+  margin-right: 8px;
 }
 aside {
   background: var(--panel);

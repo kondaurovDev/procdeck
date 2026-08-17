@@ -9,7 +9,7 @@ const configPath = process.argv[2] ?? "procdeck.config.ts"
 const main = Effect.gen(function* () {
   const loaded = yield* loadConfig(configPath)
   const supervisor = yield* makeSupervisor(loaded)
-  const port = yield* serve(supervisor, loaded.config.port ?? DEFAULT_UI_PORT)
+  const port = yield* serve(supervisor, loaded.config.port ?? DEFAULT_UI_PORT, { name: loaded.name })
   yield* Effect.log(`procdeck listening on http://localhost:${port}`)
   yield* Effect.never
 })

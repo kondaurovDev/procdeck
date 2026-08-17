@@ -17,6 +17,7 @@ import { makeSupervisor } from "../src/supervisor.ts"
 const loaded = (procs: LoadedConfig["config"]["procs"]): LoadedConfig => ({
   config: { procs },
   root: process.cwd(),
+  name: "test",
 })
 
 const LONG_RUNNER = ["node", "-e", 'console.log("up"); setInterval(() => {}, 1000)']

@@ -15,6 +15,7 @@ import {
 } from "./message.ts"
 import type { Message } from "./message.ts"
 import type { Model } from "./model.ts"
+import { installStream } from "./install.ts"
 
 const decodeEvent = S.decodeUnknownSync(ProcEvent)
 
@@ -159,6 +160,14 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
     {
       modelToDependencies: (model) => ({ enabled: model.procs.length > 0 }),
       dependenciesToStream: ({ enabled }) => (enabled ? hotkeyStream : Stream.empty),
+    },
+  ),
+  // Web-app install offer — listens for the whole session.
+  install: entry(
+    { on: S.Boolean },
+    {
+      modelToDependencies: () => ({ on: true }),
+      dependenciesToStream: () => installStream,
     },
   ),
   // Uptime clock — only ticks while something is actually running.

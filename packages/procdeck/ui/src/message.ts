@@ -1,9 +1,10 @@
 import { Schema as S } from "effect"
 import { m } from "foldkit/message"
 import { Layout } from "./model.ts"
-import { ProcInfo, ProcStatus } from "./schema.ts"
+import { DeckInfo, ProcInfo, ProcStatus } from "./schema.ts"
 
 // Server data arriving
+export const GotDeck = m("GotDeck", { deck: DeckInfo })
 export const GotProcs = m("GotProcs", { procs: S.Array(ProcInfo) })
 export const FailedFetchProcs = m("FailedFetchProcs", { error: S.String })
 export const ReceivedStatus = m("ReceivedStatus", { status: ProcStatus })
@@ -48,6 +49,12 @@ export const ChangedSearch = m("ChangedSearch", { query: S.String })
 export const SteppedSearch = m("SteppedSearch", { backwards: S.Boolean })
 export const ClosedSearch = m("ClosedSearch")
 
+// Web-app install (see install.ts)
+export const InstallBecameAvailable = m("InstallBecameAvailable")
+export const ClickedInstall = m("ClickedInstall")
+export const PromptedInstall = m("PromptedInstall")
+export const Installed = m("Installed")
+
 // Uptime clock — fires once a second while anything is running
 export const Ticked = m("Ticked", { now: S.Number })
 
@@ -56,6 +63,7 @@ export const Ticked = m("Ticked", { now: S.Number })
 export const CompletedRequest = m("CompletedRequest")
 
 export const Message = S.Union([
+  GotDeck,
   GotProcs,
   FailedFetchProcs,
   ReceivedStatus,
@@ -78,6 +86,10 @@ export const Message = S.Union([
   ChangedSearch,
   SteppedSearch,
   ClosedSearch,
+  InstallBecameAvailable,
+  ClickedInstall,
+  PromptedInstall,
+  Installed,
   Ticked,
   CompletedRequest,
 ])

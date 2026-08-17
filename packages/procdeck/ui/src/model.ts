@@ -1,5 +1,5 @@
 import { Schema as S } from "effect"
-import { ProcInfo } from "./schema.ts"
+import { DeckInfo, ProcInfo } from "./schema.ts"
 
 /**
  * How the main area shows the panes. One switch, not independent toggles —
@@ -10,6 +10,8 @@ export const Layout = S.Literals(["single", "grid"])
 export type Layout = typeof Layout.Type
 
 export const Model = S.Struct({
+  /** Deck name for the title; undefined until fetched. */
+  deck: S.UndefinedOr(DeckInfo),
   procs: S.Array(ProcInfo),
   /**
    * Selected pane id. Every layout has exactly one active proc: header
@@ -31,6 +33,8 @@ export const Model = S.Struct({
    * was visible. Cleared the moment the proc is selected.
    */
   unread: S.Record(S.String, S.Number),
+  /** The browser has offered a web-app install we can trigger (install.ts). */
+  installable: S.Boolean,
   /** Wall clock driving the uptime display; advanced by Ticked. */
   now: S.Number,
 })

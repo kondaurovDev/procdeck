@@ -194,6 +194,11 @@ const validatePortTemplates = (procs: ReadonlyArray<ProcSpec>): string | undefin
 }
 
 export const ProcdeckConfigSchema = Schema.Struct({
+  /**
+   * Deck name — the tab title and the name of the installed web app.
+   * Defaults to the config directory's basename.
+   */
+  name: Schema.optionalKey(Schema.String),
   /** Port for the web UI. Defaults to 4820. */
   port: Schema.optionalKey(Schema.Number),
   procs: Schema.Array(ProcSpecSchema),
@@ -215,6 +220,8 @@ export type LoadedConfig = {
   config: ProcdeckConfig
   /** Directory of the config file — the default cwd for every process. */
   root: string
+  /** `config.name`, or the root directory's basename. */
+  name: string
 }
 
 export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError", {
@@ -232,6 +239,7 @@ export const loadConfig = Effect.fn("procdeck.loadConfig")(function* (file: stri
     try: () => Schema.decodeUnknownSync(ProcdeckConfigSchema)(module.default),
     catch: (cause) => new ConfigError({ file: absolute, message: String(cause) }),
   })
-  const loaded: LoadedConfig = { config, root: path.dirname(absolute) }
+  const root = path.dirname(absolute)
+  const loaded: LoadedConfig = { config, root, name: config.name ?? path.basename(root) }
   return loaded
 })

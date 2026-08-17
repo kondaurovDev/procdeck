@@ -72,8 +72,42 @@ const sse = (
     })
   })
 
-const routes = (supervisor: Supervisor) =>
+/** What the UI needs to know about the deck as a whole. */
+export type DeckInfo = { name: string }
+
+/**
+ * Web-app manifest, generated per deck so the installed app carries the
+ * project's name — every deck is its own origin (port), so its own app.
+ * `http://localhost` counts as a secure context: installable without HTTPS.
+ * No service worker on purpose: caching a dev tool's UI is a footgun.
+ */
+const manifest = (deck: DeckInfo) => ({
+  name: `${deck.name} · procdeck`,
+  short_name: deck.name,
+  start_url: "/",
+  scope: "/",
+  display: "standalone",
+  background_color: "#0e1116",
+  theme_color: "#151a21",
+  icons: [
+    { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+  ],
+})
+
+const routes = (supervisor: Supervisor, deck: DeckInfo) =>
   HttpRouter.addAll([
+    HttpRouter.route("GET", `${API}/deck`, () =>
+      Effect.sync(() => HttpServerResponse.jsonUnsafe(deck)),
+    ),
+    HttpRouter.route("GET", "/manifest.webmanifest", () =>
+      Effect.sync(() =>
+        HttpServerResponse.text(JSON.stringify(manifest(deck)), {
+          headers: { "content-type": "application/manifest+json" },
+        }),
+      ),
+    ),
     HttpRouter.route("GET", `${API}/procs`, () =>
       Effect.sync(() => HttpServerResponse.jsonUnsafe(supervisor.list())),
     ),
@@ -248,10 +282,11 @@ const handleNode = async (
 export const serve = (
   supervisor: Supervisor,
   port: number,
+  deck: DeckInfo,
 ): Effect.Effect<number, Error, Scope.Scope> =>
   Effect.acquireRelease(
     Effect.gen(function* () {
-      const { handler, dispose } = HttpRouter.toWebHandler(routes(supervisor), {
+      const { handler, dispose } = HttpRouter.toWebHandler(routes(supervisor, deck), {
         disableLogger: true,
       })
 

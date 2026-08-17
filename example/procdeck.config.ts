@@ -15,6 +15,8 @@ import { defineConfig } from "procdeck"
  * subdomain of the UI port, whatever port it actually got.
  */
 export default defineConfig({
+  // `name` is the tab title and the installed app's name; it defaults to the
+  // config directory's basename ("example" here), so it is left out.
   port: 4830,
   procs: [
     {

@@ -4,6 +4,7 @@ import type { Message } from "./message.ts"
 import {
   ChangedSearch,
   ChoseLayout,
+  ClickedInstall,
   ClickedPaneAction,
   ClickedProc,
   ClickedRestartAll,
@@ -247,6 +248,7 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
     [],
     [
       h.h1([], ["procdeck"]),
+      ...(model.deck === undefined ? [] : [h.span([h.Class("deck-name")], [model.deck.name])]),
       layoutSwitch(model, h),
       ...(model.search === undefined
         ? []
@@ -274,6 +276,18 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
       h.span(
         [h.Class("deck-actions")],
         [
+          ...(model.installable
+            ? [
+                h.button(
+                  [
+                    h.Class("install"),
+                    h.Title("install procdeck as an app: own window, Dock icon"),
+                    h.OnClick(ClickedInstall()),
+                  ],
+                  ["⤓ install"],
+                ),
+              ]
+            : []),
           h.button(
             [
               h.Disabled(model.procs.length === 0),
@@ -293,7 +307,7 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
 }
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
-  title: "procdeck",
+  title: model.deck === undefined ? "procdeck" : `${model.deck.name} · procdeck`,
   body: h.div(
     [h.Class(`layout ${model.layout}`)],
     [

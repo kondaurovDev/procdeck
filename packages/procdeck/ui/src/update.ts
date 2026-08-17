@@ -4,6 +4,7 @@ import { evo } from "foldkit/struct"
 import {
   ClearTerminal,
   EndSearch,
+  FetchDeck,
   FetchProcs,
   FindInTerminal,
   FitTerminals,
@@ -12,6 +13,7 @@ import {
   PostInput,
   WriteTerminal,
 } from "./command.ts"
+import { PromptInstall } from "./install.ts"
 import type { Message } from "./message.ts"
 import type { Layout, Model } from "./model.ts"
 import type { ProcStatus } from "./schema.ts"
@@ -72,6 +74,7 @@ export const update = (model: Model, message: Message): Result =>
   M.value(message).pipe(
     M.withReturnType<Result>(),
     M.tagsExhaustive({
+      GotDeck: ({ deck }) => [evo(model, { deck: () => deck }), []],
       GotProcs: ({ procs }) => [
         evo(model, {
           procs: () => procs,
@@ -176,6 +179,11 @@ export const update = (model: Model, message: Message): Result =>
       ],
       ResizedWindow: () => (model.active === undefined ? [model, []] : [model, [refit(model)]]),
 
+      InstallBecameAvailable: () => [evo(model, { installable: () => true }), []],
+      ClickedInstall: () => [model, [PromptInstall()]],
+      PromptedInstall: () => [evo(model, { installable: () => false }), []],
+      Installed: () => [evo(model, { installable: () => false }), []],
+
       Ticked: ({ now }) => [evo(model, { now: () => now }), []],
 
       CompletedRequest: () => [model, []],
@@ -184,6 +192,7 @@ export const update = (model: Model, message: Message): Result =>
 
 export const init = (): Result => [
   {
+    deck: undefined,
     procs: [],
     active: undefined,
     layout: "single",
@@ -191,7 +200,8 @@ export const init = (): Result => [
     error: undefined,
     search: undefined,
     unread: {},
+    installable: false,
     now: Date.now(),
   },
-  [FetchProcs()],
+  [FetchProcs(), FetchDeck()],
 ]

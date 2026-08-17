@@ -1,7 +1,7 @@
 import { Effect, Schema as S } from "effect"
 import { Command } from "foldkit"
-import { API, ProcInfo } from "./schema.ts"
-import { CompletedRequest, FailedFetchProcs, GotProcs } from "./message.ts"
+import { API, DeckInfo, ProcInfo } from "./schema.ts"
+import { CompletedRequest, FailedFetchProcs, GotDeck, GotProcs } from "./message.ts"
 import { registry } from "./terminal.ts"
 
 const postJson = (path: string, body: unknown) =>
@@ -22,6 +22,18 @@ export const FetchProcs = Command.define("FetchProcs", {
     const procs = yield* S.decodeUnknownEffect(S.Array(ProcInfo))(raw)
     return GotProcs({ procs })
   }).pipe(Effect.catch((error) => Effect.succeed(FailedFetchProcs({ error: String(error) })))),
+})
+
+/** Deck name for the tab title. Failure is cosmetic — the UI keeps "procdeck". */
+export const FetchDeck = Command.define("FetchDeck", {
+  messages: [GotDeck, CompletedRequest],
+  execute: Effect.gen(function* () {
+    const raw = yield* Effect.tryPromise(() =>
+      fetch(`${API}/deck`).then((response) => response.json()),
+    )
+    const deck = yield* S.decodeUnknownEffect(DeckInfo)(raw)
+    return GotDeck({ deck })
+  }).pipe(Effect.catch(() => Effect.succeed(CompletedRequest()))),
 })
 
 export const PostAction = Command.define("PostAction", {
