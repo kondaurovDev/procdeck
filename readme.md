@@ -81,14 +81,12 @@ pnpm install
 pnpm dev          # builds the UI, starts the example stack
 ```
 
-> **Native dependency note.** procdeck runs panes through [node-pty](https://github.com/microsoft/node-pty),
-> which ships a native prebuild. npm and yarn set it up automatically. pnpm ≥ 10 and Bun
-> block dependency install scripts by default — in your own project run
-> `pnpm approve-builds` and allow `node-pty` (Bun: add it to `trustedDependencies`).
-> procdeck also repairs the most common fallout by itself at startup (the darwin
-> `spawn-helper` prebuild arriving without its execute bit), so approving is only
-> strictly required when node-pty must compile from source (no prebuild for your
-> platform).
+> **Install footprint.** ~1.8 MB, one dependency. The server is shipped as a bundle, so
+> nothing but the PTY bindings is installed — and those are
+> [`@lydell/node-pty`](https://github.com/lydell/node-pty): the same sources as
+> [node-pty](https://github.com/microsoft/node-pty), distributed as per-platform packages.
+> Nothing compiles and no install script runs, so there is no `pnpm approve-builds` /
+> `trustedDependencies` detour, and no compiler is needed on Linux.
 
 Open <http://localhost:4820> for the panes, then <http://web.localhost:4820> and
 <http://api.localhost:4820> — the example's two servers found each other (and their own

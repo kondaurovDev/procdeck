@@ -9,14 +9,19 @@ import { defineConfig } from "tsup"
 // from "procdeck"` in their `procdeck.config.ts`; splitting keeps the shared
 // code in one chunk instead of duplicating it into the CLI bundle.
 export default defineConfig({
-  entry: ["src/cli.ts", "src/config.ts"],
+  entry: ["src/cli.ts", "src/public.ts"],
   outDir: "dist",
   format: ["esm"],
   target: "node22",
   platform: "node",
   splitting: true,
   clean: true,
-  // node-pty is a native addon and effect is a runtime dependency: both are
-  // resolved from the consumer's node_modules, never bundled.
-  external: ["node-pty", "effect"],
+  // Everything is bundled except the PTY bindings: a native addon has to be
+  // resolved from the consumer's node_modules. effect declares `sideEffects: []`
+  // and tree-shakes down to the handful of modules the CLI actually touches,
+  // which keeps it out of the install entirely.
+  // (tsup externalises every `dependencies` entry by default, so bundling one
+  // has to be requested explicitly.)
+  external: ["@lydell/node-pty"],
+  noExternal: ["effect"],
 })

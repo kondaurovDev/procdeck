@@ -288,8 +288,8 @@ export const ProcdeckConfigSchema = Schema.Struct({
 
 export type ProcdeckConfig = typeof ProcdeckConfigSchema.Type
 
-/** Identity helper that gives config files their types. */
-export const defineConfig = (config: ProcdeckConfig): ProcdeckConfig => config
+// `defineConfig` lives in `public.ts`: it is the one thing consumers import, and
+// that entry must not drag effect's types into the published declarations.
 
 export type LoadedConfig = {
   config: ProcdeckConfig

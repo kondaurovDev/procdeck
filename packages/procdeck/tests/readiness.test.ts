@@ -32,6 +32,25 @@ const takeUntil = Effect.fn("takeUntil")(function* (
   }
 })
 
+/**
+ * Waits for several events whose order is not guaranteed, on one subscription.
+ *
+ * Chaining `takeUntil` calls instead would be a race: the first call drains the
+ * stream looking for its own event and swallows everything else on the way, so
+ * an event the next call is waiting for may already be gone.
+ */
+const takeUntilAll = Effect.fn("takeUntilAll")(function* (
+  subscription: PubSub.Subscription<ProcEvent>,
+  ...predicates: Array<(event: ProcEvent) => boolean>
+) {
+  const pending = [...predicates]
+  while (pending.length > 0) {
+    const event = yield* PubSub.take(subscription)
+    const index = pending.findIndex((predicate) => predicate(event))
+    if (index !== -1) pending.splice(index, 1)
+  }
+})
+
 /** Grab a port the OS considers free right now. */
 const freePort = (): Promise<number> =>
   new Promise((resolve) => {
@@ -156,15 +175,14 @@ describe("preflight", () => {
             ]),
           )
           const subscription = yield* PubSub.subscribe(supervisor.events)
-          yield* takeUntil(
+          // The two procs race: `ok` can reach running before `gated` is
+          // blocked, or the other way round.
+          yield* takeUntilAll(
             subscription,
             (event) =>
               event.type === "status" &&
               event.status.id === "gated" &&
               event.status.state === "blocked",
-          )
-          yield* takeUntil(
-            subscription,
             (event) =>
               event.type === "status" && event.status.id === "ok" && event.status.state === "running",
           )

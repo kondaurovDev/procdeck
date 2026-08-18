@@ -1,6 +1,8 @@
 {
   // Declarations for the public entry point only — `defineConfig` and the
-  // config types a `procdeck.config.ts` needs. The CLI has no type surface.
+  // config types a `procdeck.config.ts` needs. The CLI has no type surface,
+  // and `public.ts` deliberately references nothing from `config.ts`, so the
+  // emitted declarations carry no dependency on effect.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
@@ -9,5 +11,5 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src/config.ts"]
+  "include": ["src/public.ts"]
 }

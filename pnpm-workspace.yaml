@@ -3,7 +3,7 @@ packages:
   - example
 
 allowBuilds:
-  # PTY support is the whole point: panes must look exactly like a terminal.
-  node-pty: true
+  # The PTY bindings need no entry here: @lydell/node-pty ships its binaries as
+  # per-platform packages, so there is no install script to approve.
   esbuild: true
   msgpackr-extract: true
