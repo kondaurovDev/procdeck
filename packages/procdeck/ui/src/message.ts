@@ -13,6 +13,9 @@ export const ReceivedStatus = m("ReceivedStatus", { status: ProcStatus })
  * after (re)connect — those land in the terminal but must not count as unread.
  */
 export const ReceivedLog = m("ReceivedLog", { id: S.String, data: S.String, live: S.Boolean })
+/** The SSE feed (re)connected / dropped — drives the "reconnecting" banner. */
+export const StreamOpened = m("StreamOpened")
+export const StreamDropped = m("StreamDropped")
 
 // Terminal lifecycle and input
 export const MountedTerminal = m("MountedTerminal", { id: S.String })
@@ -68,6 +71,8 @@ export const Message = S.Union([
   FailedFetchProcs,
   ReceivedStatus,
   ReceivedLog,
+  StreamOpened,
+  StreamDropped,
   MountedTerminal,
   TypedInput,
   ClickedProc,

@@ -36,23 +36,119 @@ replayed errors out of the unread badge (`ui/src/subscription.ts`).
 
 ## Next up (agreed order)
 
-1. **UI state in localStorage** — half an hour, immediately felt.
-2. **Registry + detached mode** (`up` / `down` / `status` / `open`, Shutdown
+1. **Theme: system / light / dark** — see "Theme" below.
+2. **Pin + tray + ⌥Z** in grid, "fit" toggle — see "Grid pinning" below; the
+   least obvious design, so prototype it on a 9-pane deck early.
+3. **Pre-publish polish** — clickable URLs, title/favicon badge + notifications,
+   readable exit status — see "Polish before publishing".
+4. **Registry + detached mode** (`up` / `down` / `status` / `open`, Shutdown
    button) — the core.
-3. **Deck switcher dropdown** in the global bar — cheap on top of the registry.
+5. **Deck switcher dropdown** in the global bar — cheap on top of the registry.
+6. **Command palette** — once there are enough actions to put in it.
 
-## UI state survives a refresh (decision: localStorage)
+## UI state survives a refresh (shipped: localStorage)
 
-Persist `layout` and `active` so a reload (or reopening the installed app)
-lands where the user left off. localStorage is the right store: it is keyed
-per origin, and origin includes the port, so every deck keeps its own state
-with no namespacing work. Do not persist `unread`, `mounted`, `search`.
-Foldkit shape: a `SaveUiState` Command emitted from `update` whenever layout
-or active changes; `init` reads it back, falling back to the first proc if
-the stored `active` no longer exists in the config. Alternatives rejected:
-URL hash (`#api`) — back-button and sharing are not worth the routing for
-two fields; server-side — outlives the browser but not the deck, and it is a
-disk write for two fields.
+`layout` and `active` persist (`ui/src/storage.ts`); `pinned`, `theme` and
+the sidebar width join the same record as they land. localStorage is the
+right store: it is keyed per origin, and origin includes the port, so every
+deck keeps its own state with no namespacing work. Do not persist `unread`,
+`mounted`, `search`. Foldkit shape: **one** `SaveUiState` Command, appended
+by a wrapper around `update` whenever any persisted field changed (no branch
+can forget it); `init` reads the record back, `GotProcs` falls back to the
+first proc if the stored `active` is gone from the config (pinned ids that
+are gone get dropped the same way). Every field is optional on read so an old
+record never blanks the UI. Alternatives rejected: URL hash (`#api`) —
+back-button and sharing are not worth the routing for two fields;
+server-side — outlives the browser but not the deck, and it is a disk write
+for two fields.
+
+**Reconnect banner (shipped).** `Model.stream` is connecting/open/reconnecting;
+a drop shows a "reconnecting to procdeck…" strip overlaying the top of the
+work area (same grid cell as sidebar+main, so nothing shifts), and the first
+`open` after a drop refetches `/procs` — the ring replay is not guaranteed to
+hold every status change made while the tab was deaf. EventSource retries on
+its own while the server is unreachable; when it gives up (CLOSED) the
+subscription retries every 2 s. Once per-proc buffers exist, the banner
+should stay until `synced`, not just `open`.
+
+## Theme: system / light / dark (decision)
+
+Three-state switch in the global bar — **System · Light · Dark** — defaulting
+to System via `prefers-color-scheme` (GitHub/Linear/VS Code convention). Today
+`ui/src/styles.css` hardcodes a dark palette on `:root` with
+`color-scheme: dark`, and `terminal.ts` passes a fixed xterm theme.
+
+- Two token sets on `:root` / `[data-theme="dark"]`, with the
+  `prefers-color-scheme` media query covering the System state; `color-scheme`
+  follows so scrollbars and form controls match.
+- xterm is recoloured separately (`terminal.options.theme = …` on every
+  mounted terminal when the theme changes) — and the **light theme needs its
+  own ANSI palette**: the default bright yellow/cyan are unreadable on white.
+  Use a proven light scheme (One Light / GitHub Light) rather than inverting.
+- The web-app manifest's `theme_color` should follow, or the installed window
+  gets a dark title bar on a light page.
+- The choice is persisted with the rest of the UI state.
+
+## Grid pinning + tray (decision)
+
+Nine panes on one screen is the reality on a monorepo deck; the grid scrolls
+and the crash below the fold is exactly the one that goes unseen. Patterns
+that survive elsewhere (tmux status bar, Zellij tab bar, macOS minimise,
+Grafana/Datadog "fit vs scroll"), in the order to build them:
+
+- **Pin + tray.** A per-proc pin (pane header icon, ⌥P, sidebar row). Pinned
+  procs render as grid tiles; unpinned ones collapse into a **tray** — a
+  narrow strip below the grid with dot, id and the unread/alert badge per
+  proc, so a crash in an unpinned pane is still one glance away. Click a tray
+  item to *peek* (temporarily zoom to it in single), pin to keep it in the
+  grid. With nothing pinned the grid shows everything, as today. Pinned tiles
+  come first, so pinning is also the 80 % answer to "let me reorder tiles".
+- **Fit toggle.** Grid mode flag: instead of scrolling, tiles shrink (columns
+  auto, xterm font scaled down to a floor) so the whole deck stays on screen;
+  when it can't fit even at the floor, the tray is the pressure valve.
+  Default to fit; scroll stays available.
+- **⌥Z zoom toggle** — active tile ↔ single and back (tmux `prefix z`), the
+  keyboard twin of double-clicking a tile header.
+- **Status filter chips** in the global bar — running / exited / alerts
+  (Docker Desktop, k9s). Cheap; answers "show me only what's broken".
+- **Groups from config** (`group: "frontend"`) as collapsible grid sections
+  and sidebar sections — later, when a deck outgrows pins.
+- **Drag-to-reorder** — nice-to-have; not before pins have proven insufficient.
+- **⌥1…⌥9** — jump to the N-th proc (mprocs/tmux habit).
+
+## Polish before publishing
+
+Small, all expected by anyone coming from a terminal, all cheap:
+
+- **Clickable URLs in output** (`@xterm/addon-web-links`). Vite prints
+  `Local: http://localhost:61645/` and everybody expects to click it.
+- **Readable exit status.** `exited · signal 0` is confusing; render
+  `exit 1 · 2 m ago` / `killed (SIGTERM)`, plus restart count (already in the
+  wishlist).
+- **Pane header overflow.** Tiles truncate addresses to `:6164` / `:61`. Keep
+  the `*.localhost` address whole; put raw ports in a tooltip or a "⋯" menu.
+- **Title / favicon badge + notifications.** `(2) garage` in `<title>`, a red
+  dot on the favicon, and Web Notifications on crash/alert while the tab is
+  hidden (Gmail/Slack pattern). For a dashboard living on the second monitor
+  this is the most useful single feature.
+- **Terminal niceties.** ⌘+/⌘− font size, copy-on-select, wrap toggle, a
+  "send Ctrl-C" action (stop signals the group; sometimes you want a plain ^C
+  as in a terminal).
+- **Command palette** ⌘P: jump to proc, restart/stop, pin, theme. Hotkeys are
+  modifier-only and invisible; the palette makes them discoverable.
+
+## Publishing checklist
+
+- Hero GIF/screenshot right under the README title — a healthy deck, not a
+  wall of red stacks.
+- `procdeck init` — scan `package.json` / `pnpm-workspace.yaml` and generate a
+  config with one proc per workspace `dev` script. Turns "write a JSON" into
+  "run one command".
+- A "vs mprocs / overmind / concurrently / turbo TUI" table — that is where
+  users come from.
+- State plainly: binds `127.0.0.1` only, no telemetry, no service worker.
+- "Update available" hint in the global bar (daily npm version check) — with
+  detached mode an upgrade needs an explicit `procdeck restart`.
 
 ## Detached mode as the default (decision)
 
@@ -166,8 +262,7 @@ Rules that hold in every mode, so merged slots in later without churn:
 - **Merged view** — see "Layout modes" above; the third position of the layout
   switch. Needs log lines outside xterm scrollback, so it pairs naturally with
   per-proc server buffers.
-- **Grid pinning** — if 6+ tiles prove unreadable: a per-proc pin in the
-  sidebar, grid shows only pinned procs (all when nothing is pinned).
+- **Grid pinning** — promoted to a decision, see "Grid pinning + tray" above.
 - **Line filter (grep mode)** — show only lines matching a pattern. xterm
   can't hide lines, so this is a separate filtered view rendered from a log
   buffer, not an xterm feature. Also pairs with per-proc buffers.

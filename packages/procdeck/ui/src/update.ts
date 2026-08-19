@@ -17,6 +17,7 @@ import { PromptInstall } from "./install.ts"
 import type { Message } from "./message.ts"
 import type { Layout, Model } from "./model.ts"
 import type { ProcStatus } from "./schema.ts"
+import { SaveUiState, loadUiState } from "./storage.ts"
 
 type Result = readonly [Model, ReadonlyArray<Command.Command<Message>>]
 
@@ -70,7 +71,7 @@ const setLayout = (model: Model, layout: Layout): Result => {
   return [next, [refit(next)]]
 }
 
-export const update = (model: Model, message: Message): Result =>
+const step = (model: Model, message: Message): Result =>
   M.value(message).pipe(
     M.withReturnType<Result>(),
     M.tagsExhaustive({
@@ -78,11 +79,21 @@ export const update = (model: Model, message: Message): Result =>
       GotProcs: ({ procs }) => [
         evo(model, {
           procs: () => procs,
-          active: (active) => active ?? procs[0]?.id,
+          // Keep the selection (it may come from localStorage) unless the
+          // config no longer has that proc; then the first one.
+          active: (active) => (procs.some((info) => info.id === active) ? active : procs[0]?.id),
         }),
         [],
       ],
       FailedFetchProcs: ({ error }) => [evo(model, { error: () => error }), []],
+
+      // Back after a drop: statuses may have changed while we were deaf, and
+      // the ring replay is not guaranteed to hold them all — take the snapshot.
+      StreamOpened: () => [
+        evo(model, { stream: () => "open" as const }),
+        model.stream === "reconnecting" ? [FetchProcs()] : [],
+      ],
+      StreamDropped: () => [evo(model, { stream: () => "reconnecting" as const }), []],
 
       ReceivedStatus: ({ status }) => [
         evo(model, {
@@ -190,18 +201,35 @@ export const update = (model: Model, message: Message): Result =>
     }),
   )
 
-export const init = (): Result => [
-  {
-    deck: undefined,
-    procs: [],
-    active: undefined,
-    layout: "single",
-    mounted: [],
-    error: undefined,
-    search: undefined,
-    unread: {},
-    installable: false,
-    now: Date.now(),
-  },
-  [FetchProcs(), FetchDeck()],
-]
+/**
+ * `step` plus persistence: whenever a field that survives a reload changes,
+ * one SaveUiState rides along. Done here rather than in each branch so no
+ * future Message can forget it.
+ */
+export const update = (model: Model, message: Message): Result => {
+  const [next, commands] = step(model, message)
+  return next.layout === model.layout && next.active === model.active
+    ? [next, commands]
+    : [next, [...commands, SaveUiState({ layout: next.layout, active: next.active })]]
+}
+
+export const init = (): Result => {
+  const stored = loadUiState()
+  return [
+    {
+      deck: undefined,
+      procs: [],
+      // Validated against the config once GotProcs arrives.
+      active: stored.active,
+      layout: stored.layout ?? "single",
+      mounted: [],
+      error: undefined,
+      search: undefined,
+      unread: {},
+      installable: false,
+      now: Date.now(),
+      stream: "connecting",
+    },
+    [FetchProcs(), FetchDeck()],
+  ]
+}

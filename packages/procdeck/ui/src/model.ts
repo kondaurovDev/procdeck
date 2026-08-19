@@ -9,6 +9,14 @@ import { DeckInfo, ProcInfo } from "./schema.ts"
 export const Layout = S.Literals(["single", "grid"])
 export type Layout = typeof Layout.Type
 
+/**
+ * The SSE feed's health. `connecting` until the first open (no banner — the
+ * page is still loading), `reconnecting` after a drop (banner) — the server is
+ * restarting or gone, and the panes are stale until it is back.
+ */
+export const StreamState = S.Literals(["connecting", "open", "reconnecting"])
+export type StreamState = typeof StreamState.Type
+
 export const Model = S.Struct({
   /** Deck name for the title; undefined until fetched. */
   deck: S.UndefinedOr(DeckInfo),
@@ -37,5 +45,6 @@ export const Model = S.Struct({
   installable: S.Boolean,
   /** Wall clock driving the uptime display; advanced by Ticked. */
   now: S.Number,
+  stream: StreamState,
 })
 export type Model = typeof Model.Type

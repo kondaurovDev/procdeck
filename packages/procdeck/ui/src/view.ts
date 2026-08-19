@@ -312,6 +312,11 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
     [h.Class(`layout ${model.layout}`)],
     [
       globalBar(model, h),
+      // Overlays the top of the work area (same grid cell), so it never
+      // shifts the panes; the terminals below are stale until it goes away.
+      ...(model.stream === "reconnecting"
+        ? [h.div([h.Class("banner")], ["reconnecting to procdeck…"])]
+        : []),
       h.aside(
         [],
         [

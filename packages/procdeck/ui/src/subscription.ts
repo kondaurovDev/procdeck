@@ -11,6 +11,8 @@ import {
   ReceivedStatus,
   ResizedWindow,
   SelectedProcOffset,
+  StreamDropped,
+  StreamOpened,
   Ticked,
 } from "./message.ts"
 import type { Message } from "./message.ts"
@@ -20,41 +22,65 @@ import { installStream } from "./install.ts"
 const decodeEvent = S.decodeUnknownSync(ProcEvent)
 
 /**
- * The SSE feed. EventSource reconnects on its own; the acquireRelease pairs
+ * The SSE feed. EventSource retries on its own while the server is merely
+ * unreachable (a `procdeck restart`); it gives up — readyState CLOSED — when
+ * the server answers with something that is not an event stream, so that case
+ * is retried by hand. Open/drop are reported so the UI can show a banner and
+ * refetch the snapshot once the feed is back. The acquireRelease pairs
  * open/close with the subscription scope.
  */
 const sseStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
   Effect.acquireRelease(
     Effect.sync(() => {
-      const source = new EventSource(`${API}/events`)
+      const RETRY_MS = 2000
       // The server replays its ring buffer on every (re)connect; it arrives
       // as a burst right after `open`. There is no end-of-replay marker, so
       // anything inside this window after connecting is treated as backlog.
       const REPLAY_WINDOW_MS = 500
-      let openedAt = Number.POSITIVE_INFINITY
-      source.addEventListener("open", () => {
-        openedAt = Date.now()
-      })
-      source.addEventListener("message", (message) => {
-        try {
-          const event = decodeEvent(JSON.parse(message.data))
-          Queue.offerUnsafe(
-            queue,
-            event.type === "log"
-              ? ReceivedLog({
-                  id: event.id,
-                  data: event.data,
-                  live: Date.now() - openedAt > REPLAY_WINDOW_MS,
-                })
-              : ReceivedStatus({ status: event.status }),
-          )
-        } catch {
-          // Malformed frame — drop it.
-        }
-      })
-      return source
+      const handle: { source: EventSource | undefined; retry: number | undefined } = {
+        source: undefined,
+        retry: undefined,
+      }
+      const connect = () => {
+        const source = new EventSource(`${API}/events`)
+        handle.source = source
+        let openedAt = Number.POSITIVE_INFINITY
+        source.addEventListener("open", () => {
+          openedAt = Date.now()
+          Queue.offerUnsafe(queue, StreamOpened())
+        })
+        source.addEventListener("error", () => {
+          Queue.offerUnsafe(queue, StreamDropped())
+          if (source.readyState === EventSource.CLOSED) {
+            handle.retry = window.setTimeout(connect, RETRY_MS)
+          }
+        })
+        source.addEventListener("message", (message) => {
+          try {
+            const event = decodeEvent(JSON.parse(message.data))
+            Queue.offerUnsafe(
+              queue,
+              event.type === "log"
+                ? ReceivedLog({
+                    id: event.id,
+                    data: event.data,
+                    live: Date.now() - openedAt > REPLAY_WINDOW_MS,
+                  })
+                : ReceivedStatus({ status: event.status }),
+            )
+          } catch {
+            // Malformed frame — drop it.
+          }
+        })
+      }
+      connect()
+      return handle
     }),
-    (source) => Effect.sync(() => source.close()),
+    (handle) =>
+      Effect.sync(() => {
+        window.clearTimeout(handle.retry)
+        handle.source?.close()
+      }),
   ),
 )
 
