@@ -41,7 +41,23 @@ export const ProcEvent = S.Union([
 export type ProcEvent = typeof ProcEvent.Type
 
 /** The deck as a whole (`GET /deck`). */
-export const DeckInfo = S.Struct({ name: S.String })
+export const DeckInfo = S.Struct({
+  name: S.String,
+  /** Project root — shown in the shutdown banner ("procdeck up in …"). */
+  root: S.optionalKey(S.String),
+  port: S.optionalKey(S.Number),
+  version: S.optionalKey(S.String),
+})
 export type DeckInfo = typeof DeckInfo.Type
+
+/** One running deck on this machine (`GET /instances`), for the deck switcher. */
+export const InstanceInfo = S.Struct({
+  name: S.String,
+  root: S.String,
+  port: S.Number,
+  startedAt: S.Number,
+  self: S.Boolean,
+})
+export type InstanceInfo = typeof InstanceInfo.Type
 
 export const API = "/__procdeck/api"

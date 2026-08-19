@@ -9,6 +9,7 @@ import { Effect, Stream } from "effect"
 import { HttpRouter, HttpServerResponse } from "effect/unstable/http"
 import type { Scope } from "effect"
 import type { ProcEvent } from "./events.ts"
+import type { Instance } from "./registry.ts"
 import type { Supervisor } from "./supervisor.ts"
 
 const API = "/__procdeck/api"
@@ -73,7 +74,21 @@ const sse = (
   })
 
 /** What the UI needs to know about the deck as a whole. */
-export type DeckInfo = { name: string }
+export type DeckInfo = {
+  name: string
+  /** Project root — lets the UI tell "this deck" apart in the registry. */
+  root: string
+  port: number
+  version: string
+}
+
+/** Deck-wide hooks the CLI wires in; the server only exposes them over HTTP. */
+export type ServerHooks = {
+  /** Asked by the UI's Shutdown button — the whole deck, not one proc. */
+  shutdown: () => void
+  /** Every live deck on this machine (the instance registry). */
+  instances: () => Array<Instance>
+}
 
 /**
  * Web-app manifest, generated per deck so the installed app carries the
@@ -96,10 +111,31 @@ const manifest = (deck: DeckInfo) => ({
   ],
 })
 
-const routes = (supervisor: Supervisor, deck: DeckInfo) =>
+const routes = (supervisor: Supervisor, deck: DeckInfo, hooks: ServerHooks) =>
   HttpRouter.addAll([
     HttpRouter.route("GET", `${API}/deck`, () =>
       Effect.sync(() => HttpServerResponse.jsonUnsafe(deck)),
+    ),
+    HttpRouter.route("GET", `${API}/instances`, () =>
+      Effect.sync(() =>
+        HttpServerResponse.jsonUnsafe(
+          hooks.instances().map((instance) => ({
+            name: instance.name,
+            root: instance.root,
+            port: instance.port,
+            startedAt: instance.startedAt,
+            self: instance.root === deck.root,
+          })),
+        ),
+      ),
+    ),
+    // Answer first, then go down: the UI needs the 200 to know the click
+    // landed; the shutdown itself runs through the same path as SIGTERM.
+    HttpRouter.route("POST", `${API}/shutdown`, () =>
+      Effect.sync(() => {
+        setTimeout(hooks.shutdown, 50)
+        return HttpServerResponse.jsonUnsafe({ ok: true })
+      }),
     ),
     HttpRouter.route("GET", "/manifest.webmanifest", () =>
       Effect.sync(() =>
@@ -281,12 +317,12 @@ const handleNode = async (
 
 export const serve = (
   supervisor: Supervisor,
-  port: number,
   deck: DeckInfo,
+  hooks: ServerHooks,
 ): Effect.Effect<number, Error, Scope.Scope> =>
   Effect.acquireRelease(
     Effect.gen(function* () {
-      const { handler, dispose } = HttpRouter.toWebHandler(routes(supervisor, deck), {
+      const { handler, dispose } = HttpRouter.toWebHandler(routes(supervisor, deck, hooks), {
         disableLogger: true,
       })
 
@@ -307,7 +343,7 @@ export const serve = (
 
       yield* Effect.callback<void, Error>((resume) => {
         http.once("error", (cause) => resume(Effect.fail(cause)))
-        http.listen(port, () => resume(Effect.void))
+        http.listen(deck.port, () => resume(Effect.void))
       })
 
       return { http, dispose }
@@ -318,4 +354,4 @@ export const serve = (
         await new Promise<void>((done) => http.close(() => done()))
         await dispose()
       }),
-  ).pipe(Effect.as(port))
+  ).pipe(Effect.as(deck.port))

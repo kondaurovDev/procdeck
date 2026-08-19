@@ -1,7 +1,14 @@
 import { Effect, Schema as S } from "effect"
 import { Command } from "foldkit"
-import { API, DeckInfo, ProcInfo } from "./schema.ts"
-import { CompletedRequest, FailedFetchProcs, GotDeck, GotProcs } from "./message.ts"
+import { API, DeckInfo, InstanceInfo, ProcInfo } from "./schema.ts"
+import {
+  CompletedRequest,
+  FailedFetchProcs,
+  GotDeck,
+  GotInstances,
+  GotProcs,
+  ShutDown,
+} from "./message.ts"
 import { Scheme, Theme } from "./model.ts"
 import { registry } from "./terminal.ts"
 import { THEME_COLOR, xtermTheme } from "./theme.ts"
@@ -35,6 +42,37 @@ export const FetchDeck = Command.define("FetchDeck", {
     )
     const deck = yield* S.decodeUnknownEffect(DeckInfo)(raw)
     return GotDeck({ deck })
+  }).pipe(Effect.catch(() => Effect.succeed(CompletedRequest()))),
+})
+
+/** The registry, for the deck switcher. Failure just leaves the list empty. */
+export const FetchInstances = Command.define("FetchInstances", {
+  messages: [GotInstances],
+  execute: Effect.gen(function* () {
+    const raw = yield* Effect.tryPromise(() =>
+      fetch(`${API}/instances`).then((response) => response.json()),
+    )
+    const instances = yield* S.decodeUnknownEffect(S.Array(InstanceInfo))(raw)
+    return GotInstances({ instances })
+  }).pipe(Effect.catch(() => Effect.succeed(GotInstances({ instances: [] })))),
+})
+
+/**
+ * Shut the whole deck down — every proc terminated, procdeck exits. There is
+ * no terminal to Ctrl-C in detached mode, so this is the off switch; it asks
+ * first because it is the one click that undoes everything.
+ */
+export const Shutdown = Command.define("Shutdown", {
+  messages: [ShutDown, CompletedRequest],
+  execute: Effect.gen(function* () {
+    const sure = yield* Effect.sync(() =>
+      window.confirm(
+        "Shut down procdeck? Every proc is terminated. Run `procdeck up` to bring the deck back.",
+      ),
+    )
+    if (!sure) return CompletedRequest()
+    yield* postJson("/shutdown", {})
+    return ShutDown()
   }).pipe(Effect.catch(() => Effect.succeed(CompletedRequest()))),
 })
 

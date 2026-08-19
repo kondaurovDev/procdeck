@@ -1,5 +1,5 @@
 import { Schema as S } from "effect"
-import { DeckInfo, ProcInfo } from "./schema.ts"
+import { DeckInfo, InstanceInfo, ProcInfo } from "./schema.ts"
 import type { ProcStatus } from "./schema.ts"
 
 /**
@@ -69,6 +69,14 @@ export const Model = S.Struct({
   /** The user wants system notifications for crashes/alerts while the tab is away. */
   notifications: S.Boolean,
   notifyPermission: NotifyPermission,
+  /**
+   * The user shut the deck down from the UI (or `procdeck down` did): the
+   * feed is gone on purpose, so the banner says so instead of "reconnecting".
+   * Cleared when the feed comes back — `procdeck up` revives the page.
+   */
+  shutdown: S.Boolean,
+  /** Deck switcher dropdown: undefined = closed, else the registry as fetched. */
+  switcher: S.UndefinedOr(S.Array(InstanceInfo)),
 })
 export type Model = typeof Model.Type
 

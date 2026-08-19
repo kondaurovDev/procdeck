@@ -9,11 +9,13 @@ import {
   ClickedPaneAction,
   ClickedProc,
   ClickedRestartAll,
+  ClickedShutdown,
   ClickedStopAll,
   ClosedSearch,
   SteppedSearch,
   ToggledNotifications,
   ToggledPin,
+  ToggledSwitcher,
   ZoomedProc,
 } from "./message.ts"
 import { attentionCount, gridIds } from "./model.ts"
@@ -369,7 +371,7 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
     [],
     [
       h.h1([], ["procdeck"]),
-      ...(model.deck === undefined ? [] : [h.span([h.Class("deck-name")], [model.deck.name])]),
+      ...(model.deck === undefined ? [] : [deckSwitcher(model, model.deck.name, h)]),
       layoutSwitch(model, h),
       ...(model.search === undefined
         ? []
@@ -423,8 +425,66 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
             [h.Disabled(!anyBusy), h.Title("stop every proc"), h.OnClick(ClickedStopAll())],
             ["■ all"],
           ),
+          h.button(
+            [
+              h.Class("shutdown"),
+              h.Disabled(model.shutdown),
+              h.Title("shut down procdeck: every proc is terminated (`procdeck up` brings it back)"),
+              h.OnClick(ClickedShutdown()),
+            ],
+            ["⏻"],
+          ),
         ],
       ),
+    ],
+  )
+}
+
+/**
+ * The deck name doubles as the switcher: every deck on this machine (the
+ * instance registry), as plain links — each deck serves its own UI on its own
+ * port, so switching is navigation, not proxying.
+ */
+const deckSwitcher = (model: Model, name: string, h: HtmlBuilder<Message>): Html => {
+  const open = model.switcher !== undefined
+  const others = (model.switcher ?? []).filter((instance) => !instance.self)
+  return h.span(
+    [h.Class(open ? "deck open" : "deck")],
+    [
+      h.button(
+        [
+          h.Class("deck-name"),
+          h.Title("other decks running on this machine"),
+          h.OnClick(ToggledSwitcher()),
+        ],
+        [name, h.span([h.Class("caret")], ["▾"])],
+      ),
+      ...(open
+        ? [
+            h.div(
+              [h.Class("switcher")],
+              others.length === 0
+                ? [
+                    h.span(
+                      [h.Class("meta")],
+                      ["no other decks are up — `procdeck up` in another project adds it here"],
+                    ),
+                  ]
+                : others.map((instance) =>
+                    h.a(
+                      [
+                        h.Href(`http://localhost:${instance.port}`),
+                        h.Title(`${instance.root} · up ${formatUptime(model.now - instance.startedAt)}`),
+                      ],
+                      [
+                        h.span([h.Class("name")], [instance.name]),
+                        h.span([h.Class("meta")], [`:${instance.port}`]),
+                      ],
+                    ),
+                  ),
+            ),
+          ]
+        : []),
     ],
   )
 }
@@ -464,13 +524,22 @@ const notifyBell = (model: Model, h: HtmlBuilder<Message>): Array<Html> => {
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
   title: title(model),
   body: h.div(
-    [h.Class(`layout ${model.layout}`)],
+    [h.Class(`layout ${model.layout}${model.shutdown && model.stream !== "open" ? " down" : ""}`)],
     [
       globalBar(model, h),
       // Overlays the top of the work area (same grid cell), so it never
       // shifts the panes; the terminals below are stale until it goes away.
       ...(model.stream === "reconnecting"
-        ? [h.div([h.Class("banner")], ["reconnecting to procdeck…"])]
+        ? [
+            h.div(
+              [h.Class(model.shutdown ? "banner down" : "banner")],
+              [
+                model.shutdown
+                  ? `procdeck is shut down — \`procdeck up\`${model.deck?.root === undefined ? "" : ` in ${model.deck.root}`} brings it back; this page reconnects by itself`
+                  : "reconnecting to procdeck…",
+              ],
+            ),
+          ]
         : []),
       h.aside(
         [],

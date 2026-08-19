@@ -17,11 +17,12 @@ export default defineConfig({
   splitting: true,
   clean: true,
   // Everything is bundled except the PTY bindings: a native addon has to be
-  // resolved from the consumer's node_modules. effect declares `sideEffects: []`
-  // and tree-shakes down to the handful of modules the CLI actually touches,
-  // which keeps it out of the install entirely.
+  // resolved from the consumer's node_modules. effect (and the Node service
+  // layers the cli runtime needs) declare `sideEffects: []` and tree-shake
+  // down to the handful of modules the CLI actually touches, which keeps them
+  // out of the install entirely.
   // (tsup externalises every `dependencies` entry by default, so bundling one
   // has to be requested explicitly.)
   external: ["@lydell/node-pty"],
-  noExternal: ["effect"],
+  noExternal: ["effect", "@effect/platform-node-shared"],
 })

@@ -36,11 +36,14 @@ replayed errors out of the unread badge (`ui/src/subscription.ts`).
 
 ## Next up (agreed order)
 
-1. **Registry + detached mode** (`up` / `down` / `status` / `open`, Shutdown
-   button) — the core.
-2. **Deck switcher dropdown** in the global bar — cheap on top of the registry.
-3. **Terminal niceties** (font size, Ctrl-C, copy-on-select) — see "Polish".
-4. **Command palette** — once there are enough actions to put in it.
+1. **Terminal niceties** (font size, Ctrl-C, copy-on-select) — see "Polish".
+2. **Command palette** — once there are enough actions to put in it.
+3. **Publishing checklist** below (hero GIF, `procdeck init`, comparison
+   table, update hint).
+
+Shipped from the previous list: registry + detached mode (`up` / `down` /
+`restart` / `status` / `ls` / `open` / `logs`, Shutdown button) and the deck
+switcher — see the two sections below.
 
 ## UI state survives a refresh (shipped: localStorage)
 
@@ -161,49 +164,69 @@ Small, all expected by anyone coming from a terminal, all cheap:
 - "Update available" hint in the global bar (daily npm version check) — with
   detached mode an upgrade needs an explicit `procdeck restart`.
 
-## Detached mode as the default (decision)
+## Detached mode as the default (shipped)
 
-Today procdeck is a foreground process; the terminal tab it runs in is the
-only lifecycle handle (Ctrl-C / SIGTERM tears everything down via the
-supervisor scope). That's the biggest day-to-day friction: a terminal stays
-open just to keep the deck alive — and it makes the Dock icon (see "Shipped")
-half a feature: an app icon for a deck that dies with its terminal.
+procdeck used to be a foreground process; the terminal tab it ran in was the
+only lifecycle handle. That was the biggest day-to-day friction: a terminal
+stayed open just to keep the deck alive — and it made the Dock icon half a
+feature: an app icon for a deck that dies with its terminal.
 
-- `procdeck up` — **detaches by default**: re-spawns itself with
-  `--foreground`, `detached: true`, stdout/stderr to a log file, `unref()`,
-  and writes its registry entry (below). Idempotent: `up` in a project that is
-  already up prints "already up on :4820" and opens the browser.
-- `procdeck up --fg` — the current behaviour, for debugging and terminal
-  people.
-- `procdeck down` / `restart` / `status` / `logs` / `open` — via the registry,
-  from anywhere inside the project.
-- **Shutdown button in the UI** (`POST /__procdeck/shutdown`) becomes
-  mandatory — there is no terminal to Ctrl-C any more.
+- `procdeck up` (and bare `procdeck`) **detaches by default**: re-spawns
+  itself as `up --fg --no-open` with `detached: true`, stdout/stderr in
+  `~/.procdeck/logs/<id>.log`, `unref()`; the parent waits for the child's
+  registry entry (written after `listen`) — so `up` returns only when the UI
+  is reachable, and a busy port / bad config surface in the terminal (the
+  parent probes the port and loads the config itself before spawning).
+  Idempotent: `up` in a project that is already up prints "already up" and
+  opens the browser. `--no-open` for scripts.
+- `procdeck up --fg` — the old behaviour (Ctrl-C; second Ctrl-C forces).
+- `procdeck down` / `restart` / `status` / `ls` / `open` / `logs [-f]` — via
+  the registry, from anywhere inside the project (the config is located
+  walking up from the cwd, like git/pnpm find their root).
+- **⏻ in the UI** (`POST /__procdeck/api/shutdown`, confirm dialog) — there
+  is no terminal to Ctrl-C any more. The server answers 200, then SIGTERMs
+  itself, so the UI and the CLI share one shutdown path. The page then shows
+  a "procdeck is shut down — `procdeck up` in <root> brings it back" banner,
+  dims the stale panes, and revives itself when the feed is back (EventSource
+  keeps retrying), refetching procs + deck info.
+- The CLI is `effect/unstable/cli` (`Command`/`Flag`/`Argument`) with the Node
+  service layers from `@effect/platform-node-shared` bundled in (no `undici`,
+  tree-shaken; +0.3 MB on the bundle). `--help`, `--version`, shell
+  completions come for free. `procdeck <config-path>` still works: the root
+  command's positional is the config, so the README one-liner holds.
 - Known cost: updating procdeck's own code needs `procdeck restart`, which
-  restarts every pane (felt today when the manifest route needed a server
-  restart). Acceptable; note it in the docs.
-- Interim workarounds until then: `nohup procdeck … &` + `kill`, or a VS Code
-  task with `"runOn": "folderOpen"`.
+  restarts every pane. Noted in the README.
+- Not done: a `--port` override flag; `--log-level` / `--wizard` global flags
+  show in `--help` although they are not meaningful here (cli built-ins —
+  hide via `Command.withGlobalFlags` when it itches).
 
-## Instance registry (find all running decks from any UI)
+## Instance registry (shipped)
 
 One deck per project (a modular monolith = one deck), one port per deck
 (`port` in the config). With several projects running detached, ports
 shouldn't have to be memorized:
 
-- On start, a deck registers itself in `~/.procdeck/instances/<id>.json` —
-  name, root path, port, pid, log path. Deregister on shutdown; prune stale
-  entries (dead pid) on read. This is also the pidfile for `procdeck down`.
-- `procdeck ls` — list live decks: project, port, running/total procs.
-- **Deck switcher in the UI** — the server exposes the registry
-  (`GET /__procdeck/instances`); clicking the deck name in the global bar
-  opens a dropdown "other decks: sheldon :4830 · 5/6 running, my-exp :4840 ·
-  stopped" → plain navigation to that port. No CORS, no proxying; every deck
-  serves its own UI. Rare action, so the caveat below is acceptable.
+- A deck registers itself in `~/.procdeck/instances/<id>.json` once listening
+  — name, root, config path, port, pid, log path, startedAt, version, mode;
+  `id` = sha1 of the **real** root path (symlinks resolved — macOS `/var` vs
+  `/private/var` would otherwise split one project in two). Deregister on
+  shutdown (only if the entry is still ours); prune dead pids on read. This is
+  also the pidfile for `procdeck down`. `PROCDECK_HOME` relocates the tree
+  (tests, sandboxes).
+- `procdeck ls` — every live deck: name, port, uptime, running/total (fetched
+  from each deck's API), root. `status` — the current project's deck and its
+  procs.
+- `up` refuses a port already held by another deck (by registry, with the
+  holder's name and root) and a port that is simply busy (probed) — before
+  spawning anything. EADDRINUSE inside the server is explained the same way.
+- **Deck switcher in the UI** (`GET /__procdeck/api/instances`, `self` flag):
+  the deck name in the global bar is a button; the dropdown lists the other
+  decks as plain `http://localhost:<port>` links (name, port, root + uptime in
+  the tooltip). No CORS, no proxying; every deck serves its own UI. Fetched on
+  open, so it is always current. Proc counts of other decks are not shown
+  (would need CORS).
 - `procdeck open` — resolve the current project's deck via the registry and
-  open the browser on it; nobody has to remember ports.
-- One infrastructure, two consumers: `down/status` and the switcher both read
-  the same registry.
+  open the browser on it.
 
 **Decision: one installed app per project, switcher is navigation.** An
 installed web app is bound to its origin, and origin includes the port — the

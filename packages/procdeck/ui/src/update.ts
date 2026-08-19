@@ -6,12 +6,14 @@ import {
   ClearTerminal,
   EndSearch,
   FetchDeck,
+  FetchInstances,
   FetchProcs,
   FindInTerminal,
   FitTerminals,
   FocusSearch,
   PostAction,
   PostInput,
+  Shutdown,
   WriteTerminal,
 } from "./command.ts"
 import { PromptInstall } from "./install.ts"
@@ -141,8 +143,10 @@ const step = (model: Model, message: Message): Result =>
       // Back after a drop: statuses may have changed while we were deaf, and
       // the ring replay is not guaranteed to hold them all — take the snapshot.
       StreamOpened: () => [
-        evo(model, { stream: () => "open" as const }),
-        model.stream === "reconnecting" ? [FetchProcs()] : [],
+        evo(model, { stream: () => "open" as const, shutdown: () => false }),
+        // After a shutdown the server is a fresh process: take the snapshot
+        // and the deck info again (the config may have changed).
+        model.stream === "reconnecting" ? [FetchProcs(), FetchDeck()] : [],
       ],
       StreamDropped: () => [evo(model, { stream: () => "reconnecting" as const }), []],
 
@@ -186,6 +190,13 @@ const step = (model: Model, message: Message): Result =>
           .filter((info) => !isIdle(info.status.state))
           .map((info) => PostAction({ id: info.id, action: "stop" })),
       ],
+      ClickedShutdown: () => [model, [Shutdown()]],
+      ShutDown: () => [evo(model, { shutdown: () => true, switcher: () => undefined }), []],
+      ToggledSwitcher: () =>
+        model.switcher === undefined
+          ? [model, [FetchInstances()]]
+          : [evo(model, { switcher: () => undefined }), []],
+      GotInstances: ({ instances }) => [evo(model, { switcher: () => instances }), []],
 
       ChoseLayout: ({ layout }) => setLayout(model, layout),
       ZoomedProc: ({ id }) => zoomTo(model, id),
@@ -328,6 +339,8 @@ export const init = (): Result => {
     systemDark: systemPrefersDark(),
     notifications: stored.notifications ?? false,
     notifyPermission: currentNotifyPermission(),
+    shutdown: false,
+    switcher: undefined,
   }
   // The inline script in index.html already painted the scheme before the
   // first frame; this keeps the theme-color meta honest if it did not run.

@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs"
+import { existsSync, realpathSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import { pathToFileURL } from "node:url"
 import * as path from "node:path"
@@ -321,6 +321,21 @@ export const discoverConfig = (dir: string): string | undefined =>
   CONFIG_FILENAMES.map((name) => path.join(dir, name)).find((candidate) => existsSync(candidate))
 
 /**
+ * The nearest config walking up from `dir` — so `procdeck up|down|open` work
+ * from anywhere inside the project, the way `git` and `pnpm` find their root.
+ */
+export const locateConfig = (dir: string): string | undefined => {
+  let current = path.resolve(dir)
+  while (true) {
+    const found = discoverConfig(current)
+    if (found !== undefined) return found
+    const parent = path.dirname(current)
+    if (parent === current) return undefined
+    current = parent
+  }
+}
+
+/**
  * JSON is parsed; everything else is imported as a module and must default-export
  * the deck. Node strips the types of a `.ts` config itself — that, and nothing
  * else, is why procdeck asks for Node ≥ 22.18.
@@ -334,10 +349,12 @@ const readSource = async (absolute: string): Promise<unknown> => {
 }
 
 export const loadConfig = Effect.fn("procdeck.loadConfig")(function* (file: string) {
-  const absolute = path.resolve(file)
-  if (!existsSync(absolute)) {
-    return yield* new ConfigError({ file: absolute, message: "config file not found" })
+  if (!existsSync(file)) {
+    return yield* new ConfigError({ file: path.resolve(file), message: "config file not found" })
   }
+  // Real path, so `root` (the project's identity in the registry) does not
+  // depend on whether the config was reached through a symlink.
+  const absolute = realpathSync(path.resolve(file))
   const source = yield* Effect.tryPromise({
     try: () => readSource(absolute),
     catch: (cause) => new ConfigError({ file: absolute, message: String(cause) }),

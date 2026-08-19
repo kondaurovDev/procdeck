@@ -56,10 +56,15 @@ which port is which**.
   shows only those and the rest collapse into a tray strip with their status dots and
   badges, one click from a peek. Layout, pins, selected pane and theme (system / light /
   dark — terminals included) survive a reload.
+- **Runs in the background.** `procdeck up` starts the deck, opens the UI and returns
+  — no terminal tab kept hostage. `down`, `restart`, `status`, `logs` and `open` work
+  from anywhere inside the project; `procdeck ls` lists every deck on the machine;
+  ⏻ in the UI shuts one down. Prefer a terminal? `up --fg`.
 - **Installable as an app.** The UI ships a web-app manifest named after the deck
   (`name` in the config, else the directory), so "⤓ install" in the bar — or File →
   Add to Dock in Safari — gives each project its own window and Dock icon. Works over
-  plain `http://localhost`, no HTTPS needed.
+  plain `http://localhost`, no HTTPS needed. Several projects? The deck name in the
+  bar lists the other running decks, one click away.
 
 ## Install
 
@@ -71,7 +76,8 @@ npx procdeck                      # picks up ./procdeck.config.json
 npx procdeck decks/backend.json   # or point it at any config file
 ```
 
-Open <http://localhost:4820> for the panes. Requires **Node ≥ 22**.
+The deck comes up in the background, the UI opens at <http://localhost:4820>, and the
+terminal is yours again. Requires **Node ≥ 22**.
 
 Or add it to the project, which is what you want if you keep the config in TypeScript:
 
@@ -79,16 +85,37 @@ Or add it to the project, which is what you want if you keep the config in TypeS
 pnpm add -D procdeck      # npm i -D procdeck · bun add -d procdeck
 ```
 
+## Commands
+
+```sh
+procdeck up [config]        # start (detached) and open the UI — idempotent
+procdeck down               # stop: every process tree is terminated
+procdeck restart            # down + up — after editing the config or updating procdeck
+procdeck status             # this project's deck: address, uptime, every proc's state
+procdeck ls                 # every running deck on this machine
+procdeck open               # open the UI — no port to remember
+procdeck logs [-f]          # procdeck's own log (startup, shutdown, errors)
+procdeck up --fg            # foreground instead: Ctrl-C stops the deck
+```
+
+`procdeck` alone is `procdeck up`. Without a config path, the nearest
+`procdeck.config.{json,ts,js,mjs}` up from the current directory is used, so every
+command works from any subdirectory of the project. Running decks register in
+`~/.procdeck/instances/` (one JSON per deck — that is how `down`, `ls` and the UI's
+deck switcher find them; stale entries are pruned by pid), and a detached deck's own
+output goes to `~/.procdeck/logs/`. `--no-open` skips the browser. Updating procdeck
+needs a `procdeck restart` — the running deck keeps the old code until then.
+
 ## Try the example
 
 In a clone of this repo:
 
 ```sh
 pnpm install
-pnpm dev          # builds the UI, starts the example stack
+pnpm dev          # builds the UI, starts the example stack in the foreground
 ```
 
-> **Install footprint.** ~1.8 MB, one dependency. The server is shipped as a bundle, so
+> **Install footprint.** ~2 MB, one dependency. The server is shipped as a bundle, so
 > nothing but the PTY bindings is installed — and those are
 > [`@lydell/node-pty`](https://github.com/lydell/node-pty): the same sources as
 > [node-pty](https://github.com/microsoft/node-pty), distributed as per-platform packages.
@@ -188,7 +215,9 @@ Tips:
 | `supervisor.ts` | Effect layer: scoped lifecycle, port assignment, `PubSub` fan-out, per-proc state.                   |
 | `ports.ts`      | Free-port allocation and `pgrep`+`lsof` listening-port discovery.                                    |
 | `server.ts`     | `effect/unstable/http` router behind a small Node↔web-handler bridge; SSE downstream, POST upstream; `Host`-routed reverse proxy with WebSocket pass-through. |
-| `cli.ts`        | Entry point and signal handling.                                                                     |
+| `registry.ts`   | `~/.procdeck/instances/<id>.json` per running deck: how `down`/`ls`/the deck switcher find decks.     |
+| `lifecycle.ts`  | Detaching (`up` re-spawns itself as `up --fg` and waits for the registry entry), `down`, port probe.   |
+| `cli.ts`        | `effect/unstable/cli` commands; `up --fg` is the server, everything else talks to the registry/API.    |
 
 Design notes worth keeping:
 
@@ -207,6 +236,12 @@ Design notes worth keeping:
 - **The supervisor is `Effect.acquireRelease`.** Shutdown is not a code path anyone has
   to remember to call: closing the scope terminates every process tree. The SSE response
   stream lives in the request scope, so a dropped tab cleans up its subscription too.
+  Ctrl-C, `procdeck down` and the UI's ⏻ are all the same SIGTERM into the same scope.
+- **Detached is just `up --fg` in the background.** No daemon, no IPC: `up` spawns
+  itself detached with its output in a log file, and waits for the child's registry
+  entry to appear — written only after `listen` succeeds — so "up" means reachable.
+  The registry is plain files pruned by pid; every deck serves its own UI, and the
+  deck switcher is a list of links.
 
 ## Tests
 
@@ -230,5 +265,5 @@ self-heal — if it still fails, PTY allocation itself is probably blocked (sand
 A working prototype, macOS/Linux only (PTYs, `pgrep`, `lsof`). Known prototype-grade
 shortcuts: the replay buffer counts events rather than bytes (a chatty proc can evict a
 quiet one's history), and statuses are a mutated map rather than `SubscriptionRef`s.
-Not done yet: an injected FAB overlay inside the developed apps, dependency-death
-policy (a dependency dying does _not_ cascade — deliberately), and an npm release.
+Not done yet: an injected FAB overlay inside the developed apps, and a dependency-death
+policy (a dependency dying does _not_ cascade — deliberately).

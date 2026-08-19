@@ -109,6 +109,19 @@ body {
   background: var(--warn);
   animation: banner-pulse 1.6s ease-in-out infinite;
 }
+/* Deliberate (Shutdown / `procdeck down`): informative, not alarming; the
+   panes below are a snapshot of a deck that no longer exists, so they fade. */
+.layout.down aside,
+.layout.down main {
+  opacity: 0.55;
+  transition: opacity 0.4s;
+}
+.banner.down {
+  color: var(--text);
+  background: var(--control);
+  border-bottom: 1px solid var(--border);
+  animation: none;
+}
 @keyframes banner-pulse {
   50% {
     opacity: 0.75;
@@ -136,11 +149,67 @@ header .meta {
 header .meta.error {
   color: var(--bad);
 }
-.deck-name {
+/* The deck name is a button: it opens the switcher (other decks on this machine). */
+.deck {
+  position: relative;
+  margin-right: 6px;
+}
+button.deck-name {
   color: var(--text);
   font-size: 12px;
   font-weight: 600;
-  margin-right: 6px;
+  background: none;
+  border-color: transparent;
+  padding: 3px 6px;
+}
+button.deck-name .caret {
+  margin-left: 5px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.deck.open button.deck-name {
+  background: var(--control);
+  border-color: var(--border);
+}
+.switcher {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 5;
+  min-width: 220px;
+  max-width: 360px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+}
+.switcher > .meta {
+  padding: 6px 8px;
+  white-space: normal;
+  line-height: 1.4;
+}
+.switcher a {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 8px;
+  border-radius: 4px;
+  color: var(--text);
+  text-decoration: none;
+}
+.switcher a:hover {
+  background: var(--hover);
+}
+.switcher a .name {
+  font-weight: 600;
+}
+.switcher a .meta {
+  margin-left: auto;
 }
 .deck-actions {
   margin-left: auto;
@@ -166,6 +235,15 @@ header .meta.error {
 .deck-actions .install {
   color: var(--accent);
   margin-right: 8px;
+}
+/* The off switch: quiet until hovered, then unmistakably red. */
+.deck-actions .shutdown {
+  margin-left: 6px;
+  color: var(--muted);
+}
+.deck-actions .shutdown:hover:not(:disabled) {
+  color: var(--bad);
+  border-color: var(--bad);
 }
 aside {
   background: var(--panel);

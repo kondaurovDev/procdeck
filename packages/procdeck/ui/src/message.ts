@@ -1,7 +1,7 @@
 import { Schema as S } from "effect"
 import { m } from "foldkit/message"
 import { Layout, NotifyPermission, Theme } from "./model.ts"
-import { DeckInfo, ProcInfo, ProcStatus } from "./schema.ts"
+import { DeckInfo, InstanceInfo, ProcInfo, ProcStatus } from "./schema.ts"
 
 // Server data arriving
 export const GotDeck = m("GotDeck", { deck: DeckInfo })
@@ -29,6 +29,12 @@ export const PaneAction = S.Literals(["start", "stop", "restart", "clear"])
 export const ClickedPaneAction = m("ClickedPaneAction", { id: S.String, action: PaneAction })
 export const ClickedRestartAll = m("ClickedRestartAll")
 export const ClickedStopAll = m("ClickedStopAll")
+/** The ⏻ button: the whole deck, not one proc. `ShutDown` = the server said ok. */
+export const ClickedShutdown = m("ClickedShutdown")
+export const ShutDown = m("ShutDown")
+/** Deck name in the bar toggles the switcher; `GotInstances` fills it. */
+export const ToggledSwitcher = m("ToggledSwitcher")
+export const GotInstances = m("GotInstances", { instances: S.Array(InstanceInfo) })
 export const ResizedWindow = m("ResizedWindow")
 
 // Layout
@@ -95,6 +101,10 @@ export const Message = S.Union([
   ClickedPaneAction,
   ClickedRestartAll,
   ClickedStopAll,
+  ClickedShutdown,
+  ShutDown,
+  ToggledSwitcher,
+  GotInstances,
   ResizedWindow,
   ChoseLayout,
   ZoomedProc,
