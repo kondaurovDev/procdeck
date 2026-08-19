@@ -196,9 +196,11 @@ feature: an app icon for a deck that dies with its terminal.
   command's positional is the config, so the README one-liner holds.
 - Known cost: updating procdeck's own code needs `procdeck restart`, which
   restarts every pane. Noted in the README.
-- Not done: a `--port` override flag; `--log-level` / `--wizard` global flags
-  show in `--help` although they are not meaningful here (cli built-ins —
-  hide via `Command.withGlobalFlags` when it itches).
+- Built-in global flags are trimmed via `CliConfig.layer({ builtIns })`: no
+  `--wizard` (clutter); `--log-level` stays — with `--fg` the deck's own logs
+  are right in the terminal (there are no debug-level lines yet; add some
+  around port assignment / readiness when debugging needs them).
+- Not done: a `--port` override flag.
 
 ## Instance registry (shipped)
 

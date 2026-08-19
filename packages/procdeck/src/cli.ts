@@ -2,7 +2,7 @@
 import { existsSync, readFileSync, realpathSync, statSync, unwatchFile, watchFile } from "node:fs"
 import * as path from "node:path"
 import { Console, Data, Effect, Layer, Option } from "effect"
-import { Argument, Command, Flag } from "effect/unstable/cli"
+import { Argument, CliConfig, Command, Flag, GlobalFlag } from "effect/unstable/cli"
 import * as NodeChildProcessSpawner from "@effect/platform-node-shared/NodeChildProcessSpawner"
 import * as NodeFileSystem from "@effect/platform-node-shared/NodeFileSystem"
 import * as NodePath from "@effect/platform-node-shared/NodePath"
@@ -95,10 +95,14 @@ const runServer = (loaded: LoadedConfig, configPath: string) =>
     )
     // Terminating every tree takes up to the SIGTERM grace period — say so,
     // or the pause reads as a hang. A second signal skips the graceful path.
+    // The log line runs with this fiber's services, so `--log-level` applies.
+    const services = yield* Effect.context<never>()
     yield* Effect.acquireRelease(
       Effect.sync(() => {
         const onSignal = () => {
-          Effect.runFork(Effect.log("shutting down, terminating processes… (Ctrl-C again to force)"))
+          Effect.runForkWith(services)(
+            Effect.log("shutting down, terminating processes… (Ctrl-C again to force)"),
+          )
           process.once("SIGINT", () => process.exit(1))
           process.once("SIGTERM", () => process.exit(1))
         }
@@ -405,10 +409,26 @@ const procdeck = Command.make(
   Command.withSubcommands([up, down, restart, status, ls, open, logs]),
 )
 
-// The services the cli runtime expects (help rendering, args, completions).
+// The services the cli runtime expects (help rendering, args, completions),
+// plus its built-in global flags minus `--wizard` — an interactive prompt
+// for a seven-word command line is clutter. `--log-level` stays: with `--fg`
+// the deck's own logs are right there in the terminal.
 const NodeLayer = NodeChildProcessSpawner.layer.pipe(
   Layer.provideMerge(
-    Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeStdio.layer, NodeTerminal.layer),
+    Layer.mergeAll(
+      NodeFileSystem.layer,
+      NodePath.layer,
+      NodeStdio.layer,
+      NodeTerminal.layer,
+      CliConfig.layer({
+        builtIns: [
+          GlobalFlag.Help,
+          GlobalFlag.Version,
+          GlobalFlag.Completions,
+          GlobalFlag.LogLevel,
+        ],
+      }),
+    ),
   ),
 )
 
