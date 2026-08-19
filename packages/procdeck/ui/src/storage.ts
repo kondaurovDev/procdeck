@@ -17,6 +17,7 @@ export const UiState = S.Struct({
   layout: S.optionalKey(Layout),
   active: S.optionalKey(S.String),
   theme: S.optionalKey(Theme),
+  pinned: S.optionalKey(S.Array(S.String)),
 })
 export type UiState = typeof UiState.Type
 
@@ -36,7 +37,12 @@ export const loadUiState = (): UiState => {
 
 /** Emitted by `update` whenever a persisted field changes; one Command for all of them. */
 export const SaveUiState = Command.define("SaveUiState", {
-  args: { layout: Layout, active: S.UndefinedOr(S.String), theme: Theme },
+  args: {
+    layout: Layout,
+    active: S.UndefinedOr(S.String),
+    theme: Theme,
+    pinned: S.Array(S.String),
+  },
   messages: [CompletedRequest],
   execute: (state) =>
     Effect.sync(() => {

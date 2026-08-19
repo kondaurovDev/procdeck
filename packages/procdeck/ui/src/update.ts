@@ -16,6 +16,7 @@ import {
 } from "./command.ts"
 import { PromptInstall } from "./install.ts"
 import type { Message } from "./message.ts"
+import { gridIds } from "./model.ts"
 import type { Layout, Model } from "./model.ts"
 import type { ProcStatus } from "./schema.ts"
 import { SaveUiState, loadUiState } from "./storage.ts"
@@ -43,11 +44,7 @@ const ERROR_PATTERN = /\b(error|exception|fatal|panic|traceback)\b|\bERR\b/i
 
 /** Panes whose terminal is on screen — the only ones xterm can measure. */
 const visibleIds = (model: Model): Array<string> =>
-  model.layout === "grid"
-    ? model.procs.map((info) => info.id)
-    : model.active === undefined
-      ? []
-      : [model.active]
+  model.layout === "grid" ? gridIds(model) : model.active === undefined ? [] : [model.active]
 
 /** Re-measure whatever is on screen and hand the keyboard to the active pane. */
 const refit = (model: Model): Command.Command<Message> =>
@@ -73,6 +70,25 @@ const setLayout = (model: Model, layout: Layout): Result => {
   return [next, [refit(next)]]
 }
 
+/** Single on that pane (its unread errors are read by definition). */
+const zoomTo = (model: Model, id: string): Result => {
+  const next = evo(model, {
+    layout: () => "single" as const,
+    active: () => id,
+    unread: ({ [id]: _read, ...rest }) => rest,
+  })
+  return [next, [refit(next)]]
+}
+
+/** Pinning changes which tiles the grid shows, so the rest need re-measuring. */
+const togglePin = (model: Model, id: string | undefined): Result => {
+  if (id === undefined) return [model, []]
+  const next = evo(model, {
+    pinned: (pinned) => (pinned.includes(id) ? pinned.filter((p) => p !== id) : [...pinned, id]),
+  })
+  return [next, model.layout === "grid" ? [refit(next)] : []]
+}
+
 const step = (model: Model, message: Message): Result =>
   M.value(message).pipe(
     M.withReturnType<Result>(),
@@ -82,8 +98,14 @@ const step = (model: Model, message: Message): Result =>
         evo(model, {
           procs: () => procs,
           // Keep the selection (it may come from localStorage) unless the
-          // config no longer has that proc; then the first one.
+          // config no longer has that proc; then the first one. Pins to
+          // procs that are gone are dropped the same way.
           active: (active) => (procs.some((info) => info.id === active) ? active : procs[0]?.id),
+          pinned: (pinned) => {
+            const kept = pinned.filter((id) => procs.some((info) => info.id === id))
+            // Same array when nothing was dropped, so the persist check stays quiet.
+            return kept.length === pinned.length ? pinned : kept
+          },
         }),
         [],
       ],
@@ -137,16 +159,17 @@ const step = (model: Model, message: Message): Result =>
       ],
 
       ChoseLayout: ({ layout }) => setLayout(model, layout),
-      ZoomedProc: ({ id }) => {
-        const next = evo(model, {
-          layout: () => "single" as const,
-          active: () => id,
-          unread: ({ [id]: _read, ...rest }) => rest,
-        })
-        return [next, [refit(next)]]
-      },
+      ZoomedProc: ({ id }) => zoomTo(model, id),
+      ToggledZoom: () =>
+        model.layout === "single"
+          ? setLayout(model, "grid")
+          : model.active === undefined
+            ? [model, []]
+            : zoomTo(model, model.active),
       CycledLayout: () =>
         setLayout(model, LAYOUTS[(LAYOUTS.indexOf(model.layout) + 1) % LAYOUTS.length]!),
+      ToggledPin: ({ id }) => togglePin(model, id),
+      PressedPin: () => togglePin(model, model.active),
 
       ChoseTheme: ({ theme }) => [evo(model, { theme: () => theme }), []],
       SystemSchemeChanged: ({ dark }) => [evo(model, { systemDark: () => dark }), []],
@@ -215,14 +238,24 @@ const step = (model: Model, message: Message): Result =>
 export const update = (model: Model, message: Message): Result => {
   const [next, commands] = step(model, message)
   const persist =
-    next.layout !== model.layout || next.active !== model.active || next.theme !== model.theme
+    next.layout !== model.layout ||
+    next.active !== model.active ||
+    next.theme !== model.theme ||
+    next.pinned !== model.pinned
   const repaint = next.theme !== model.theme || resolveScheme(next) !== resolveScheme(model)
   return [
     next,
     [
       ...commands,
       ...(persist
-        ? [SaveUiState({ layout: next.layout, active: next.active, theme: next.theme })]
+        ? [
+            SaveUiState({
+              layout: next.layout,
+              active: next.active,
+              theme: next.theme,
+              pinned: next.pinned,
+            }),
+          ]
         : []),
       ...(repaint ? [ApplyTheme({ theme: next.theme, scheme: resolveScheme(next) })] : []),
     ],
@@ -237,6 +270,7 @@ export const init = (): Result => {
     // Validated against the config once GotProcs arrives.
     active: stored.active,
     layout: stored.layout ?? "single",
+    pinned: stored.pinned ?? [],
     mounted: [],
     error: undefined,
     search: undefined,

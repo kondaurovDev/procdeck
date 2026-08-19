@@ -240,7 +240,8 @@ aside {
 }
 main {
   display: grid;
-  grid-template-rows: minmax(0, 1fr);
+  /* Tiles, then the optional tray strip. */
+  grid-template-rows: minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
 }
@@ -386,18 +387,110 @@ input.search:focus {
   margin: 8px 4px 4px 10px;
 }
 /*
- * Compact tiles: as many columns as fit at ≥420px, rows at least 240px tall.
- * With few panes the rows stretch to fill the area; with many, the grid
- * scrolls. Terminals auto-scroll to their tail, so a short tile still shows
- * what matters.
+ * Compact tiles. Column count comes from the tile count (near-square, see
+ * gridColumns in view.ts) so the deck fits the screen when it can; rows
+ * stretch to fill and only once they would drop under 180px does the grid
+ * scroll. Terminals auto-scroll to their tail, so a short tile still shows
+ * what matters. Too many tiles to fit? Pin the ones you watch — the rest go
+ * to the tray.
  */
 .terminals.grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
-  grid-auto-rows: minmax(240px, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: minmax(180px, 1fr);
   gap: 6px;
   padding: 6px;
   overflow-y: auto;
+}
+.terminals.grid.cols-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+.terminals.grid.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.terminals.grid.cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+/* Narrow windows: never more than two columns, tiles get unreadable. */
+@media (max-width: 1100px) {
+  .terminals.grid.cols-3,
+  .terminals.grid.cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .terminals.grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* The tray: unpinned procs as chips under the grid. */
+.tray {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 4px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  font-size: 11px;
+}
+.tray-item {
+  display: inline-flex;
+  align-items: center;
+}
+.tray .peek {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  background: transparent;
+  border-color: transparent;
+}
+.tray .peek:hover {
+  background: var(--hover);
+  border-color: var(--border);
+}
+.tray .peek.active {
+  border-color: var(--accent);
+}
+.tray .peek .name {
+  font-weight: 600;
+}
+.tray .pin {
+  opacity: 0;
+}
+.tray-item:hover .pin {
+  opacity: 0.6;
+}
+/* Pin toggle: monochrome, faint until pinned or hovered. */
+button.pin {
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  background: transparent;
+  border-color: transparent;
+  filter: grayscale(1);
+  opacity: 0.3;
+}
+button.pin:hover {
+  opacity: 0.8;
+  border-color: var(--accent);
+}
+button.pin.on {
+  opacity: 1;
+  filter: none;
+}
+.proc .name button.pin {
+  margin-left: 4px;
+  vertical-align: 1px;
+  opacity: 0;
+}
+.proc:hover .name button.pin,
+.proc .name button.pin.on {
+  opacity: 0.3;
+}
+.proc .name button.pin.on {
+  opacity: 1;
 }
 .terminals.grid .tile {
   border: 1px solid var(--border);

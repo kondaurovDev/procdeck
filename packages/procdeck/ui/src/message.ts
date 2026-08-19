@@ -32,8 +32,14 @@ export const ResizedWindow = m("ResizedWindow")
 
 // Layout
 export const ChoseLayout = m("ChoseLayout", { layout: Layout })
-/** Grid tile double-click: back to single with that pane active. */
+/** Grid tile double-click / tray click: single with that pane active. */
 export const ZoomedProc = m("ZoomedProc", { id: S.String })
+/** ⌥Z: grid → single on the active pane, single → grid. */
+export const ToggledZoom = m("ToggledZoom")
+/** Pin icon on a pane header / sidebar row / tray item. */
+export const ToggledPin = m("ToggledPin", { id: S.String })
+/** ⌥P: pin/unpin the active pane. */
+export const PressedPin = m("PressedPin")
 
 // Theme
 export const ChoseTheme = m("ChoseTheme", { theme: Theme })
@@ -87,6 +93,9 @@ export const Message = S.Union([
   ResizedWindow,
   ChoseLayout,
   ZoomedProc,
+  ToggledZoom,
+  ToggledPin,
+  PressedPin,
   ChoseTheme,
   SystemSchemeChanged,
   SelectedProcOffset,

@@ -35,6 +35,11 @@ export const Model = S.Struct({
   active: S.UndefinedOr(S.String),
   layout: Layout,
   /**
+   * Procs the user wants in the grid. Non-empty → grid shows only these and
+   * the rest collapse into the tray; empty → the grid shows everyone.
+   */
+  pinned: S.Array(S.String),
+  /**
    * Ids whose xterm instance has mounted. The SSE subscription is gated on
    * every pane being mounted, so the replayed backlog always has somewhere to
    * land — ordering as a Model condition instead of imperative sequencing.
@@ -58,3 +63,9 @@ export const Model = S.Struct({
   systemDark: S.Boolean,
 })
 export type Model = typeof Model.Type
+
+/** Procs tiled in grid layout: the pinned ones, or everyone when nothing is pinned. */
+export const gridIds = (model: Model): Array<string> =>
+  model.procs
+    .map((info) => info.id)
+    .filter((id) => model.pinned.length === 0 || model.pinned.includes(id))

@@ -12,8 +12,10 @@ import {
   ClickedStopAll,
   ClosedSearch,
   SteppedSearch,
+  ToggledPin,
   ZoomedProc,
 } from "./message.ts"
+import { gridIds } from "./model.ts"
 import type { Layout, Model, Theme } from "./model.ts"
 import type { ProcInfo, ProcStatus } from "./schema.ts"
 import { MountTerminal } from "./terminal.ts"
@@ -86,9 +88,26 @@ const badges = (info: ProcInfo, unread: number, h: HtmlBuilder<Message>): Array<
       ]),
 ]
 
+/**
+ * Pin toggle, shared by the sidebar row, the pane header and the tray. Pinned
+ * procs are the grid; an unpinned one lives in the tray while anything is
+ * pinned. Never stops propagation — on a sidebar row the click also selects,
+ * which is fine; the tray keeps it outside the peek target instead.
+ */
+const pinButton = (id: string, pinned: boolean, h: HtmlBuilder<Message>): Html =>
+  h.button(
+    [
+      h.Class(pinned ? "pin on" : "pin"),
+      h.Title(pinned ? "unpin from grid (⌥P)" : "pin to grid (⌥P)"),
+      h.OnClick(ToggledPin({ id })),
+    ],
+    ["📌"],
+  )
+
 const procRow = (
   info: ProcInfo,
   isActive: boolean,
+  pinned: boolean,
   unread: number,
   now: number,
   h: HtmlBuilder<Message>,
@@ -114,7 +133,10 @@ const procRow = (
       h.div(
         [h.Class("proc-body")],
         [
-          h.div([h.Class("name")], [info.id, ...badges(info, unread, h)]),
+          h.div(
+            [h.Class("name")],
+            [info.id, ...badges(info, unread, h), pinButton(info.id, pinned, h)],
+          ),
           h.div([h.Class("cmd")], [info.command]),
           ...(sub.length === 0 ? [] : [h.div([h.Class("sub")], sub)]),
         ],
@@ -123,8 +145,8 @@ const procRow = (
   )
 }
 
-/** Restart / Stop-or-Start / Clear for one pane, as compact icon buttons. */
-const paneActions = (info: ProcInfo, h: HtmlBuilder<Message>): Html => {
+/** Pin + Restart / Stop-or-Start / Clear for one pane, as compact icon buttons. */
+const paneActions = (info: ProcInfo, pinned: boolean, h: HtmlBuilder<Message>): Html => {
   const { state } = info.status
   const idle = state === "stopped" || state === "exited" || state === "blocked"
   const busy = state === "running" || state === "starting"
@@ -133,6 +155,7 @@ const paneActions = (info: ProcInfo, h: HtmlBuilder<Message>): Html => {
   return h.span(
     [h.Class("pane-actions")],
     [
+      pinButton(info.id, pinned, h),
       h.button(
         [h.Disabled(!busy), h.Title("restart (⌥R)"), h.OnClick(action("restart"))],
         ["↻"],
@@ -154,11 +177,12 @@ const paneActions = (info: ProcInfo, h: HtmlBuilder<Message>): Html => {
  */
 const tile = (info: ProcInfo, model: Model, h: HtmlBuilder<Message>): Html => {
   const isActive = info.id === model.active
+  const shown = model.layout === "single" ? isActive : gridIds(model).includes(info.id)
   return h.div(
     [
       h.Key(info.id),
       h.Class(isActive ? "tile active" : "tile"),
-      h.Hidden(model.layout === "single" && !isActive),
+      h.Hidden(!shown),
       h.OnClick(ClickedProc({ id: info.id })),
     ],
     [
@@ -174,13 +198,54 @@ const tile = (info: ProcInfo, model: Model, h: HtmlBuilder<Message>): Html => {
           h.span([h.Class("name")], [info.id, ...badges(info, model.unread[info.id] ?? 0, h)]),
           h.span([h.Class("links")], paneLinks(info, h)),
           h.span([h.Class("meta")], [describeStatus(info.status)]),
-          paneActions(info, h),
+          paneActions(info, model.pinned.includes(info.id), h),
         ],
       ),
       h.div([h.Class("term"), h.OnMount(MountTerminal({ id: info.id }))], []),
     ],
   )
 }
+
+/**
+ * Grid-only strip below the tiles holding the procs that are not pinned (and
+ * so not tiled) — their dot, id and badges stay one glance away, so a crash in
+ * an unpinned pane is still seen. Click the name to peek (single on it), pin
+ * to put it back in the grid. Absent while nothing is pinned.
+ */
+const tray = (model: Model, h: HtmlBuilder<Message>): Array<Html> => {
+  if (model.layout !== "grid" || model.pinned.length === 0) return []
+  const rest = model.procs.filter((info) => !model.pinned.includes(info.id))
+  if (rest.length === 0) return []
+  return [
+    h.div(
+      [h.Class("tray")],
+      rest.map((info) =>
+        h.span(
+          [h.Key(info.id), h.Class("tray-item")],
+          [
+            // The active pane may sit here (after a peek, say): hotkeys still
+            // act on it, so it keeps its accent.
+            h.button(
+              [
+                h.Class(info.id === model.active ? "peek active" : "peek"),
+                h.Title("peek: show only this pane"),
+                h.OnClick(ZoomedProc({ id: info.id })),
+              ],
+              [
+                h.span([h.Class(`dot ${info.status.state}`)], []),
+                h.span([h.Class("name")], [info.id, ...badges(info, model.unread[info.id] ?? 0, h)]),
+              ],
+            ),
+            pinButton(info.id, false, h),
+          ],
+        ),
+      ),
+    ),
+  ]
+}
+
+/** How many columns the grid uses for n tiles: near-square, capped so tiles stay readable. */
+const gridColumns = (n: number): number => Math.max(1, Math.min(4, Math.ceil(Math.sqrt(n))))
 
 const LAYOUT_OPTIONS: ReadonlyArray<{ layout: Layout; label: string; hint: string }> = [
   { layout: "single", label: "▣", hint: "single pane" },
@@ -346,12 +411,21 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
           h.div(
             [],
             model.procs.map((info) =>
-              procRow(info, info.id === model.active, model.unread[info.id] ?? 0, model.now, h),
+              procRow(
+                info,
+                info.id === model.active,
+                model.pinned.includes(info.id),
+                model.unread[info.id] ?? 0,
+                model.now,
+                h,
+              ),
             ),
           ),
           h.div(
             [h.Class("hints")],
-            ["⌥↑↓ switch · ⌥R restart · ⌥S stop/start · ⌥G layout · ⌘K clear · ⌘F find"],
+            [
+              "⌥↑↓ switch · ⌥R restart · ⌥S stop/start · ⌥G layout · ⌥Z zoom · ⌥P pin · ⌘K clear · ⌘F find",
+            ],
           ),
         ],
       ),
@@ -359,9 +433,10 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
         [],
         [
           h.div(
-            [h.Class(`terminals ${model.layout}`)],
+            [h.Class(`terminals ${model.layout} cols-${gridColumns(gridIds(model).length)}`)],
             model.procs.map((info) => tile(info, model, h)),
           ),
+          ...tray(model, h),
         ],
       ),
     ],

@@ -5,6 +5,7 @@ import {
   CycledLayout,
   OpenedSearch,
   PressedClear,
+  PressedPin,
   PressedRestart,
   PressedToggle,
   ReceivedLog,
@@ -14,6 +15,7 @@ import {
   StreamDropped,
   StreamOpened,
   Ticked,
+  ToggledZoom,
 } from "./message.ts"
 import type { Message } from "./message.ts"
 import type { Model } from "./model.ts"
@@ -125,6 +127,10 @@ const hotkeyMessage = (event: KeyboardEvent): Message | undefined => {
         return PressedToggle()
       case "KeyG":
         return CycledLayout()
+      case "KeyP":
+        return PressedPin()
+      case "KeyZ":
+        return ToggledZoom()
     }
   }
   return undefined

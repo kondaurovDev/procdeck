@@ -36,14 +36,12 @@ replayed errors out of the unread badge (`ui/src/subscription.ts`).
 
 ## Next up (agreed order)
 
-1. **Pin + tray + ⌥Z** in grid, "fit" toggle — see "Grid pinning" below; the
-   least obvious design, so prototype it on a 9-pane deck early.
-2. **Pre-publish polish** — clickable URLs, title/favicon badge + notifications,
+1. **Pre-publish polish** — clickable URLs, title/favicon badge + notifications,
    readable exit status — see "Polish before publishing".
-3. **Registry + detached mode** (`up` / `down` / `status` / `open`, Shutdown
+2. **Registry + detached mode** (`up` / `down` / `status` / `open`, Shutdown
    button) — the core.
-4. **Deck switcher dropdown** in the global bar — cheap on top of the registry.
-5. **Command palette** — once there are enough actions to put in it.
+3. **Deck switcher dropdown** in the global bar — cheap on top of the registry.
+4. **Command palette** — once there are enough actions to put in it.
 
 ## UI state survives a refresh (shipped: localStorage)
 
@@ -92,28 +90,31 @@ to System via `prefers-color-scheme` (GitHub/Linear/VS Code convention).
   runtime meta overrides it in Chromium, so it only matters for the install
   dialog.
 
-## Grid pinning + tray (decision)
+## Grid pinning + tray (shipped)
 
 Nine panes on one screen is the reality on a monorepo deck; the grid scrolls
 and the crash below the fold is exactly the one that goes unseen. Patterns
 that survive elsewhere (tmux status bar, Zellij tab bar, macOS minimise,
-Grafana/Datadog "fit vs scroll"), in the order to build them:
+Grafana/Datadog "fit vs scroll"):
 
-- **Pin + tray.** A per-proc pin (pane header icon, ⌥P, sidebar row). Pinned
-  procs render as grid tiles; unpinned ones collapse into a **tray** — a
-  narrow strip below the grid with dot, id and the unread/alert badge per
-  proc, so a crash in an unpinned pane is still one glance away. Click a tray
-  item to *peek* (temporarily zoom to it in single), pin to keep it in the
-  grid. With nothing pinned the grid shows everything, as today. Pinned tiles
-  come first, so pinning is also the 80 % answer to "let me reorder tiles".
-- **Fit toggle.** Grid mode flag: instead of scrolling, tiles shrink (columns
-  auto, xterm font scaled down to a floor) so the whole deck stays on screen;
-  when it can't fit even at the floor, the tray is the pressure valve.
-  Default to fit; scroll stays available.
-- **⌥Z zoom toggle** — active tile ↔ single and back (tmux `prefix z`), the
-  keyboard twin of double-clicking a tile header.
+- **Pin + tray** (shipped). `Model.pinned` (persisted); `gridIds(model)` =
+  pinned, or everyone when nothing is pinned. Pin toggles live on the pane
+  header, the sidebar row (hover-revealed) and the tray chips; ⌥P toggles the
+  active pane. Unpinned procs collapse into the **tray** under the grid —
+  dot, id, badges — click the chip to *peek* (single on it), pin to put it
+  back. The active pane may sit in the tray (after a peek + ⌥Z, say); it
+  keeps its accent there because hotkeys still act on it. Stale pins are
+  dropped on `GotProcs`, same as a stale `active`.
+- **Fit** (shipped, without a toggle). Column count = ⌈√n⌉ capped at 4
+  (`cols-N` class from `gridColumns` in view.ts, 2 columns under 1100 px, 1
+  under 700 px); rows stretch and the grid scrolls only when they would drop
+  under 180 px. With 9 tiles on 1400×800 nothing scrolls. Font scaling was
+  not needed — pins are the pressure valve.
+- **⌥Z zoom toggle** (shipped) — active tile ↔ single and back, the keyboard
+  twin of double-clicking a tile header.
 - **Status filter chips** in the global bar — running / exited / alerts
-  (Docker Desktop, k9s). Cheap; answers "show me only what's broken".
+  (Docker Desktop, k9s). Cheap; answers "show me only what's broken". Not
+  built yet.
 - **Groups from config** (`group: "frontend"`) as collapsible grid sections
   and sidebar sections — later, when a deck outgrows pins.
 - **Drag-to-reorder** — nice-to-have; not before pins have proven insufficient.

@@ -48,8 +48,11 @@ which port is which**.
   the grandchild holding the port. procdeck signals the process group, escalating
   SIGTERM → SIGKILL, and Ctrl-C tears down every tree it spawned.
 - **Single or grid layout.** One pane at a time with a sidebar, or every pane tiled
-  (⌥G); each pane header carries its address, status and restart/stop/clear. Layout,
-  selected pane and theme (system / light / dark — terminals included) survive a reload.
+  (⌥G, ⌥Z zooms one tile in and out); each pane header carries its address, status and
+  restart/stop/clear. Too many tiles? **Pin** the ones you watch (📌, ⌥P) — the grid
+  shows only those and the rest collapse into a tray strip with their status dots and
+  badges, one click from a peek. Layout, pins, selected pane and theme (system / light /
+  dark — terminals included) survive a reload.
 - **Installable as an app.** The UI ships a web-app manifest named after the deck
   (`name` in the config, else the directory), so "⤓ install" in the bar — or File →
   Add to Dock in Safari — gives each project its own window and Dock icon. Works over
