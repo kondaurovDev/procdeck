@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process"
+import { constants } from "node:os"
 import { spawn } from "@lydell/node-pty"
 import type { IPty } from "@lydell/node-pty"
 import type { ProcSpec } from "./config.ts"
@@ -21,8 +22,12 @@ export type SpawnedProc = {
   pty: IPty
   pid: number
   /** Resolves once the process (and its PTY) is gone. */
-  exited: Promise<{ exitCode: number; signal?: number }>
+  exited: Promise<{ exitCode: number; signal?: string }>
 }
+
+/** "SIGTERM" for 15; unknown numbers stay numeric so nothing is lost. */
+const signalName = (signal: number): string =>
+  Object.entries(constants.signals).find(([, n]) => n === signal)?.[0] ?? `signal ${signal}`
 
 export type SpawnOptions = {
   spec: ProcSpec
@@ -72,9 +77,15 @@ export const spawnProc = (options: SpawnOptions): SpawnedProc => {
 
   pty.onData(onData)
 
-  const exited = new Promise<{ exitCode: number; signal?: number }>((resolve) => {
+  const exited = new Promise<{ exitCode: number; signal?: string }>((resolve) => {
+    // node-pty reports the signal as a number, 0 for "exited on its own";
+    // the name (SIGTERM) is what a human wants to read.
     pty.onExit(({ exitCode, signal }) =>
-      resolve(signal === undefined ? { exitCode } : { exitCode, signal }),
+      resolve(
+        signal === undefined || signal === 0
+          ? { exitCode }
+          : { exitCode, signal: signalName(signal) },
+      ),
     )
   })
 

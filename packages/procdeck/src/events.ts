@@ -5,9 +5,14 @@ export type ProcStatus = {
   state: ProcState
   pid?: number
   exitCode?: number
-  signal?: number
+  /** Name of the signal that ended it ("SIGTERM"), when one did. */
+  signal?: string
   /** Epoch ms of the last successful spawn. */
   startedAt?: number
+  /** Epoch ms of the last exit (state "exited" only). */
+  exitedAt?: number
+  /** Spawns beyond the first since the deck came up — crash loops show here. */
+  restarts?: number
   /** TCP ports the process tree is listening on (auto-detected). */
   ports?: Array<number>
   /** Why the proc is blocked — the preflight's hint (state "blocked" only). */

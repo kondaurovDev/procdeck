@@ -41,8 +41,9 @@ const usefulPorts = (info: ProcInfo): Array<number> =>
     ]),
   ].sort((a, b) => a - b)
 
+/** Machinery ports — minus the assigned one, which is useful whatever its number. */
 const internalPorts = (info: ProcInfo): Array<number> =>
-  (info.status.ports ?? []).filter(isInternalPort)
+  (info.status.ports ?? []).filter((port) => isInternalPort(port) && port !== info.assignedPort)
 
 const portHref = (info: ProcInfo, port: number): string =>
   info.url?.includes(`:${port}`) ? info.url : `http://localhost:${port}`
@@ -55,7 +56,15 @@ const formatUptime = (ms: number): string => {
   return `${Math.floor(m / 60)}h ${m % 60}m`
 }
 
-const describeStatus = (status: ProcStatus): string => {
+/** `exit 1` / `killed (SIGTERM)` — how it ended, nothing else. */
+const describeExit = (status: ProcStatus): string =>
+  status.signal === undefined ? `exit ${status.exitCode}` : `killed (${status.signal})`
+
+/** `2m 10s ago` for the sidebar and pane header of an exited proc. */
+const describeExitedAgo = (status: ProcStatus, now: number): string =>
+  status.exitedAt === undefined ? "" : ` · ${formatUptime(now - status.exitedAt)} ago`
+
+const describeStatus = (status: ProcStatus, now: number): string => {
   const base = (() => {
     switch (status.state) {
       case "running":
@@ -65,14 +74,14 @@ const describeStatus = (status: ProcStatus): string => {
       case "blocked":
         return status.hint === undefined ? "blocked · preflight failed" : `blocked · ${status.hint}`
       case "exited":
-        return status.signal === undefined
-          ? `exited · code ${status.exitCode}`
-          : `exited · signal ${status.signal}`
+        return `${describeExit(status)}${describeExitedAgo(status, now)}`
       default:
         return status.state
     }
   })()
-  return status.alert === undefined ? base : `${base} · ⚠ ${status.alert}`
+  const restarts = status.restarts === undefined ? "" : ` · ↻${status.restarts}`
+  const alert = status.alert === undefined ? "" : ` · ⚠ ${status.alert}`
+  return `${base}${restarts}${alert}`
 }
 
 /** Alert + unread-error badges, shared by the sidebar row and the grid tile. */
@@ -113,14 +122,19 @@ const procRow = (
   h: HtmlBuilder<Message>,
 ): Html => {
   const ports = usefulPorts(info)
-  const uptime =
+  // Right-aligned tail of the row: uptime while running, how it ended once exited.
+  const tail =
     info.status.state === "running" && info.status.startedAt !== undefined
       ? formatUptime(now - info.status.startedAt)
-      : undefined
+      : info.status.state === "exited"
+        ? `${describeExit(info.status)}${describeExitedAgo(info.status, now)}`
+        : undefined
   const sub: Array<Html> = ports.map((port) =>
     h.a([h.Href(portHref(info, port)), h.Target("_blank"), h.Class("port")], [`:${port}`]),
   )
-  if (uptime !== undefined) sub.push(h.span([h.Class("up")], [uptime]))
+  if (tail !== undefined) {
+    sub.push(h.span([h.Class(info.status.state === "exited" ? "up exit" : "up")], [tail]))
+  }
 
   return h.div(
     [
@@ -196,8 +210,12 @@ const tile = (info: ProcInfo, model: Model, h: HtmlBuilder<Message>): Html => {
         [
           h.span([h.Class(`dot ${info.status.state}`)], []),
           h.span([h.Class("name")], [info.id, ...badges(info, model.unread[info.id] ?? 0, h)]),
-          h.span([h.Class("links")], paneLinks(info, h)),
-          h.span([h.Class("meta")], [describeStatus(info.status)]),
+          h.span([h.Class("links")], paneLinks(info, model.layout === "grid", h)),
+          // Lowest priority for space in the header: ellipsised, full text on hover.
+          h.span(
+            [h.Class("meta"), h.Title(describeStatus(info.status, model.now))],
+            [describeStatus(info.status, model.now)],
+          ),
           paneActions(info, model.pinned.includes(info.id), h),
         ],
       ),
@@ -299,15 +317,30 @@ const primaryUrl = (info: ProcInfo): string | undefined =>
 
 const bareUrl = (url: string): string => url.replace(/^https?:\/\//, "")
 
-const paneLinks = (info: ProcInfo, h: HtmlBuilder<Message>): Array<Html> => {
+/**
+ * Addresses in a pane header. `compact` (grid tiles) keeps only the primary
+ * address — whole, never clipped to `:61` — and moves the raw ports into its
+ * tooltip; single layout has the room to show every chip.
+ */
+const paneLinks = (info: ProcInfo, compact: boolean, h: HtmlBuilder<Message>): Array<Html> => {
   const links: Array<Html> = []
-  const link = (href: string, label: string) =>
-    h.a([h.Href(href), h.Target("_blank"), h.Class("port")], [label])
+  const link = (href: string, label: string, title?: string) =>
+    h.a(
+      [h.Href(href), h.Target("_blank"), h.Class("port"), ...(title === undefined ? [] : [h.Title(title)])],
+      [label],
+    )
+  const ports = usefulPorts(info)
+  const primary = primaryUrl(info)
+  if (compact) {
+    const portList = ports.map((port) => `:${port}`).join("  ")
+    if (primary !== undefined) links.push(link(primary, bareUrl(primary), portList || undefined))
+    else if (ports[0] !== undefined) links.push(link(portHref(info, ports[0]), `:${ports[0]}`, portList))
+    return links
+  }
   // The primary address first; the raw ports stay available as chips for
   // scripts and curl.
-  const primary = primaryUrl(info)
   if (primary !== undefined) links.push(link(primary, bareUrl(primary)))
-  for (const port of usefulPorts(info)) {
+  for (const port of ports) {
     links.push(link(portHref(info, port), `:${port}`))
   }
   // Inspector/ephemeral machinery — collapsed into a hoverable count.

@@ -212,14 +212,16 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
       dependenciesToStream: () => systemSchemeStream,
     },
   ),
-  // Uptime clock — only ticks while something is actually running.
+  // Uptime / "exited 2m ago" clock — only ticks while there is something to age.
   clock: entry(
-    { anyRunning: S.Boolean },
+    { anyAging: S.Boolean },
     {
       modelToDependencies: (model) => ({
-        anyRunning: model.procs.some((info) => info.status.state === "running"),
+        anyAging: model.procs.some(
+          (info) => info.status.state === "running" || info.status.exitedAt !== undefined,
+        ),
       }),
-      dependenciesToStream: ({ anyRunning }) => (anyRunning ? tickStream : Stream.empty),
+      dependenciesToStream: ({ anyAging }) => (anyAging ? tickStream : Stream.empty),
     },
   ),
 }))

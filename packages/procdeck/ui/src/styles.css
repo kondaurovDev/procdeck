@@ -230,6 +230,10 @@ aside {
   font-family: ui-monospace, SFMono-Regular, monospace;
   font-variant-numeric: tabular-nums;
 }
+.up.exit {
+  color: var(--bad);
+  opacity: 0.85;
+}
 .proc .cmd {
   color: var(--muted);
   font-size: 11px;
@@ -521,14 +525,18 @@ button.pin.on {
   font-weight: 600;
   white-space: nowrap;
 }
+/* Space priority in a tile header: name, address, controls — the status text
+   gives way first (ellipsis, full text in its tooltip). */
 .tile-head .links {
-  flex-shrink: 1;
+  flex-shrink: 0;
+  overflow: visible;
 }
 .tile-head .meta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 3ch;
 }
 /* Per-pane controls: quiet until the pane is hovered or active. */
 .pane-actions {

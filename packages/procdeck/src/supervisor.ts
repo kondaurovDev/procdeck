@@ -29,6 +29,8 @@ type Runtime = {
   ports: Array<number>
   /** Rolling tail of recent output, matched against `alerts` patterns. */
   tail: string
+  /** Successful spawns so far; `restarts` in the status is this minus one. */
+  spawns: number
   cols: number
   rows: number
 }
@@ -99,6 +101,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       waiter: undefined,
       ports: [],
       tail: "",
+      spawns: 0,
       cols: DEFAULT_COLS,
       rows: DEFAULT_ROWS,
     })
@@ -168,6 +171,8 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       return
     }
     runtime.proc = proc
+    runtime.spawns += 1
+    const restarts = runtime.spawns - 1
 
     // Procs that never listen are ready by virtue of running.
     if (runtime.spec.readyWhen === "started") runtime.ready.openUnsafe()
@@ -177,6 +182,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       state: "running",
       pid: proc.pid,
       startedAt: Date.now(),
+      ...(restarts === 0 ? {} : { restarts }),
     })
 
     void proc.exited.then(({ exitCode, signal }) => {
@@ -188,7 +194,9 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
         id: runtime.spec.id,
         state: "exited",
         exitCode,
+        exitedAt: Date.now(),
         ...(signal === undefined ? {} : { signal }),
+        ...(restarts === 0 ? {} : { restarts }),
       })
     })
   }

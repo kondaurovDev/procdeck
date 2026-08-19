@@ -3,6 +3,7 @@ import { Mount } from "foldkit"
 import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import { SearchAddon } from "@xterm/addon-search"
+import { WebLinksAddon } from "@xterm/addon-web-links"
 import { MountedTerminal, TypedInput } from "./message.ts"
 import { currentScheme, xtermTheme } from "./theme.ts"
 
@@ -48,6 +49,9 @@ export const MountTerminal = Mount.defineStream(
             term.loadAddon(fit)
             const search = new SearchAddon()
             term.loadAddon(search)
+            // URLs in output open in a new tab on click — `Local: http://…`
+            // from every dev server is the one people reach for.
+            term.loadAddon(new WebLinksAddon())
             term.open(element as HTMLElement)
             term.onData((data) => {
               Queue.offerUnsafe(queue, TypedInput({ id, data }))
