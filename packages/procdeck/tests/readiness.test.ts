@@ -3,7 +3,7 @@ import * as net from "node:net"
 import * as os from "node:os"
 import * as path from "node:path"
 import { afterAll, describe, expect, test } from "vitest"
-import { Effect, PubSub } from "effect"
+import { Effect, Queue, Stream } from "effect"
 import type { LoadedConfig } from "../src/config.ts"
 import type { ProcEvent } from "../src/events.ts"
 import { makeSupervisor } from "../src/supervisor.ts"
@@ -23,11 +23,11 @@ const loaded = (procs: LoadedConfig["config"]["procs"]): LoadedConfig => ({
 const LONG_RUNNER = ["node", "-e", 'console.log("up"); setInterval(() => {}, 1000)']
 
 const takeUntil = Effect.fn("takeUntil")(function* (
-  subscription: PubSub.Subscription<ProcEvent>,
+  subscription: Queue.Dequeue<ProcEvent, unknown>,
   predicate: (event: ProcEvent) => boolean,
 ) {
   while (true) {
-    const event = yield* PubSub.take(subscription)
+    const event = yield* Queue.take(subscription)
     if (predicate(event)) return event
   }
 })
@@ -40,12 +40,12 @@ const takeUntil = Effect.fn("takeUntil")(function* (
  * an event the next call is waiting for may already be gone.
  */
 const takeUntilAll = Effect.fn("takeUntilAll")(function* (
-  subscription: PubSub.Subscription<ProcEvent>,
+  subscription: Queue.Dequeue<ProcEvent, unknown>,
   ...predicates: Array<(event: ProcEvent) => boolean>
 ) {
   const pending = [...predicates]
   while (pending.length > 0) {
-    const event = yield* PubSub.take(subscription)
+    const event = yield* Queue.take(subscription)
     const index = pending.findIndex((predicate) => predicate(event))
     if (index !== -1) pending.splice(index, 1)
   }
@@ -72,7 +72,7 @@ describe("preflight", () => {
           const supervisor = yield* makeSupervisor(
             loaded([{ id: "ok", cmd: LONG_RUNNER, preflight: { shell: "true" } }]),
           )
-          const subscription = yield* PubSub.subscribe(supervisor.events)
+          const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
             subscription,
             (event) =>
@@ -99,7 +99,7 @@ describe("preflight", () => {
               },
             ]),
           )
-          const subscription = yield* PubSub.subscribe(supervisor.events)
+          const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           // The check's output and the hint both land in the pane log (they
           // arrive in one chunk, before the status flips — a single predicate,
           // because each take consumes the event for good).
@@ -138,7 +138,7 @@ describe("preflight", () => {
               { id: "web", cmd: LONG_RUNNER, needs: ["gated"] },
             ]),
           )
-          const subscription = yield* PubSub.subscribe(supervisor.events)
+          const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
             subscription,
             (event) =>
@@ -174,7 +174,7 @@ describe("preflight", () => {
               },
             ]),
           )
-          const subscription = yield* PubSub.subscribe(supervisor.events)
+          const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           // The two procs race: `ok` can reach running before `gated` is
           // blocked, or the other way round.
           yield* takeUntilAll(
@@ -201,7 +201,7 @@ describe("preflight", () => {
               { id: "gated", cmd: LONG_RUNNER, preflight: { shell: `test -f ${flag}` } },
             ]),
           )
-          const subscription = yield* PubSub.subscribe(supervisor.events)
+          const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
             subscription,
             (event) =>
@@ -247,7 +247,7 @@ describe("url-pinned readiness", () => {
               { id: "web", cmd: LONG_RUNNER, needs: ["api"] },
             ]),
           )
-          const subscription = yield* PubSub.subscribe(supervisor.events)
+          const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           // Wait until the poll loop has seen the stray port…
           yield* takeUntil(
             subscription,
@@ -284,7 +284,7 @@ describe("url-pinned readiness", () => {
               { id: "web", cmd: LONG_RUNNER, needs: ["api"] },
             ]),
           )
-          const subscription = yield* PubSub.subscribe(supervisor.events)
+          const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
             subscription,
             (event) =>
@@ -316,7 +316,7 @@ describe("log alerts", () => {
               },
             ]),
           )
-          const subscription = yield* PubSub.subscribe(supervisor.events)
+          const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
             subscription,
             (event) => event.type === "status" && event.status.alert === "needs login",
@@ -339,7 +339,7 @@ describe("log alerts", () => {
               },
             ]),
           )
-          const subscription = yield* PubSub.subscribe(supervisor.events)
+          const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
             subscription,
             (event) => event.type === "status" && event.status.alert === "attention",

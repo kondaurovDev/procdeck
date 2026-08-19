@@ -107,6 +107,21 @@ export const WriteTerminal = Command.define("WriteTerminal", {
     }),
 })
 
+/**
+ * Full reset of a pane — before a reconnected feed replays the backlog, so
+ * history is not appended to itself. (Unlike `clear`, this also drops the
+ * current line and any terminal modes the process had set.)
+ */
+export const ResetTerminal = Command.define("ResetTerminal", {
+  args: { id: S.String },
+  messages: [CompletedRequest],
+  execute: ({ id }) =>
+    Effect.sync(() => {
+      registry.get(id)?.term.reset()
+      return CompletedRequest()
+    }),
+})
+
 /** Wipe the pane's screen and scrollback (the shell keeps running). */
 export const ClearTerminal = Command.define("ClearTerminal", {
   args: { id: S.String },

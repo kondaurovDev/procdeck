@@ -13,6 +13,7 @@ import {
   FocusSearch,
   PostAction,
   PostInput,
+  ResetTerminal,
   Shutdown,
   WriteTerminal,
 } from "./command.ts"
@@ -144,9 +145,14 @@ const step = (model: Model, message: Message): Result =>
       // the ring replay is not guaranteed to hold them all — take the snapshot.
       StreamOpened: () => [
         evo(model, { stream: () => "open" as const, shutdown: () => false }),
-        // After a shutdown the server is a fresh process: take the snapshot
-        // and the deck info again (the config may have changed).
-        model.stream === "reconnecting" ? [FetchProcs(), FetchDeck()] : [],
+        // Back after a drop: the feed replays every backlog, so the panes
+        // start from blank (Commands run in order, and these are synchronous,
+        // so the resets land before the first replayed chunk). After a
+        // shutdown the server is a fresh process: take the snapshot and the
+        // deck info again (the config may have changed).
+        model.stream === "reconnecting"
+          ? [...model.mounted.map((id) => ResetTerminal({ id })), FetchProcs(), FetchDeck()]
+          : [],
       ],
       StreamDropped: () => [evo(model, { stream: () => "reconnecting" as const }), []],
 

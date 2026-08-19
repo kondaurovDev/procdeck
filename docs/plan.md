@@ -3,11 +3,21 @@
 Backlog of agreed-on improvements, roughly ordered by value/effort. Recently
 shipped items are at the bottom for context.
 
-## Server: per-proc log buffers (replaces the shared event ring)
+## Server: per-proc log buffers (shipped)
 
-**Problem.** All log chunks and status events share one `PubSub.sliding`
-(`EVENT_BUFFER = 5000` events, `supervisor.ts`). The guarantee it gives —
-"last 5000 events *in total*" — is the wrong shape; what a fresh tab needs is
+Shipped as designed below: `Runtime.backlog` (256 KB of chunks per proc,
+`seq`-numbered), `Supervisor.events` is a `Stream` per subscriber that
+subscribes to the live `PubSub.sliding({capacity: 4096})` first, then emits
+every proc's backlog + status, `{type: "synced"}`, then live events with
+`seq < snapshot` filtered out. The UI treats everything before `synced` as
+history (`live: false`), dropped the 500 ms heuristic, and on reconnect
+resets every mounted terminal before the replay lands (Commands are forked in
+order and these are synchronous). Tests cover eviction isolation and the
+seam.
+
+**Problem (as it was).** All log chunks and status events shared one
+`PubSub.sliding` (`EVENT_BUFFER = 5000` events). The guarantee it gave —
+"last 5000 events *in total*" — was the wrong shape; what a fresh tab needs is
 "the last N lines of *each* proc":
 
 - A chatty proc (a per-second ticker, a verbose build watcher) evicts quiet
@@ -38,8 +48,7 @@ replayed errors out of the unread badge (`ui/src/subscription.ts`).
 
 1. **Terminal niceties** (font size, Ctrl-C, copy-on-select) — see "Polish".
 2. **Command palette** — once there are enough actions to put in it.
-3. **Publishing checklist** below (hero GIF, `procdeck init`, comparison
-   table, update hint).
+3. **Publishing checklist** below (hero GIF, comparison table, update hint).
 
 Shipped from the previous list: registry + detached mode (`up` / `down` /
 `restart` / `status` / `ls` / `open` / `logs`, Shutdown button) and the deck
@@ -155,12 +164,15 @@ Small, all expected by anyone coming from a terminal, all cheap:
 
 - Hero GIF/screenshot right under the README title — a healthy deck, not a
   wall of red stacks.
-- `procdeck init` — scan `package.json` / `pnpm-workspace.yaml` and generate a
-  config with one proc per workspace `dev` script. Turns "write a JSON" into
-  "run one command".
+- `procdeck init` (shipped) — scans `pnpm-workspace.yaml` / `workspaces`,
+  one proc per package with a dev-ish script (`dev`, `start:dev`, `serve`,
+  `watch`, `start`), run via the lockfile's package manager; a plain package
+  gets its own script; nothing found → a template. Validates the file through
+  the real loader before reporting. No `${port}` guessing — printed as a tip.
 - A "vs mprocs / overmind / concurrently / turbo TUI" table — that is where
   users come from.
-- State plainly: binds `127.0.0.1` only, no telemetry, no service worker.
+- (shipped) Binds `127.0.0.1` only now (`host` in the config to open up);
+  README says so, plus no telemetry / no service worker.
 - "Update available" hint in the global bar (daily npm version check) — with
   detached mode an upgrade needs an explicit `procdeck restart`.
 

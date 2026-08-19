@@ -60,7 +60,7 @@ const sse = (
 ): Effect.Effect<HttpServerResponse.HttpServerResponse, never, Scope.Scope> =>
   Effect.sync(() => {
     const encoder = new TextEncoder()
-    const body = Stream.fromPubSub(supervisor.events).pipe(
+    const body = supervisor.events.pipe(
       Stream.map((event: ProcEvent) => `data: ${JSON.stringify(event)}\n\n`),
       Stream.merge(Stream.tick(HEARTBEAT).pipe(Stream.map(() => ": ping\n\n"))),
       Stream.map((chunk) => encoder.encode(chunk)),
@@ -81,6 +81,9 @@ export type DeckInfo = {
   port: number
   version: string
 }
+
+/** Where the server binds. Loopback by default (`host` in the config). */
+export type Bind = { host: string; port: number }
 
 /** Deck-wide hooks the CLI wires in; the server only exposes them over HTTP. */
 export type ServerHooks = {
@@ -318,6 +321,7 @@ const handleNode = async (
 export const serve = (
   supervisor: Supervisor,
   deck: DeckInfo,
+  bind: Bind,
   hooks: ServerHooks,
 ): Effect.Effect<number, Error, Scope.Scope> =>
   Effect.acquireRelease(
@@ -343,7 +347,7 @@ export const serve = (
 
       yield* Effect.callback<void, Error>((resume) => {
         http.once("error", (cause) => resume(Effect.fail(cause)))
-        http.listen(deck.port, () => resume(Effect.void))
+        http.listen(bind.port, bind.host, () => resume(Effect.void))
       })
 
       return { http, dispose }
@@ -354,4 +358,4 @@ export const serve = (
         await new Promise<void>((done) => http.close(() => done()))
         await dispose()
       }),
-  ).pipe(Effect.as(deck.port))
+  ).pipe(Effect.as(bind.port))

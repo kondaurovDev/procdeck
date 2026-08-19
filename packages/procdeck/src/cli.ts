@@ -1,5 +1,13 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync, realpathSync, statSync, unwatchFile, watchFile } from "node:fs"
+import {
+  existsSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  unwatchFile,
+  watchFile,
+  writeFileSync,
+} from "node:fs"
 import * as path from "node:path"
 import { Console, Data, Effect, Layer, Option } from "effect"
 import { Argument, CliConfig, Command, Flag, GlobalFlag } from "effect/unstable/cli"
@@ -9,9 +17,17 @@ import * as NodePath from "@effect/platform-node-shared/NodePath"
 import * as NodeRuntime from "@effect/platform-node-shared/NodeRuntime"
 import * as NodeStdio from "@effect/platform-node-shared/NodeStdio"
 import * as NodeTerminal from "@effect/platform-node-shared/NodeTerminal"
-import { CONFIG_FILENAMES, DEFAULT_UI_PORT, loadConfig, locateConfig } from "./config.ts"
+import {
+  CONFIG_FILENAMES,
+  DEFAULT_UI_HOST,
+  DEFAULT_UI_PORT,
+  discoverConfig,
+  loadConfig,
+  locateConfig,
+} from "./config.ts"
 import type { LoadedConfig } from "./config.ts"
 import type { ProcInfo } from "./events.ts"
+import { planInit } from "./init.ts"
 import { detach, isPortFree, openBrowser, pretty, shutdown } from "./lifecycle.ts"
 import {
   deregister,
@@ -63,12 +79,14 @@ const explainListenError = (port: number, root: string) => (cause: Error) => {
 const runServer = (loaded: LoadedConfig, configPath: string) =>
   Effect.gen(function* () {
     const port = loaded.config.port ?? DEFAULT_UI_PORT
+    const host = loaded.config.host ?? DEFAULT_UI_HOST
     const mode: Instance["mode"] =
       process.env["PROCDECK_DETACHED"] === "1" ? "detached" : "foreground"
     const supervisor = yield* makeSupervisor(loaded)
     yield* serve(
       supervisor,
       { name: loaded.name, root: loaded.root, port, version: VERSION },
+      { host, port },
       {
         // Goes through the runtime's signal handling, same as Ctrl-C.
         shutdown: () => process.kill(process.pid, "SIGTERM"),
@@ -117,7 +135,7 @@ const runServer = (loaded: LoadedConfig, configPath: string) =>
         }),
     )
     yield* Effect.log(
-      `procdeck ${VERSION} "${loaded.name}" listening on http://localhost:${port} (pid ${process.pid}, ${mode})`,
+      `procdeck ${VERSION} "${loaded.name}" listening on http://localhost:${port}${host === DEFAULT_UI_HOST ? "" : ` (bound to ${host})`} (pid ${process.pid}, ${mode})`,
     )
     yield* Effect.never
   }).pipe(Effect.scoped)
@@ -259,7 +277,7 @@ const upHandler = ({
     }
     // Probe the port here, in the terminal, rather than let the child find
     // out and die in its log file.
-    if (!(yield* Effect.promise(() => isPortFree(port)))) {
+    if (!(yield* Effect.promise(() => isPortFree(port, loaded.config.host ?? DEFAULT_UI_HOST)))) {
       return yield* fail(`port ${port} is busy (not a procdeck deck) — set "port" in the config`)
     }
 
@@ -396,6 +414,42 @@ const logs = Command.make(
     }).pipe(Effect.scoped),
 ).pipe(Command.withDescription("procdeck's own log — startup, shutdown, errors (not pane output)."))
 
+const init = Command.make(
+  "init",
+  {
+    force: Flag.boolean("force").pipe(Flag.withDescription("overwrite an existing config")),
+  },
+  ({ force }) =>
+    Effect.gen(function* () {
+      const root = process.cwd()
+      const existing = discoverConfig(root)
+      if (existing !== undefined && !force) {
+        return yield* fail(`${path.basename(existing)} already exists here (--force to overwrite)`)
+      }
+      const plan = planInit(root)
+      const file = path.join(root, CONFIG_FILENAMES[0])
+      writeFileSync(file, `${JSON.stringify(plan.config, null, 2)}\n`)
+      // Round-trip through the real loader: what we wrote must be a valid deck.
+      yield* load(file)
+      yield* Console.log(
+        `procdeck: wrote ${CONFIG_FILENAMES[0]} — ${plan.config.procs.length} proc${plan.config.procs.length === 1 ? "" : "s"}`,
+      )
+      yield* Console.log(plan.notes.map((note) => `  ${note}`).join("\n"))
+      yield* Console.log(
+        [
+          "",
+          "next: `procdeck up`",
+          'tip:  "env": { "PORT": "${port}" } hands a proc a free port (also as ${port:id} for others),',
+          '      "needs": ["api"] makes a proc wait for another — see https://github.com/kondaurovDev/procdeck#config',
+        ].join("\n"),
+      )
+    }),
+).pipe(
+  Command.withDescription(
+    "Write a procdeck.config.json for this project: one proc per workspace package with a dev script (or the package's own), run through the package manager the lockfile points at.",
+  ),
+)
+
 // `procdeck [config]` with no subcommand is `up`, so the one-liner from the
 // README keeps working: `npx procdeck`.
 const procdeck = Command.make(
@@ -406,7 +460,7 @@ const procdeck = Command.make(
   Command.withDescription(
     "Dev-process multiplexer with a web UI. Without a subcommand, `procdeck` is `procdeck up`.",
   ),
-  Command.withSubcommands([up, down, restart, status, ls, open, logs]),
+  Command.withSubcommands([init, up, down, restart, status, ls, open, logs]),
 )
 
 // The services the cli runtime expects (help rendering, args, completions),

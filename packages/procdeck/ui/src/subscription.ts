@@ -36,10 +36,6 @@ const sseStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
   Effect.acquireRelease(
     Effect.sync(() => {
       const RETRY_MS = 2000
-      // The server replays its ring buffer on every (re)connect; it arrives
-      // as a burst right after `open`. There is no end-of-replay marker, so
-      // anything inside this window after connecting is treated as backlog.
-      const REPLAY_WINDOW_MS = 500
       const handle: { source: EventSource | undefined; retry: number | undefined } = {
         source: undefined,
         retry: undefined,
@@ -47,9 +43,12 @@ const sseStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
       const connect = () => {
         const source = new EventSource(`${API}/events`)
         handle.source = source
-        let openedAt = Number.POSITIVE_INFINITY
+        // Every (re)connect starts with each proc's backlog and ends it with
+        // a `synced` marker; only what follows is news (unread tallies,
+        // notifications).
+        let synced = false
         source.addEventListener("open", () => {
-          openedAt = Date.now()
+          synced = false
           Queue.offerUnsafe(queue, StreamOpened())
         })
         source.addEventListener("error", () => {
@@ -61,12 +60,15 @@ const sseStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
         source.addEventListener("message", (message) => {
           try {
             const event = decodeEvent(JSON.parse(message.data))
-            const live = Date.now() - openedAt > REPLAY_WINDOW_MS
+            if (event.type === "synced") {
+              synced = true
+              return
+            }
             Queue.offerUnsafe(
               queue,
               event.type === "log"
-                ? ReceivedLog({ id: event.id, data: event.data, live })
-                : ReceivedStatus({ status: event.status, live }),
+                ? ReceivedLog({ id: event.id, data: event.data, live: synced })
+                : ReceivedStatus({ status: event.status, live: synced }),
             )
           } catch {
             // Malformed frame — drop it.

@@ -59,6 +59,12 @@ export type ProcdeckConfig = {
   readonly name?: string
   /** Port for the web UI and the `*.localhost` proxy. Defaults to 4820. */
   readonly port?: number
+  /**
+   * Interface the UI and proxy bind to. Defaults to "127.0.0.1" (loopback
+   * only — the UI types into real terminals). "0.0.0.0" to reach the deck
+   * from another machine or from a container's host.
+   */
+  readonly host?: string
   readonly procs: ReadonlyArray<ProcSpec>
 }
 

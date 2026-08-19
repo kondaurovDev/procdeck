@@ -153,6 +153,8 @@ export type ProcSpec = typeof ProcSpecSchema.Type
 
 /** Default port of the UI + proxy server. */
 export const DEFAULT_UI_PORT = 4820
+/** Default bind address: loopback only — the UI takes keystrokes into PTYs. */
+export const DEFAULT_UI_HOST = "127.0.0.1"
 
 /**
  * Port templating: `${port}` is a free port procdeck assigns to this proc
@@ -271,6 +273,13 @@ export const ProcdeckConfigSchema = Schema.Struct({
       description: "Port for the web UI and the `*.localhost` proxy. Defaults to 4820.",
       examples: [4820],
     }).pipe(Schema.check(Schema.isInt(), Schema.isBetween({ minimum: 1, maximum: 65535 }))),
+  ),
+  host: Schema.optionalKey(
+    Schema.String.annotate({
+      description:
+        'Interface the UI and proxy bind to. Defaults to "127.0.0.1" — loopback only, because the UI types into real terminals. Set "0.0.0.0" to reach the deck from another machine or from a container\'s host.',
+      examples: ["127.0.0.1", "0.0.0.0"],
+    }).pipe(Schema.check(Schema.isMinLength(1))),
   ),
   procs: Schema.Array(ProcSpecSchema).annotate({
     description: "The processes this deck supervises.",

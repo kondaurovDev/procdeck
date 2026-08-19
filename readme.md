@@ -68,10 +68,10 @@ which port is which**.
 
 ## Install
 
-Nothing to install, if you don't want to — write a `procdeck.config.json` (see
-[Config](#config)) and run:
+Nothing to install, if you don't want to:
 
 ```sh
+npx procdeck init                 # writes procdeck.config.json from your workspace's dev scripts
 npx procdeck                      # picks up ./procdeck.config.json
 npx procdeck decks/backend.json   # or point it at any config file
 ```
@@ -88,6 +88,7 @@ pnpm add -D procdeck      # npm i -D procdeck · bun add -d procdeck
 ## Commands
 
 ```sh
+procdeck init               # write procdeck.config.json: one proc per workspace dev script
 procdeck up [config]        # start (detached) and open the UI — idempotent
 procdeck down               # stop: every process tree is terminated
 procdeck restart            # down + up — after editing the config or updating procdeck
@@ -105,6 +106,10 @@ command works from any subdirectory of the project. Running decks register in
 deck switcher find them; stale entries are pruned by pid), and a detached deck's own
 output goes to `~/.procdeck/logs/`. `--no-open` skips the browser. Updating procdeck
 needs a `procdeck restart` — the running deck keeps the old code until then.
+
+The server binds **127.0.0.1 only** — the UI types into real terminals, so it is not
+something to put on the LAN by accident. `"host": "0.0.0.0"` in the config opens it up
+(a devcontainer whose browser is on the host, a VM). No telemetry, no service worker.
 
 ## Try the example
 
@@ -127,6 +132,13 @@ Open <http://localhost:4820> for the panes, then <http://web.localhost:4820> and
 ports) entirely through `${port}` templates. See [`example/`](example/).
 
 ## Config
+
+`procdeck init` writes a first one: it reads `pnpm-workspace.yaml` / `workspaces` in
+`package.json`, finds every package with a `dev` (or `start:dev`, `serve`, `watch`,
+`start`) script, and adds a proc per package run through the package manager your
+lockfile points at — `pnpm --filter web dev`, `yarn workspace web dev`, … A plain
+package gets one proc for its own script. Ports and dependencies are yours to add;
+the tips it prints say how.
 
 Two formats, one schema. **JSON** needs nothing from your toolchain — no TypeScript, and
 procdeck itself doesn't have to be a dependency. Point `$schema` at the published schema
@@ -217,6 +229,7 @@ Tips:
 | `server.ts`     | `effect/unstable/http` router behind a small Node↔web-handler bridge; SSE downstream, POST upstream; `Host`-routed reverse proxy with WebSocket pass-through. |
 | `registry.ts`   | `~/.procdeck/instances/<id>.json` per running deck: how `down`/`ls`/the deck switcher find decks.     |
 | `lifecycle.ts`  | Detaching (`up` re-spawns itself as `up --fg` and waits for the registry entry), `down`, port probe.   |
+| `init.ts`       | `procdeck init`: workspace scan → a first config (one proc per package with a dev script).            |
 | `cli.ts`        | `effect/unstable/cli` commands; `up --fg` is the server, everything else talks to the registry/API.    |
 
 Design notes worth keeping:
@@ -231,8 +244,12 @@ Design notes worth keeping:
 - **SSE, not WebSocket.** Logs only flow towards the browser; commands are ordinary
   POSTs. No upgrade handshake, no extra dependency, and `EventSource` reconnects by
   itself.
-- **`PubSub.sliding({ capacity, replay })`** doubles as the fan-out to every open tab
-  _and_ the scrollback ring buffer — a tab opened late replays the backlog for free.
+- **Per-proc backlog, one stream per subscriber.** Each proc keeps its last 256 KB of
+  output; a subscriber (an SSE connection) gets every proc's backlog and status, a
+  `synced` marker, then live events from a `PubSub` it subscribed to *before* the
+  snapshot — no gap, and a per-proc chunk counter cuts the duplicate at the seam. A
+  tab opened on a deck that has run for days still shows every pane's history, and
+  the UI knows exactly which chunks are news (unread tallies, notifications).
 - **The supervisor is `Effect.acquireRelease`.** Shutdown is not a code path anyone has
   to remember to call: closing the scope terminates every process tree. The SSE response
   stream lives in the request scope, so a dropped tab cleans up its subscription too.
@@ -262,8 +279,6 @@ self-heal — if it still fails, PTY allocation itself is probably blocked (sand
 
 ## Status
 
-A working prototype, macOS/Linux only (PTYs, `pgrep`, `lsof`). Known prototype-grade
-shortcuts: the replay buffer counts events rather than bytes (a chatty proc can evict a
-quiet one's history), and statuses are a mutated map rather than `SubscriptionRef`s.
-Not done yet: an injected FAB overlay inside the developed apps, and a dependency-death
+macOS/Linux only (PTYs, `pgrep`, `lsof`). Known shortcut: statuses are a mutated map
+rather than `SubscriptionRef`s. Not done yet: an injected FAB overlay inside the developed apps, and a dependency-death
 policy (a dependency dying does _not_ cascade — deliberately).

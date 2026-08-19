@@ -95,11 +95,11 @@ export const openBrowser = (url: string): void => {
 }
 
 /** Can the UI port be bound right now? (The same bind the server will do.) */
-export const isPortFree = (port: number): Promise<boolean> =>
+export const isPortFree = (port: number, host: string): Promise<boolean> =>
   new Promise((resolve) => {
     const probe = createServer()
     probe.once("error", () => resolve(false))
-    probe.listen(port, () => probe.close(() => resolve(true)))
+    probe.listen(port, host, () => probe.close(() => resolve(true)))
   })
 
 /** Last `lines` lines of a deck's log (stack frames dropped), for a terminal message. */

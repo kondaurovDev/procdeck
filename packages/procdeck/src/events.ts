@@ -21,10 +21,17 @@ export type ProcStatus = {
   alert?: string
 }
 
-/** Everything the server pushes to the browser over SSE. */
+/**
+ * Everything the server pushes to the browser over SSE. A fresh subscriber
+ * first gets each proc's buffered backlog (log chunks, then its current
+ * status), then `synced`, then live events — so the UI knows exactly where
+ * history ends and news begins. `seq` is a per-proc chunk counter, used to
+ * cut duplicates at the backlog/live seam.
+ */
 export type ProcEvent =
-  | { type: "log"; id: string; data: string }
+  | { type: "log"; id: string; data: string; seq: number }
   | { type: "status"; status: ProcStatus }
+  | { type: "synced" }
 
 /** Static description of a process, sent once on connect. */
 export type ProcInfo = {

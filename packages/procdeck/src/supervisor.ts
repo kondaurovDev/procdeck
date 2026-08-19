@@ -1,4 +1,4 @@
-import { Effect, Fiber, Latch, PubSub } from "effect"
+import { Effect, Fiber, Latch, PubSub, Stream } from "effect"
 import type { Scope } from "effect"
 import { DEFAULT_UI_PORT, resolveSpec, usesOwnPort } from "./config.ts"
 import type { LoadedConfig, ProcSpec } from "./config.ts"
@@ -11,8 +11,15 @@ const DEFAULT_COLS = 120
 const DEFAULT_ROWS = 30
 const PORT_POLL_INTERVAL = "1 second"
 
-/** Ring buffer of events; a fresh browser tab replays it and sees the backlog. */
-const EVENT_BUFFER = 5000
+/**
+ * Per-proc backlog, in bytes of output. A fresh browser tab replays it and
+ * sees each pane's recent history — bounded *per proc*, so a chatty ticker
+ * cannot evict a quiet server's startup lines, and a deck that has run for
+ * days still opens with every pane populated.
+ */
+const LOG_BUFFER_BYTES = 256 * 1024
+/** Live fan-out to open tabs; a stalled tab drops its oldest chunks, not ours. */
+const LIVE_BUFFER = 4096
 
 type Runtime = {
   spec: ProcSpec
@@ -29,6 +36,11 @@ type Runtime = {
   ports: Array<number>
   /** Rolling tail of recent output, matched against `alerts` patterns. */
   tail: string
+  /** Recent output chunks for replay to new subscribers, oldest first. */
+  backlog: Array<{ seq: number; data: string }>
+  backlogBytes: number
+  /** Chunks emitted so far — `seq` of the next one. */
+  seq: number
   /** Successful spawns so far; `restarts` in the status is this minus one. */
   spawns: number
   cols: number
@@ -54,7 +66,12 @@ const requiredPort = (spec: ProcSpec): number | undefined => {
 const ALERT_TAIL = 4096
 
 export type Supervisor = {
-  events: PubSub.PubSub<ProcEvent>
+  /**
+   * Every subscriber's view of the deck: each proc's backlog and current
+   * status, a `synced` marker, then live events — in that order, with no gap
+   * and no duplicate chunk at the seam. One stream per subscriber.
+   */
+  events: Stream.Stream<ProcEvent>
   list: () => Array<ProcInfo>
   start: (id: string) => Effect.Effect<void>
   stop: (id: string) => Effect.Effect<void>
@@ -71,10 +88,7 @@ export type Supervisor = {
 
 const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
   const scope = yield* Effect.scope
-  const events = yield* PubSub.sliding<ProcEvent>({
-    capacity: EVENT_BUFFER,
-    replay: EVENT_BUFFER,
-  })
+  const live = yield* PubSub.sliding<ProcEvent>({ capacity: LIVE_BUFFER })
 
   // Assign a free port to every spec that asks for one (`${port}`) before
   // anything spawns — the assignments stay stable for the supervisor's
@@ -101,6 +115,9 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       waiter: undefined,
       ports: [],
       tail: "",
+      backlog: [],
+      backlogBytes: 0,
+      seq: 0,
       spawns: 0,
       cols: DEFAULT_COLS,
       rows: DEFAULT_ROWS,
@@ -109,8 +126,48 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
 
   // Published from PTY callbacks, so it has to work outside of an Effect.
   const emit = (event: ProcEvent) => {
-    PubSub.publishUnsafe(events, event)
+    PubSub.publishUnsafe(live, event)
   }
+
+  /** Remember a chunk for replay; evict the oldest past the byte budget. */
+  const remember = (runtime: Runtime, data: string): number => {
+    const seq = runtime.seq++
+    runtime.backlog.push({ seq, data })
+    runtime.backlogBytes += data.length
+    while (runtime.backlogBytes > LOG_BUFFER_BYTES && runtime.backlog.length > 1) {
+      runtime.backlogBytes -= runtime.backlog.shift()!.data.length
+    }
+    return seq
+  }
+
+  /**
+   * Subscribe to the live feed *first*, then snapshot the backlog: nothing
+   * published in between is lost; what is in both is cut from the live side
+   * by `seq` (statuses repeat harmlessly — they are idempotent).
+   */
+  const events: Stream.Stream<ProcEvent> = Stream.unwrap(
+    Effect.gen(function* () {
+      const subscription = yield* PubSub.subscribe(live)
+      const backlog: Array<ProcEvent> = []
+      const seen = new Map<string, number>()
+      for (const runtime of runtimes.values()) {
+        for (const chunk of runtime.backlog) {
+          backlog.push({ type: "log", id: runtime.spec.id, data: chunk.data, seq: chunk.seq })
+        }
+        seen.set(runtime.spec.id, runtime.seq)
+        backlog.push({ type: "status", status: runtime.status })
+      }
+      backlog.push({ type: "synced" })
+      return Stream.concat(
+        Stream.fromIterable(backlog),
+        Stream.fromSubscription(subscription).pipe(
+          Stream.filter(
+            (event) => event.type !== "log" || event.seq >= (seen.get(event.id) ?? 0),
+          ),
+        ),
+      )
+    }),
+  )
 
   const setStatus = (runtime: Runtime, status: ProcStatus) => {
     runtime.status = status
@@ -131,8 +188,13 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
   // Runs inside the PTY data callback: stream the chunk to the browser, then
   // match alert patterns against a rolling tail (a pattern may straddle chunk
   // boundaries). First match wins until the next spawn resets it.
+  /** A line from procdeck itself into the pane — part of the history too. */
+  const say = (runtime: Runtime, data: string) => {
+    emit({ type: "log", id: runtime.spec.id, data, seq: remember(runtime, data) })
+  }
+
   const handleData = (runtime: Runtime, data: string) => {
-    emit({ type: "log", id: runtime.spec.id, data })
+    say(runtime, data)
     const alerts = runtime.spec.alerts ?? []
     if (alerts.length === 0 || runtime.status.alert !== undefined) return
     runtime.tail = (runtime.tail + data).slice(-ALERT_TAIL)
@@ -162,11 +224,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
         onData: (data) => handleData(runtime, data),
       })
     } catch (cause) {
-      emit({
-        type: "log",
-        id: runtime.spec.id,
-        data: `\r\nprocdeck: spawn failed: ${String(cause)}\r\n`,
-      })
+      say(runtime, `\r\nprocdeck: spawn failed: ${String(cause)}\r\n`)
       setStatus(runtime, { id: runtime.spec.id, state: "exited", exitCode: -1 })
       return
     }
@@ -220,7 +278,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       ...result.output.split("\n").filter((line) => line.length > 0),
       ...(preflight.hint === undefined ? [] : [`procdeck: hint: ${preflight.hint}`]),
     ]
-    emit({ type: "log", id: runtime.spec.id, data: `\r\n${lines.join("\r\n")}\r\n` })
+    say(runtime, `\r\n${lines.join("\r\n")}\r\n`)
     // The launch attempt is over the moment "blocked" becomes visible — and an
     // observer may react with start() instantly, so the waiter slot must be
     // free before the event goes out (the fiber's own cleanup runs later).

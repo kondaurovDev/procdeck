@@ -34,9 +34,14 @@ export const ProcInfo = S.Struct({
 })
 export type ProcInfo = typeof ProcInfo.Type
 
+/**
+ * A (re)connected feed delivers each proc's backlog (chunks, then its status),
+ * then `synced`, then live events — so "history" vs "news" is explicit.
+ */
 export const ProcEvent = S.Union([
-  S.Struct({ type: S.Literal("log"), id: S.String, data: S.String }),
+  S.Struct({ type: S.Literal("log"), id: S.String, data: S.String, seq: S.optionalKey(S.Number) }),
   S.Struct({ type: S.Literal("status"), status: ProcStatus }),
+  S.Struct({ type: S.Literal("synced") }),
 ])
 export type ProcEvent = typeof ProcEvent.Type
 
