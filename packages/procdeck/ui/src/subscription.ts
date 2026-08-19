@@ -18,6 +18,7 @@ import {
 import type { Message } from "./message.ts"
 import type { Model } from "./model.ts"
 import { installStream } from "./install.ts"
+import { systemSchemeStream } from "./theme.ts"
 
 const decodeEvent = S.decodeUnknownSync(ProcEvent)
 
@@ -194,6 +195,15 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
     {
       modelToDependencies: () => ({ on: true }),
       dependenciesToStream: () => installStream,
+    },
+  ),
+  // OS light/dark flips. Always on, so `systemDark` is current the moment the
+  // user switches back to "system" after a spell on an explicit theme.
+  systemScheme: entry(
+    { on: S.Boolean },
+    {
+      modelToDependencies: () => ({ on: true }),
+      dependenciesToStream: () => systemSchemeStream,
     },
   ),
   // Uptime clock — only ticks while something is actually running.

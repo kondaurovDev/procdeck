@@ -1,7 +1,7 @@
 import { Effect, Option as O, Schema as S } from "effect"
 import { Command } from "foldkit"
 import { CompletedRequest } from "./message.ts"
-import { Layout } from "./model.ts"
+import { Layout, Theme } from "./model.ts"
 
 /**
  * The slice of the Model that survives a reload. localStorage is keyed per
@@ -9,10 +9,14 @@ import { Layout } from "./model.ts"
  * with no namespacing on our side. Every field is optional on read: an older
  * or hand-edited value must never blank the UI. See docs/plan.md, "UI state
  * survives a refresh".
+ *
+ * The inline script in index.html reads the same record (key and `theme`
+ * field) to paint the right scheme before the first frame — keep them in step.
  */
 export const UiState = S.Struct({
   layout: S.optionalKey(Layout),
   active: S.optionalKey(S.String),
+  theme: S.optionalKey(Theme),
 })
 export type UiState = typeof UiState.Type
 
@@ -32,7 +36,7 @@ export const loadUiState = (): UiState => {
 
 /** Emitted by `update` whenever a persisted field changes; one Command for all of them. */
 export const SaveUiState = Command.define("SaveUiState", {
-  args: { layout: Layout, active: S.UndefinedOr(S.String) },
+  args: { layout: Layout, active: S.UndefinedOr(S.String), theme: Theme },
   messages: [CompletedRequest],
   execute: (state) =>
     Effect.sync(() => {

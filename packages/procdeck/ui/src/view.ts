@@ -4,6 +4,7 @@ import type { Message } from "./message.ts"
 import {
   ChangedSearch,
   ChoseLayout,
+  ChoseTheme,
   ClickedInstall,
   ClickedPaneAction,
   ClickedProc,
@@ -13,7 +14,7 @@ import {
   SteppedSearch,
   ZoomedProc,
 } from "./message.ts"
-import type { Layout, Model } from "./model.ts"
+import type { Layout, Model, Theme } from "./model.ts"
 import type { ProcInfo, ProcStatus } from "./schema.ts"
 import { MountTerminal } from "./terminal.ts"
 
@@ -201,6 +202,27 @@ const layoutSwitch = (model: Model, h: HtmlBuilder<Message>): Html =>
     ),
   )
 
+const THEME_OPTIONS: ReadonlyArray<{ theme: Theme; label: string; hint: string }> = [
+  { theme: "system", label: "◐", hint: "follow the OS" },
+  { theme: "light", label: "☀", hint: "light" },
+  { theme: "dark", label: "☾", hint: "dark" },
+]
+
+const themeSwitch = (model: Model, h: HtmlBuilder<Message>): Html =>
+  h.span(
+    [h.Class("segmented theme")],
+    THEME_OPTIONS.map(({ theme, label, hint }) =>
+      h.button(
+        [
+          h.Class(model.theme === theme ? "on" : ""),
+          h.Title(`theme: ${hint}`),
+          h.OnClick(ChoseTheme({ theme })),
+        ],
+        [label],
+      ),
+    ),
+  )
+
 /**
  * The address a human opens for this pane: the stable subdomain once there is
  * anything to proxy to, else the declared url, else nothing.
@@ -276,6 +298,7 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
       h.span(
         [h.Class("deck-actions")],
         [
+          themeSwitch(model, h),
           ...(model.installable
             ? [
                 h.button(

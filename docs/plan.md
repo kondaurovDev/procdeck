@@ -36,15 +36,14 @@ replayed errors out of the unread badge (`ui/src/subscription.ts`).
 
 ## Next up (agreed order)
 
-1. **Theme: system / light / dark** — see "Theme" below.
-2. **Pin + tray + ⌥Z** in grid, "fit" toggle — see "Grid pinning" below; the
+1. **Pin + tray + ⌥Z** in grid, "fit" toggle — see "Grid pinning" below; the
    least obvious design, so prototype it on a 9-pane deck early.
-3. **Pre-publish polish** — clickable URLs, title/favicon badge + notifications,
+2. **Pre-publish polish** — clickable URLs, title/favicon badge + notifications,
    readable exit status — see "Polish before publishing".
-4. **Registry + detached mode** (`up` / `down` / `status` / `open`, Shutdown
+3. **Registry + detached mode** (`up` / `down` / `status` / `open`, Shutdown
    button) — the core.
-5. **Deck switcher dropdown** in the global bar — cheap on top of the registry.
-6. **Command palette** — once there are enough actions to put in it.
+4. **Deck switcher dropdown** in the global bar — cheap on top of the registry.
+5. **Command palette** — once there are enough actions to put in it.
 
 ## UI state survives a refresh (shipped: localStorage)
 
@@ -71,23 +70,27 @@ its own while the server is unreachable; when it gives up (CLOSED) the
 subscription retries every 2 s. Once per-proc buffers exist, the banner
 should stay until `synced`, not just `open`.
 
-## Theme: system / light / dark (decision)
+## Theme: system / light / dark (shipped)
 
 Three-state switch in the global bar — **System · Light · Dark** — defaulting
-to System via `prefers-color-scheme` (GitHub/Linear/VS Code convention). Today
-`ui/src/styles.css` hardcodes a dark palette on `:root` with
-`color-scheme: dark`, and `terminal.ts` passes a fixed xterm theme.
+to System via `prefers-color-scheme` (GitHub/Linear/VS Code convention).
 
-- Two token sets on `:root` / `[data-theme="dark"]`, with the
-  `prefers-color-scheme` media query covering the System state; `color-scheme`
-  follows so scrollbars and form controls match.
-- xterm is recoloured separately (`terminal.options.theme = …` on every
-  mounted terminal when the theme changes) — and the **light theme needs its
-  own ANSI palette**: the default bright yellow/cyan are unreadable on white.
-  Use a proven light scheme (One Light / GitHub Light) rather than inverting.
-- The web-app manifest's `theme_color` should follow, or the installed window
-  gets a dark title bar on a light page.
-- The choice is persisted with the rest of the UI state.
+- `Model.theme` is the preference, `Model.systemDark` the OS state (a
+  matchMedia subscription, always on so switching back to System is
+  current); `resolveScheme` gives the painted scheme. CSS tokens: dark on
+  `:root`, light under the media query (guarded `:not([data-theme="dark"])`)
+  and under `[data-theme="light"]`; `color-scheme` follows so scrollbars and
+  form controls match.
+- The parts CSS can't reach — xterm palettes, the theme-color meta, the
+  `data-theme` attribute — are one `ApplyTheme` Command, appended by the
+  `update` wrapper whenever the preference or the resolved scheme changes.
+  Light has a full ANSI set (GitHub Light); dark keeps xterm's defaults. A
+  terminal is born in the current scheme (`currentScheme()` reads the DOM).
+- No flash: an inline script in `index.html` reads the same localStorage
+  record and sets `data-theme` + theme-color before the first frame.
+- Not done: the generated manifest's `theme_color` is still dark — the
+  runtime meta overrides it in Chromium, so it only matters for the install
+  dialog.
 
 ## Grid pinning + tray (decision)
 

@@ -1,6 +1,6 @@
 import { Schema as S } from "effect"
 import { m } from "foldkit/message"
-import { Layout } from "./model.ts"
+import { Layout, Theme } from "./model.ts"
 import { DeckInfo, ProcInfo, ProcStatus } from "./schema.ts"
 
 // Server data arriving
@@ -34,6 +34,11 @@ export const ResizedWindow = m("ResizedWindow")
 export const ChoseLayout = m("ChoseLayout", { layout: Layout })
 /** Grid tile double-click: back to single with that pane active. */
 export const ZoomedProc = m("ZoomedProc", { id: S.String })
+
+// Theme
+export const ChoseTheme = m("ChoseTheme", { theme: Theme })
+/** The OS flipped light/dark (matchMedia change). */
+export const SystemSchemeChanged = m("SystemSchemeChanged", { dark: S.Boolean })
 
 // Hotkeys — all act on the active pane
 export const SelectedProcOffset = m("SelectedProcOffset", { delta: S.Number })
@@ -82,6 +87,8 @@ export const Message = S.Union([
   ResizedWindow,
   ChoseLayout,
   ZoomedProc,
+  ChoseTheme,
+  SystemSchemeChanged,
   SelectedProcOffset,
   PressedRestart,
   PressedToggle,

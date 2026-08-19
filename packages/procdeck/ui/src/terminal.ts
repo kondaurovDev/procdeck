@@ -4,6 +4,7 @@ import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import { SearchAddon } from "@xterm/addon-search"
 import { MountedTerminal, TypedInput } from "./message.ts"
+import { currentScheme, xtermTheme } from "./theme.ts"
 
 type Entry = { term: Terminal; fit: FitAddon; search: SearchAddon }
 
@@ -39,7 +40,9 @@ export const MountTerminal = Mount.defineStream(
               fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
               fontSize: 12,
               scrollback: 10_000,
-              theme: { background: "#0e1116", foreground: "#d8dee9" },
+              // Born in the scheme the document is painted in; ApplyTheme
+              // recolours it on later switches.
+              theme: xtermTheme(currentScheme()),
             })
             const fit = new FitAddon()
             term.loadAddon(fit)

@@ -17,6 +17,13 @@ export type Layout = typeof Layout.Type
 export const StreamState = S.Literals(["connecting", "open", "reconnecting"])
 export type StreamState = typeof StreamState.Type
 
+/** The user's colour preference; `system` follows the OS. */
+export const Theme = S.Literals(["system", "light", "dark"])
+export type Theme = typeof Theme.Type
+/** What is actually painted — `Theme` resolved against the OS setting. */
+export const Scheme = S.Literals(["light", "dark"])
+export type Scheme = typeof Scheme.Type
+
 export const Model = S.Struct({
   /** Deck name for the title; undefined until fetched. */
   deck: S.UndefinedOr(DeckInfo),
@@ -46,5 +53,8 @@ export const Model = S.Struct({
   /** Wall clock driving the uptime display; advanced by Ticked. */
   now: S.Number,
   stream: StreamState,
+  theme: Theme,
+  /** The OS preference, tracked so `system` can be resolved without asking the DOM. */
+  systemDark: S.Boolean,
 })
 export type Model = typeof Model.Type

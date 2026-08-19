@@ -2,7 +2,9 @@ import { Effect, Schema as S } from "effect"
 import { Command } from "foldkit"
 import { API, DeckInfo, ProcInfo } from "./schema.ts"
 import { CompletedRequest, FailedFetchProcs, GotDeck, GotProcs } from "./message.ts"
+import { Scheme, Theme } from "./model.ts"
 import { registry } from "./terminal.ts"
+import { THEME_COLOR, xtermTheme } from "./theme.ts"
 
 const postJson = (path: string, body: unknown) =>
   Effect.tryPromise(() =>
@@ -124,6 +126,27 @@ export const FocusSearch = Command.define("FocusSearch", {
       return CompletedRequest()
     }),
   ),
+})
+
+/**
+ * Paint the document in the given scheme: the `data-theme` attribute (absent
+ * for system, so the CSS media query decides), every mounted terminal's
+ * palette, and the theme-color meta.
+ */
+export const ApplyTheme = Command.define("ApplyTheme", {
+  args: { theme: Theme, scheme: Scheme },
+  messages: [CompletedRequest],
+  execute: ({ theme, scheme }) =>
+    Effect.sync(() => {
+      const root = document.documentElement
+      if (theme === "system") delete root.dataset["theme"]
+      else root.dataset["theme"] = theme
+      document
+        .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+        ?.setAttribute("content", THEME_COLOR[scheme])
+      for (const entry of registry.values()) entry.term.options.theme = xtermTheme(scheme)
+      return CompletedRequest()
+    }),
 })
 
 const nextFrame = Effect.promise(

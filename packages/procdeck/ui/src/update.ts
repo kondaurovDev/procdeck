@@ -2,6 +2,7 @@ import { Match as M } from "effect"
 import type { Command } from "foldkit"
 import { evo } from "foldkit/struct"
 import {
+  ApplyTheme,
   ClearTerminal,
   EndSearch,
   FetchDeck,
@@ -18,6 +19,7 @@ import type { Message } from "./message.ts"
 import type { Layout, Model } from "./model.ts"
 import type { ProcStatus } from "./schema.ts"
 import { SaveUiState, loadUiState } from "./storage.ts"
+import { resolveScheme, systemPrefersDark } from "./theme.ts"
 
 type Result = readonly [Model, ReadonlyArray<Command.Command<Message>>]
 
@@ -146,6 +148,9 @@ const step = (model: Model, message: Message): Result =>
       CycledLayout: () =>
         setLayout(model, LAYOUTS[(LAYOUTS.indexOf(model.layout) + 1) % LAYOUTS.length]!),
 
+      ChoseTheme: ({ theme }) => [evo(model, { theme: () => theme }), []],
+      SystemSchemeChanged: ({ dark }) => [evo(model, { systemDark: () => dark }), []],
+
       SelectedProcOffset: ({ delta }) => {
         if (model.procs.length === 0) return [model, []]
         const index = model.procs.findIndex((info) => info.id === model.active)
@@ -202,34 +207,50 @@ const step = (model: Model, message: Message): Result =>
   )
 
 /**
- * `step` plus persistence: whenever a field that survives a reload changes,
- * one SaveUiState rides along. Done here rather than in each branch so no
- * future Message can forget it.
+ * `step` plus the effects that follow from *what changed*, not from which
+ * Message did it — done here so no future branch can forget them:
+ * - a field that survives a reload changed → one SaveUiState;
+ * - the theme preference or the scheme it resolves to changed → ApplyTheme.
  */
 export const update = (model: Model, message: Message): Result => {
   const [next, commands] = step(model, message)
-  return next.layout === model.layout && next.active === model.active
-    ? [next, commands]
-    : [next, [...commands, SaveUiState({ layout: next.layout, active: next.active })]]
+  const persist =
+    next.layout !== model.layout || next.active !== model.active || next.theme !== model.theme
+  const repaint = next.theme !== model.theme || resolveScheme(next) !== resolveScheme(model)
+  return [
+    next,
+    [
+      ...commands,
+      ...(persist
+        ? [SaveUiState({ layout: next.layout, active: next.active, theme: next.theme })]
+        : []),
+      ...(repaint ? [ApplyTheme({ theme: next.theme, scheme: resolveScheme(next) })] : []),
+    ],
+  ]
 }
 
 export const init = (): Result => {
   const stored = loadUiState()
+  const model: Model = {
+    deck: undefined,
+    procs: [],
+    // Validated against the config once GotProcs arrives.
+    active: stored.active,
+    layout: stored.layout ?? "single",
+    mounted: [],
+    error: undefined,
+    search: undefined,
+    unread: {},
+    installable: false,
+    now: Date.now(),
+    stream: "connecting",
+    theme: stored.theme ?? "system",
+    systemDark: systemPrefersDark(),
+  }
+  // The inline script in index.html already painted the scheme before the
+  // first frame; this keeps the theme-color meta honest if it did not run.
   return [
-    {
-      deck: undefined,
-      procs: [],
-      // Validated against the config once GotProcs arrives.
-      active: stored.active,
-      layout: stored.layout ?? "single",
-      mounted: [],
-      error: undefined,
-      search: undefined,
-      unread: {},
-      installable: false,
-      now: Date.now(),
-      stream: "connecting",
-    },
-    [FetchProcs(), FetchDeck()],
+    model,
+    [FetchProcs(), FetchDeck(), ApplyTheme({ theme: model.theme, scheme: resolveScheme(model) })],
   ]
 }

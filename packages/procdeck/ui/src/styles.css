@@ -1,14 +1,65 @@
+/*
+ * Dark is the default palette; light overrides the same tokens. Which one is
+ * live: `[data-theme]` on <html> when the user picked explicitly (set before
+ * first paint by the inline script in index.html, then by ApplyTheme), else
+ * the OS preference. xterm's palette is kept in step from theme.ts — change
+ * --bg / --text here and there together.
+ */
 :root {
   --bg: #0e1116;
   --panel: #151a21;
+  --hover: #1b212a;
+  --control: #1f2630;
   --border: #232a34;
   --text: #d8dee9;
   --muted: #7b8794;
   --accent: #4c9aff;
+  --accent-bg: #16202e;
+  --accent-border: #2a3a52;
   --ok: #3fb950;
   --warn: #d29922;
+  --on-warn: #1a1005;
   --bad: #f85149;
+  --overlay: rgba(31, 38, 48, 0.85);
   color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #ffffff;
+    --panel: #f6f8fa;
+    --hover: #eaeef2;
+    --control: #f6f8fa;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --muted: #656d76;
+    --accent: #0969da;
+    --accent-bg: #ddf4ff;
+    --accent-border: #b6e3ff;
+    --ok: #1a7f37;
+    --warn: #bf8700;
+    --on-warn: #ffffff;
+    --bad: #cf222e;
+    --overlay: rgba(246, 248, 250, 0.9);
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --panel: #f6f8fa;
+  --hover: #eaeef2;
+  --control: #f6f8fa;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --muted: #656d76;
+  --accent: #0969da;
+  --accent-bg: #ddf4ff;
+  --accent-border: #b6e3ff;
+  --ok: #1a7f37;
+  --warn: #bf8700;
+  --on-warn: #ffffff;
+  --bad: #cf222e;
+  --overlay: rgba(246, 248, 250, 0.9);
+  color-scheme: light;
 }
 * {
   box-sizing: border-box;
@@ -54,7 +105,7 @@ body {
   z-index: 2;
   padding: 4px 14px;
   font-size: 12px;
-  color: #1c1400;
+  color: var(--on-warn);
   background: var(--warn);
   animation: banner-pulse 1.6s ease-in-out infinite;
 }
@@ -115,10 +166,10 @@ aside {
   align-items: baseline;
 }
 .proc:hover {
-  background: #1b212a;
+  background: var(--hover);
 }
 .proc.active {
-  background: #1b212a;
+  background: var(--hover);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 .dot {
@@ -151,7 +202,7 @@ aside {
   border-radius: 8px;
   font-size: 10px;
   font-weight: 600;
-  color: #1a1005;
+  color: var(--on-warn);
   background: var(--warn);
   vertical-align: 1px;
 }
@@ -202,7 +253,7 @@ main {
 button {
   font: inherit;
   color: var(--text);
-  background: #1f2630;
+  background: var(--control);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px 12px;
@@ -230,8 +281,8 @@ a.port {
   font-size: 11px;
   text-decoration: none;
   color: var(--accent);
-  background: #16202e;
-  border: 1px solid #2a3a52;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
   border-radius: 5px;
   padding: 1px 6px;
   white-space: nowrap;
@@ -273,7 +324,7 @@ input.search:focus {
   font-size: 11px;
   padding: 3px 12px;
   border-radius: 12px;
-  background: rgba(31, 38, 48, 0.85);
+  background: var(--overlay);
 }
 .to-bottom[hidden] {
   display: none;
@@ -291,14 +342,19 @@ input.search:focus {
 .segmented button:first-child {
   border-radius: 6px 0 0 6px;
 }
+.segmented button + button {
+  margin-left: -1px;
+}
 .segmented button:last-child {
   border-radius: 0 6px 6px 0;
-  margin-left: -1px;
+}
+.segmented.theme {
+  margin-right: 8px;
 }
 .segmented button.on {
   color: var(--accent);
   border-color: var(--accent);
-  background: #16202e;
+  background: var(--accent-bg);
   position: relative;
   z-index: 1;
 }
@@ -401,6 +457,6 @@ input.search:focus {
   border-color: transparent;
 }
 .pane-actions button:hover:not(:disabled) {
-  background: #1f2630;
+  background: var(--control);
   border-color: var(--accent);
 }
