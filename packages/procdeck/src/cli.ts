@@ -432,7 +432,7 @@ const init = Command.make(
       // Round-trip through the real loader: what we wrote must be a valid deck.
       yield* load(file)
       yield* Console.log(
-        `procdeck: wrote ${CONFIG_FILENAMES[0]} — ${plan.config.procs.length} proc${plan.config.procs.length === 1 ? "" : "s"}`,
+        `procdeck: wrote ${CONFIG_FILENAMES[0]} — ${plan.config.procs.length} proc${plan.config.procs.length === 1 ? "" : "s"} from ${plan.source}`,
       )
       yield* Console.log(plan.notes.map((note) => `  ${note}`).join("\n"))
       yield* Console.log(
@@ -446,7 +446,7 @@ const init = Command.make(
     }),
 ).pipe(
   Command.withDescription(
-    "Write a procdeck.config.json for this project: one proc per workspace package with a dev script (or the package's own), run through the package manager the lockfile points at.",
+    "Write a procdeck.config.json for this project from what is already there: a Procfile, workspace packages with dev scripts, plain subdirectories (each its own package.json / Django / Go / Rust / Rails / compose project), or the root itself.",
   ),
 )
 

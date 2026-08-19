@@ -3,10 +3,20 @@ import * as path from "node:path"
 
 /**
  * `procdeck init`: a first config from what the project already says about
- * itself. One proc per workspace package with a `dev` script (a plain
- * package gets one proc for its own `dev`), each run through the package
- * manager the lockfile points at. No ports are guessed — `${port}` only
- * helps when the script honours `PORT`, and that is the user's call.
+ * itself, tried in this order:
+ *
+ * 1. a `Procfile` — already a list of processes;
+ * 2. workspaces (pnpm-workspace.yaml, `workspaces` in package.json) — one
+ *    proc per package with a dev script, via the lockfile's package manager;
+ * 3. plain subdirectories (`backend/`, `frontend/` — no workspace declared)
+ *    — each with its own package.json dev script (its own lockfile decides
+ *    the manager) or a recognisable non-JS project (Django, Go, Rust, Rails,
+ *    docker compose), run with `cwd` set to that directory;
+ * 4. the root itself — its package.json dev script or a non-JS marker;
+ * 5. a template that runs, to be edited.
+ *
+ * No ports are guessed — `${port}` only helps when the command honours
+ * `PORT`, and that is the user's call.
  */
 
 export type PackageManager = "pnpm" | "yarn" | "npm" | "bun"
@@ -132,53 +142,153 @@ const paneId = (name: string, taken: Set<string>): string => {
   return id
 }
 
+export type InitProc = { id: string; shell: string; cwd?: string }
+
 export type InitPlan = {
   config: {
     $schema: string
     name: string
-    procs: Array<{ id: string; shell: string }>
+    procs: Array<InitProc>
   }
   /** What was found, one line per proc, for the terminal. */
   notes: Array<string>
+  /** Which detector produced the procs. */
+  source: "Procfile" | "workspaces" | "subdirectories" | "root" | "template"
+}
+
+/**
+ * Non-JS projects we can name a dev command for. Only markers that imply one
+ * obvious command; everything else is left to the user.
+ */
+const NON_JS_MARKERS: Array<{ file: string; shell: string; what: string }> = [
+  { file: "manage.py", shell: "python manage.py runserver", what: "Django" },
+  { file: "bin/rails", shell: "bin/rails server", what: "Rails" },
+  { file: "go.mod", shell: "go run .", what: "Go" },
+  { file: "Cargo.toml", shell: "cargo run", what: "Rust" },
+  { file: "mix.exs", shell: "mix phx.server", what: "Phoenix" },
+  { file: "docker-compose.yml", shell: "docker compose up", what: "docker compose" },
+  { file: "docker-compose.yaml", shell: "docker compose up", what: "docker compose" },
+  { file: "compose.yaml", shell: "docker compose up", what: "docker compose" },
+  { file: "compose.yml", shell: "docker compose up", what: "docker compose" },
+]
+
+const nonJsCommand = (dir: string): { shell: string; what: string } | undefined => {
+  const marker = NON_JS_MARKERS.find((candidate) => existsSync(path.join(dir, candidate.file)))
+  // Phoenix only if it is one — `mix.exs` alone could be any Elixir app.
+  if (marker?.what === "Phoenix") {
+    const mix = readFileSync(path.join(dir, "mix.exs"), "utf8")
+    if (!mix.includes(":phoenix")) return undefined
+  }
+  return marker === undefined ? undefined : { shell: marker.shell, what: marker.what }
+}
+
+/** `name: command` per line — the Heroku/foreman format. */
+const procfile = (root: string): Array<{ id: string; shell: string }> | undefined => {
+  const file = path.join(root, "Procfile")
+  if (!existsSync(file)) return undefined
+  const procs: Array<{ id: string; shell: string }> = []
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    const match = /^\s*([A-Za-z0-9_-]+)\s*:\s*(.+?)\s*$/.exec(line)
+    if (match && !line.trimStart().startsWith("#")) procs.push({ id: match[1]!, shell: match[2]! })
+  }
+  return procs.length === 0 ? undefined : procs
+}
+
+/** Directories worth looking into for a sub-project, in name order. */
+const SKIP_DIRS = new Set(["node_modules", "dist", "build", "vendor", "target", "coverage", "tmp"])
+const subdirectories = (root: string): Array<string> =>
+  readdirSync(root, { withFileTypes: true })
+    .filter(
+      (entry) => entry.isDirectory() && !entry.name.startsWith(".") && !SKIP_DIRS.has(entry.name),
+    )
+    .map((entry) => entry.name)
+    .sort()
+
+/** What one directory would run: its package.json dev script, else a non-JS marker. */
+const projectIn = (
+  root: string,
+  dir: string,
+  fallbackPm: PackageManager,
+): { name: string; shell: string; what: string } | undefined => {
+  const pkg = readPackage(root, dir)
+  const script = pkg === undefined ? undefined : devScript(pkg)
+  if (pkg !== undefined && script !== undefined) {
+    // The directory's own lockfile wins; otherwise the root's (or npm).
+    const here = path.join(root, dir)
+    const pm = existsSync(path.join(here, "package.json")) ? detectPackageManager(here) : fallbackPm
+    const ownLock = pm !== "npm" || existsSync(path.join(here, "package-lock.json"))
+    return { name: pkg.name, shell: rootCommand(ownLock ? pm : fallbackPm, script), what: script }
+  }
+  const nonJs = nonJsCommand(path.join(root, dir))
+  if (nonJs !== undefined) {
+    return { name: path.basename(path.resolve(root, dir)), shell: nonJs.shell, what: nonJs.what }
+  }
+  return undefined
 }
 
 export const planInit = (root: string): InitPlan => {
   const pm = detectPackageManager(root)
   const name = readPackage(root, ".")?.name?.replace(/^@[^/]+\//, "") ?? path.basename(root)
-  const procs: InitPlan["config"]["procs"] = []
-  const notes: Array<string> = []
   const taken = new Set<string>()
+  const done = (
+    procs: Array<InitProc>,
+    notes: Array<string>,
+    source: InitPlan["source"],
+  ): InitPlan => ({
+    config: { $schema: "https://unpkg.com/procdeck/schema.json", name, procs },
+    notes,
+    source,
+  })
 
+  // 1. Procfile: somebody already wrote the list.
+  const declared = procfile(root)
+  if (declared !== undefined) {
+    return done(
+      declared.map((proc) => ({ id: paneId(proc.id, taken), shell: proc.shell })),
+      declared.map((proc) => `${proc.id.padEnd(16)} Procfile  (${proc.shell})`),
+      "Procfile",
+    )
+  }
+
+  // 2. Workspaces.
   const globs = workspaceGlobs(root)
   const dirs = [...new Set(globs.filter((g) => !g.startsWith("!")).flatMap((g) => expandGlob(root, g)))]
+  const fromWorkspaces: Array<InitProc> = []
+  const workspaceNotes: Array<string> = []
   for (const dir of dirs) {
     const pkg = readPackage(root, dir)
     if (pkg === undefined) continue
     const script = devScript(pkg)
     if (script === undefined) continue
     const id = paneId(pkg.name, taken)
-    procs.push({ id, shell: workspaceCommand(pm, pkg, script) })
-    notes.push(`${id.padEnd(16)} ${dir}  (${script})`)
+    fromWorkspaces.push({ id, shell: workspaceCommand(pm, pkg, script) })
+    workspaceNotes.push(`${id.padEnd(16)} ${dir}  (${script})`)
+  }
+  if (fromWorkspaces.length > 0) return done(fromWorkspaces, workspaceNotes, "workspaces")
+
+  // 3. Plain subdirectories, each its own project.
+  const fromSubdirs: Array<InitProc> = []
+  const subdirNotes: Array<string> = []
+  for (const dir of subdirectories(root)) {
+    const project = projectIn(root, dir, pm)
+    if (project === undefined) continue
+    const id = paneId(project.name, taken)
+    fromSubdirs.push({ id, shell: project.shell, cwd: dir })
+    subdirNotes.push(`${id.padEnd(16)} ${dir}/  (${project.what})`)
+  }
+  if (fromSubdirs.length > 0) return done(fromSubdirs, subdirNotes, "subdirectories")
+
+  // 4. The root itself.
+  const own = projectIn(root, ".", pm)
+  if (own !== undefined) {
+    const id = paneId(own.name, taken)
+    return done([{ id, shell: own.shell }], [`${id.padEnd(16)} .  (${own.what})`], "root")
   }
 
-  if (procs.length === 0) {
-    const pkg = readPackage(root, ".")
-    const script = pkg === undefined ? undefined : devScript(pkg)
-    if (pkg !== undefined && script !== undefined) {
-      const id = paneId(pkg.name, taken)
-      procs.push({ id, shell: rootCommand(pm, script) })
-      notes.push(`${id.padEnd(16)} .  (${script})`)
-    }
-  }
-
-  if (procs.length === 0) {
-    // Nothing to go on — a template that runs, to be edited.
-    procs.push({ id: "app", shell: "echo 'edit procdeck.config.json'; sleep 1000" })
-    notes.push("no package.json dev scripts found — wrote a template to edit")
-  }
-
-  return {
-    config: { $schema: "https://unpkg.com/procdeck/schema.json", name, procs },
-    notes,
-  }
+  // 5. Nothing to go on — a template that runs, to be edited.
+  return done(
+    [{ id: "app", shell: "echo 'edit procdeck.config.json'; sleep 1000" }],
+    ["nothing recognisable here (package.json scripts, Procfile, Django/Go/Rust/Rails/compose) — wrote a template to edit"],
+    "template",
+  )
 }

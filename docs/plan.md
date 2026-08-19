@@ -164,11 +164,15 @@ Small, all expected by anyone coming from a terminal, all cheap:
 
 - Hero GIF/screenshot right under the README title — a healthy deck, not a
   wall of red stacks.
-- `procdeck init` (shipped) — scans `pnpm-workspace.yaml` / `workspaces`,
-  one proc per package with a dev-ish script (`dev`, `start:dev`, `serve`,
-  `watch`, `start`), run via the lockfile's package manager; a plain package
-  gets its own script; nothing found → a template. Validates the file through
-  the real loader before reporting. No `${port}` guessing — printed as a tip.
+- `procdeck init` (shipped) — detectors in order: Procfile; workspaces
+  (`pnpm-workspace.yaml` / `workspaces`), one proc per package with a dev-ish
+  script (`dev`, `start:dev`, `serve`, `watch`, `start`) via the lockfile's
+  package manager; plain subdirectories (depth 1, each its own package.json
+  + lockfile, or a non-JS marker: manage.py, bin/rails, go.mod, Cargo.toml,
+  mix.exs with :phoenix, compose files) with `cwd`; the root itself; else a
+  template. Validates the file through the real loader before reporting. No
+  `${port}` guessing — printed as a tip. Not detected: Makefile targets,
+  pyproject without a framework, Gradle/Maven — leave to the user.
 - A "vs mprocs / overmind / concurrently / turbo TUI" table — that is where
   users come from.
 - (shipped) Binds `127.0.0.1` only now (`host` in the config to open up);

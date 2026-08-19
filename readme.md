@@ -133,12 +133,15 @@ ports) entirely through `${port}` templates. See [`example/`](example/).
 
 ## Config
 
-`procdeck init` writes a first one: it reads `pnpm-workspace.yaml` / `workspaces` in
-`package.json`, finds every package with a `dev` (or `start:dev`, `serve`, `watch`,
-`start`) script, and adds a proc per package run through the package manager your
-lockfile points at — `pnpm --filter web dev`, `yarn workspace web dev`, … A plain
-package gets one proc for its own script. Ports and dependencies are yours to add;
-the tips it prints say how.
+`procdeck init` writes a first one from what is already there, trying in order: a
+**Procfile** (already a list of processes); **workspaces** (`pnpm-workspace.yaml`,
+`workspaces` in `package.json`) — one proc per package with a `dev` (or `start:dev`,
+`serve`, `watch`, `start`) script, run through the package manager your lockfile
+points at (`pnpm --filter web dev`, `yarn workspace web dev`, …); **plain
+subdirectories** — `backend/`, `frontend/`, each with its own `package.json` (its own
+lockfile decides the manager) or a recognisable non-JS project (Django, Go, Rust, Rails,
+Phoenix, docker compose), run with `cwd` set; and finally the **root itself**. Ports and
+dependencies are yours to add; the tips it prints say how.
 
 Two formats, one schema. **JSON** needs nothing from your toolchain — no TypeScript, and
 procdeck itself doesn't have to be a dependency. Point `$schema` at the published schema

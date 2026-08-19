@@ -77,11 +77,66 @@ describe("procdeck init", () => {
     expect(() => valid(plan.config)).not.toThrow()
   })
 
+  test("plain subdirectories without a workspace: each its own project and manager", () => {
+    write("backend/package.json", { name: "backend", scripts: { dev: "nodemon" } })
+    write("backend/pnpm-lock.yaml", "")
+    write("frontend/package.json", { name: "@shop/frontend", scripts: { dev: "vite" } })
+    write("frontend/yarn.lock", "")
+    write("ml/manage.py", "")
+    write("gateway/go.mod", "module gateway\n")
+    write("docs/README.md", "nothing runnable here")
+    write("node_modules/left-pad/package.json", { name: "left-pad", scripts: { dev: "no" } })
+    // A root dev script that merely fans out — the per-directory panes win.
+    write("package.json", { name: "shop", scripts: { dev: "concurrently ..." } })
+    write("package-lock.json", "{}")
+
+    const plan = planInit(root)
+    expect(plan.source).toBe("subdirectories")
+    expect(plan.config.procs).toEqual([
+      { id: "backend", shell: "pnpm run dev", cwd: "backend" },
+      { id: "frontend", shell: "yarn run dev", cwd: "frontend" },
+      { id: "gateway", shell: "go run .", cwd: "gateway" },
+      { id: "ml", shell: "python manage.py runserver", cwd: "ml" },
+    ])
+    expect(() => valid(plan.config)).not.toThrow()
+  })
+
+  test("a subdirectory without its own lockfile uses the root's manager", () => {
+    write("pnpm-lock.yaml", "")
+    write("api/package.json", { name: "api", scripts: { dev: "tsx watch src" } })
+    expect(planInit(root).config.procs).toEqual([{ id: "api", shell: "pnpm run dev", cwd: "api" }])
+  })
+
+  test("Procfile wins: it is already the list", () => {
+    write("Procfile", "web: bundle exec puma -C config/puma.rb\n# a comment\nworker: bundle exec sidekiq\n\n")
+    write("bin/rails", "#!/usr/bin/env ruby")
+    write("package.json", { name: "app", scripts: { dev: "vite" } })
+    const plan = planInit(root)
+    expect(plan.source).toBe("Procfile")
+    expect(plan.config.procs).toEqual([
+      { id: "web", shell: "bundle exec puma -C config/puma.rb" },
+      { id: "worker", shell: "bundle exec sidekiq" },
+    ])
+    expect(() => valid(plan.config)).not.toThrow()
+  })
+
+  test("a non-JS root: the one obvious command", () => {
+    write("Cargo.toml", "[package]\nname = \"svc\"\n")
+    const plan = planInit(root)
+    expect(plan.source).toBe("root")
+    expect(plan.config.procs).toEqual([{ id: path.basename(root).toLowerCase(), shell: "cargo run" }])
+    // docker compose at the root, no code of our own → compose it is.
+    rmSync(path.join(root, "Cargo.toml"))
+    write("compose.yaml", "services: {}")
+    expect(planInit(root).config.procs[0]!.shell).toBe("docker compose up")
+  })
+
   test("nothing to go on: a template that still loads", () => {
     const plan = planInit(root)
+    expect(plan.source).toBe("template")
     expect(plan.config.name).toBe(path.basename(root))
     expect(plan.config.procs).toHaveLength(1)
-    expect(plan.notes[0]).toContain("no package.json dev scripts")
+    expect(plan.notes[0]).toContain("nothing recognisable")
     expect(() => valid(plan.config)).not.toThrow()
   })
 })
