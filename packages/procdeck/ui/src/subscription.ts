@@ -61,15 +61,12 @@ const sseStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
         source.addEventListener("message", (message) => {
           try {
             const event = decodeEvent(JSON.parse(message.data))
+            const live = Date.now() - openedAt > REPLAY_WINDOW_MS
             Queue.offerUnsafe(
               queue,
               event.type === "log"
-                ? ReceivedLog({
-                    id: event.id,
-                    data: event.data,
-                    live: Date.now() - openedAt > REPLAY_WINDOW_MS,
-                  })
-                : ReceivedStatus({ status: event.status }),
+                ? ReceivedLog({ id: event.id, data: event.data, live })
+                : ReceivedStatus({ status: event.status, live }),
             )
           } catch {
             // Malformed frame — drop it.

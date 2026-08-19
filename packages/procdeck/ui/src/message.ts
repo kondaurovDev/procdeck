@@ -1,17 +1,18 @@
 import { Schema as S } from "effect"
 import { m } from "foldkit/message"
-import { Layout, Theme } from "./model.ts"
+import { Layout, NotifyPermission, Theme } from "./model.ts"
 import { DeckInfo, ProcInfo, ProcStatus } from "./schema.ts"
 
 // Server data arriving
 export const GotDeck = m("GotDeck", { deck: DeckInfo })
 export const GotProcs = m("GotProcs", { procs: S.Array(ProcInfo) })
 export const FailedFetchProcs = m("FailedFetchProcs", { error: S.String })
-export const ReceivedStatus = m("ReceivedStatus", { status: ProcStatus })
 /**
- * `live` is false for chunks replayed from the server's ring buffer right
- * after (re)connect — those land in the terminal but must not count as unread.
+ * `live` is false for events replayed from the server's ring buffer right
+ * after (re)connect — replayed chunks land in the terminal but must not count
+ * as unread, and a replayed crash must not notify again.
  */
+export const ReceivedStatus = m("ReceivedStatus", { status: ProcStatus, live: S.Boolean })
 export const ReceivedLog = m("ReceivedLog", { id: S.String, data: S.String, live: S.Boolean })
 /** The SSE feed (re)connected / dropped — drives the "reconnecting" banner. */
 export const StreamOpened = m("StreamOpened")
@@ -40,6 +41,10 @@ export const ToggledZoom = m("ToggledZoom")
 export const ToggledPin = m("ToggledPin", { id: S.String })
 /** ⌥P: pin/unpin the active pane. */
 export const PressedPin = m("PressedPin")
+
+// Notifications
+export const ToggledNotifications = m("ToggledNotifications")
+export const GotNotifyPermission = m("GotNotifyPermission", { permission: NotifyPermission })
 
 // Theme
 export const ChoseTheme = m("ChoseTheme", { theme: Theme })
@@ -96,6 +101,8 @@ export const Message = S.Union([
   ToggledZoom,
   ToggledPin,
   PressedPin,
+  ToggledNotifications,
+  GotNotifyPermission,
   ChoseTheme,
   SystemSchemeChanged,
   SelectedProcOffset,

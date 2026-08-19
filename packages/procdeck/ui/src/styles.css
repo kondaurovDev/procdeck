@@ -147,6 +147,22 @@ header .meta.error {
   display: inline-flex;
   gap: 6px;
 }
+/* The bell: monochrome and faint while off, full colour while on. */
+.deck-actions .bell {
+  padding: 4px 8px;
+  filter: grayscale(1);
+  opacity: 0.5;
+}
+.deck-actions .bell.on {
+  filter: none;
+  opacity: 1;
+  border-color: var(--accent);
+}
+.deck-actions .bell.denied {
+  filter: none;
+  opacity: 0.8;
+  border-color: var(--warn);
+}
 .deck-actions .install {
   color: var(--accent);
   margin-right: 8px;

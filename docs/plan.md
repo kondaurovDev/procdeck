@@ -36,11 +36,10 @@ replayed errors out of the unread badge (`ui/src/subscription.ts`).
 
 ## Next up (agreed order)
 
-1. **Pre-publish polish** — clickable URLs, title/favicon badge + notifications,
-   readable exit status — see "Polish before publishing".
-2. **Registry + detached mode** (`up` / `down` / `status` / `open`, Shutdown
+1. **Registry + detached mode** (`up` / `down` / `status` / `open`, Shutdown
    button) — the core.
-3. **Deck switcher dropdown** in the global bar — cheap on top of the registry.
+2. **Deck switcher dropdown** in the global bar — cheap on top of the registry.
+3. **Terminal niceties** (font size, Ctrl-C, copy-on-select) — see "Polish".
 4. **Command palette** — once there are enough actions to put in it.
 
 ## UI state survives a refresh (shipped: localStorage)
@@ -124,22 +123,30 @@ Grafana/Datadog "fit vs scroll"):
 
 Small, all expected by anyone coming from a terminal, all cheap:
 
-- **Clickable URLs in output** (`@xterm/addon-web-links`). Vite prints
-  `Local: http://localhost:61645/` and everybody expects to click it.
-- **Readable exit status.** `exited · signal 0` is confusing; render
-  `exit 1 · 2 m ago` / `killed (SIGTERM)`, plus restart count (already in the
-  wishlist).
-- **Pane header overflow.** Tiles truncate addresses to `:6164` / `:61`. Keep
-  the `*.localhost` address whole; put raw ports in a tooltip or a "⋯" menu.
-- **Title / favicon badge + notifications.** `(2) garage` in `<title>`, a red
-  dot on the favicon, and Web Notifications on crash/alert while the tab is
-  hidden (Gmail/Slack pattern). For a dashboard living on the second monitor
-  this is the most useful single feature.
-- **Terminal niceties.** ⌘+/⌘− font size, copy-on-select, wrap toggle, a
-  "send Ctrl-C" action (stop signals the group; sometimes you want a plain ^C
-  as in a terminal).
-- **Command palette** ⌘P: jump to proc, restart/stop, pin, theme. Hotkeys are
-  modifier-only and invisible; the palette makes them discoverable.
+- **Clickable URLs in output** (shipped) — `@xterm/addon-web-links`.
+- **Readable exit status** (shipped). `exit 1 · 2m ago` / `killed (SIGTERM)`;
+  the server now sends signal *names* and treats node-pty's `signal: 0` as
+  none (that was the `exited · signal 0`), plus `exitedAt` and a `restarts`
+  counter (`↻3` in the status line). The sidebar shows the same summary in
+  the uptime slot.
+- **Pane header overflow** (shipped). Grid tiles show only the primary address
+  (raw ports in its tooltip); the status text is what ellipsises first.
+- **Title / favicon badge + notifications** (shipped). `attentionCount` =
+  crashed (non-zero exit or signal — a clean `exit 0` is not an alarm) +
+  blocked + alerting + unread-errors procs → `(N)` title prefix and
+  `icon-alert.svg` as favicon (swapped by a Command from the `update`
+  wrapper, like the theme). The bell (`Model.notifications`, persisted)
+  requests permission on first click; `Notify` is issued by `update` on
+  *transitions* only (fresh crash / block / alert) and only for live events —
+  replayed status history on reconnect carries `live: false` now, same as log
+  chunks. The Command itself stays quiet while the tab is visible and
+  focused. `tag` per proc collapses repeats; click focuses the window.
+- **Terminal niceties** (not built). ⌘+/⌘− font size, copy-on-select, wrap
+  toggle, a "send Ctrl-C" action (stop signals the group; sometimes you want
+  a plain ^C as in a terminal).
+- **Command palette** (not built) ⌘P: jump to proc, restart/stop, pin, theme.
+  Hotkeys are modifier-only and invisible; the palette makes them
+  discoverable.
 
 ## Publishing checklist
 

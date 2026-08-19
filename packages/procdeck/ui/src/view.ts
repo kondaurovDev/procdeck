@@ -12,10 +12,11 @@ import {
   ClickedStopAll,
   ClosedSearch,
   SteppedSearch,
+  ToggledNotifications,
   ToggledPin,
   ZoomedProc,
 } from "./message.ts"
-import { gridIds } from "./model.ts"
+import { attentionCount, gridIds } from "./model.ts"
 import type { Layout, Model, Theme } from "./model.ts"
 import type { ProcInfo, ProcStatus } from "./schema.ts"
 import { MountTerminal } from "./terminal.ts"
@@ -396,6 +397,7 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
       h.span(
         [h.Class("deck-actions")],
         [
+          ...notifyBell(model, h),
           themeSwitch(model, h),
           ...(model.installable
             ? [
@@ -427,8 +429,40 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
   )
 }
 
+/** `(2) garage · procdeck` — the count of procs wanting attention, visible from the tab strip. */
+const title = (model: Model): string => {
+  const base = model.deck === undefined ? "procdeck" : `${model.deck.name} · procdeck`
+  const attention = attentionCount(model)
+  return attention === 0 ? base : `(${attention}) ${base}`
+}
+
+/**
+ * The bell: system notifications for crashes/alerts while the tab is away.
+ * Three looks — off, on, and "on but the browser said no" (denied: the user
+ * has to flip it in site settings, we can only say so).
+ */
+const notifyBell = (model: Model, h: HtmlBuilder<Message>): Array<Html> => {
+  if (model.notifyPermission === "unsupported") return []
+  const denied = model.notifications && model.notifyPermission === "denied"
+  const hint = denied
+    ? "notifications are blocked for this site — allow them in the browser's site settings"
+    : model.notifications
+      ? "notify on crash/alert while the tab is away (on)"
+      : "notify on crash/alert while the tab is away (off)"
+  return [
+    h.button(
+      [
+        h.Class(denied ? "bell denied" : model.notifications ? "bell on" : "bell"),
+        h.Title(hint),
+        h.OnClick(ToggledNotifications()),
+      ],
+      [denied ? "🔕" : "🔔"],
+    ),
+  ]
+}
+
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
-  title: model.deck === undefined ? "procdeck" : `${model.deck.name} · procdeck`,
+  title: title(model),
   body: h.div(
     [h.Class(`layout ${model.layout}`)],
     [

@@ -44,6 +44,9 @@ which port is which**.
   callback server mid-handshake.
 - **Alerts.** Regexes matched against a rolling tail of pane output; a match raises a
   badge in the UI ("needs login").
+- **Knows when you're not looking.** Crashed, blocked or alerting procs and unread error
+  lines count into the tab title (`(2) garage`) and a red dot on the favicon; turn on the
+  bell and a crash or alert while the tab is hidden becomes a system notification.
 - **Whole-tree restarts.** `pnpm` → `wrangler` → `workerd`: killing the pid would leave
   the grandchild holding the port. procdeck signals the process group, escalating
   SIGTERM → SIGKILL, and Ctrl-C tears down every tree it spawned.

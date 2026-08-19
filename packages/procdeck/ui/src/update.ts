@@ -16,8 +16,9 @@ import {
 } from "./command.ts"
 import { PromptInstall } from "./install.ts"
 import type { Message } from "./message.ts"
-import { gridIds } from "./model.ts"
+import { attentionCount, gridIds, isCrash } from "./model.ts"
 import type { Layout, Model } from "./model.ts"
+import { Notify, RequestNotifyPermission, SetFaviconBadge, currentNotifyPermission } from "./notify.ts"
 import type { ProcStatus } from "./schema.ts"
 import { SaveUiState, loadUiState } from "./storage.ts"
 import { resolveScheme, systemPrefersDark } from "./theme.ts"
@@ -38,6 +39,32 @@ const paneAction = (
 
 const isIdle = (state: ProcStatus["state"]): boolean =>
   state === "stopped" || state === "exited" || state === "blocked"
+
+/**
+ * A status change worth a system notification: a fresh crash, a fresh
+ * preflight block, a new alert. Only transitions — a crashed proc staying
+ * crashed (ports poll, resize) must not nag. The Command itself stays quiet
+ * while the deck is on screen.
+ */
+const notifyOnTransition = (
+  model: Model,
+  before: ProcStatus | undefined,
+  after: ProcStatus,
+): ReadonlyArray<Command.Command<Message>> => {
+  if (!model.notifications || model.notifyPermission !== "granted") return []
+  const tag = `procdeck:${after.id}`
+  if (isCrash(after) && (before === undefined || !isCrash(before))) {
+    const how = after.signal === undefined ? `exit ${after.exitCode}` : `killed (${after.signal})`
+    return [Notify({ title: `${after.id} crashed`, body: how, tag })]
+  }
+  if (after.state === "blocked" && before?.state !== "blocked") {
+    return [Notify({ title: `${after.id} blocked`, body: after.hint ?? "preflight failed", tag })]
+  }
+  if (after.alert !== undefined && before?.alert !== after.alert) {
+    return [Notify({ title: `${after.id}: ${after.alert}`, body: "output alert", tag })]
+  }
+  return []
+}
 
 /** Log lines worth badging when they land in a pane the user is not watching. */
 const ERROR_PATTERN = /\b(error|exception|fatal|panic|traceback)\b|\bERR\b/i
@@ -119,13 +146,15 @@ const step = (model: Model, message: Message): Result =>
       ],
       StreamDropped: () => [evo(model, { stream: () => "reconnecting" as const }), []],
 
-      ReceivedStatus: ({ status }) => [
-        evo(model, {
+      ReceivedStatus: ({ status, live }) => {
+        const before = model.procs.find((info) => info.id === status.id)?.status
+        const next = evo(model, {
           procs: (procs) =>
             procs.map((info) => (info.id === status.id ? { ...info, status } : info)),
-        }),
-        [],
-      ],
+        })
+        // Replayed history walks through old transitions — none of them is news.
+        return [next, live ? notifyOnTransition(next, before, status) : []]
+      },
       // Log chunks do not live in the Model — the view never renders them, the
       // terminals do. The Message becomes a Command writing into the registry.
       // The one thing the Model keeps is the unread-error tally for panes the
@@ -170,6 +199,17 @@ const step = (model: Model, message: Message): Result =>
         setLayout(model, LAYOUTS[(LAYOUTS.indexOf(model.layout) + 1) % LAYOUTS.length]!),
       ToggledPin: ({ id }) => togglePin(model, id),
       PressedPin: () => togglePin(model, model.active),
+
+      // Turning the bell on asks the browser (a user gesture, so it may
+      // prompt); off is just the flag — the permission stays for next time.
+      ToggledNotifications: () =>
+        model.notifications
+          ? [evo(model, { notifications: () => false }), []]
+          : [evo(model, { notifications: () => true }), [RequestNotifyPermission()]],
+      GotNotifyPermission: ({ permission }) => [
+        evo(model, { notifyPermission: () => permission }),
+        [],
+      ],
 
       ChoseTheme: ({ theme }) => [evo(model, { theme: () => theme }), []],
       SystemSchemeChanged: ({ dark }) => [evo(model, { systemDark: () => dark }), []],
@@ -233,7 +273,8 @@ const step = (model: Model, message: Message): Result =>
  * `step` plus the effects that follow from *what changed*, not from which
  * Message did it — done here so no future branch can forget them:
  * - a field that survives a reload changed → one SaveUiState;
- * - the theme preference or the scheme it resolves to changed → ApplyTheme.
+ * - the theme preference or the scheme it resolves to changed → ApplyTheme;
+ * - the deck started or stopped wanting attention → favicon badge on/off.
  */
 export const update = (model: Model, message: Message): Result => {
   const [next, commands] = step(model, message)
@@ -241,8 +282,11 @@ export const update = (model: Model, message: Message): Result => {
     next.layout !== model.layout ||
     next.active !== model.active ||
     next.theme !== model.theme ||
-    next.pinned !== model.pinned
+    next.pinned !== model.pinned ||
+    next.notifications !== model.notifications
   const repaint = next.theme !== model.theme || resolveScheme(next) !== resolveScheme(model)
+  const attention = attentionCount(next) > 0
+  const rebadge = attention !== attentionCount(model) > 0
   return [
     next,
     [
@@ -254,10 +298,12 @@ export const update = (model: Model, message: Message): Result => {
               active: next.active,
               theme: next.theme,
               pinned: next.pinned,
+              notifications: next.notifications,
             }),
           ]
         : []),
       ...(repaint ? [ApplyTheme({ theme: next.theme, scheme: resolveScheme(next) })] : []),
+      ...(rebadge ? [SetFaviconBadge({ on: attention })] : []),
     ],
   ]
 }
@@ -280,6 +326,8 @@ export const init = (): Result => {
     stream: "connecting",
     theme: stored.theme ?? "system",
     systemDark: systemPrefersDark(),
+    notifications: stored.notifications ?? false,
+    notifyPermission: currentNotifyPermission(),
   }
   // The inline script in index.html already painted the scheme before the
   // first frame; this keeps the theme-color meta honest if it did not run.

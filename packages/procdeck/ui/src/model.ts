@@ -1,5 +1,6 @@
 import { Schema as S } from "effect"
 import { DeckInfo, ProcInfo } from "./schema.ts"
+import type { ProcStatus } from "./schema.ts"
 
 /**
  * How the main area shows the panes. One switch, not independent toggles —
@@ -23,6 +24,10 @@ export type Theme = typeof Theme.Type
 /** What is actually painted — `Theme` resolved against the OS setting. */
 export const Scheme = S.Literals(["light", "dark"])
 export type Scheme = typeof Scheme.Type
+
+/** `Notification.permission`, plus "unsupported" for browsers without the API. */
+export const NotifyPermission = S.Literals(["default", "granted", "denied", "unsupported"])
+export type NotifyPermission = typeof NotifyPermission.Type
 
 export const Model = S.Struct({
   /** Deck name for the title; undefined until fetched. */
@@ -61,8 +66,28 @@ export const Model = S.Struct({
   theme: Theme,
   /** The OS preference, tracked so `system` can be resolved without asking the DOM. */
   systemDark: S.Boolean,
+  /** The user wants system notifications for crashes/alerts while the tab is away. */
+  notifications: S.Boolean,
+  notifyPermission: NotifyPermission,
 })
 export type Model = typeof Model.Type
+
+/** A crash, as opposed to a clean exit or a stop the user asked for. */
+export const isCrash = (status: ProcStatus): boolean =>
+  status.state === "exited" && (status.exitCode !== 0 || status.signal !== undefined)
+
+/**
+ * Procs that want a human: crashed, blocked on a preflight, carrying an alert,
+ * or with unread error lines. Drives the title prefix and the favicon badge.
+ */
+export const attentionCount = (model: Model): number =>
+  model.procs.filter(
+    (info) =>
+      isCrash(info.status) ||
+      info.status.state === "blocked" ||
+      info.status.alert !== undefined ||
+      (model.unread[info.id] ?? 0) > 0,
+  ).length
 
 /** Procs tiled in grid layout: the pinned ones, or everyone when nothing is pinned. */
 export const gridIds = (model: Model): Array<string> =>
