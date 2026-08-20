@@ -44,10 +44,32 @@ seq-cursored, marks apply):
     }
 
 - Binary and streaming bodies: record the fact and the size, not the bytes.
-- WebSocket: the upgrade event only, frames are opaque (v1).
 - gRPC: opaque; do not parse.
 - Redaction is on by default (`authorization`, `cookie`, `set-cookie`,
   obvious token headers); a flag can widen capture for local debugging.
+
+### WebSocket messages — same rings, per-frame capture
+
+WebSockets carry business data too (chats, live updates, socket.io,
+GraphQL subscriptions) and they pass through the same two interception
+points — `proxyUpgrade` already pipes the upgraded sockets today. After the
+101 the stream is framed (RFC 6455); a small parser (header, opcode,
+client→server unmasking, reassemble continuation frames until FIN) turns it
+into messages in the same per-proc ring:
+
+    { proc, ts, seq, connId, dir: "in" | "out",
+      text?,                   // opcode 1, truncated like HTTP bodies
+      size }                   // always; binary frames record size only
+
+- The upgrade itself is logged as a normal HTTP exchange (status 101) that
+  opens `connId`; close/ping/pong are facts on the connection, not messages.
+- **permessage-deflate**: libraries negotiate frame compression, which would
+  make payloads unreadable. The proxy strips `Sec-WebSocket-Extensions`
+  from the handshake so both sides speak uncompressed — free on loopback,
+  and every text frame stays plain text. (Opt-out with the same
+  `observe: false` if an app insists on the extension.)
+- socket.io / engine.io framing (`42["event",...]`) is still text —
+  captured raw; recognizing it is a later nicety.
 
 **Marks make it the verify loop's second half.** `mark` → act →
 "which requests happened and what did they return" is stronger evidence
@@ -75,7 +97,7 @@ than log lines: the actual status and body caused by the change.
 - **Traffic on hardcoded ports** (a proc that ignores `${port}` and binds
   3000 itself). Port detection already knows who listens where, so the UI
   and `http` output can at least say "this port is not observed".
-- WebSocket/gRPC payloads — facts, not contents (v1).
+- gRPC and binary WebSocket payloads — facts and sizes, not contents.
 
 ## Order of work
 
@@ -86,7 +108,10 @@ than log lines: the actual status and body caused by the change.
    bites (`observe: false`).
 3. **Agent surfaces** — `procdeck http` + `get_http` MCP tool, marks and
    `since_last` wired through, redaction on, digest view.
-4. **UI network tab**; CDP add-on and outbound instrumentation — much
+4. **WebSocket frame capture** — the RFC 6455 parser on both interception
+   points, deflate stripped at the handshake; ws messages join the same
+   rings and surfaces (`--ws` filter or a `kind` field).
+5. **UI network tab**; CDP add-on and outbound instrumentation — much
    later, when the itch is real.
 
 ## Open questions
@@ -102,3 +127,9 @@ than log lines: the actual status and body caused by the change.
 - Does the UI proxy's Host-rewrite logic need the same treatment in the
   interposed proxy (vite host allowlists)? Probably yes — reuse
   `upstreamOptions`.
+- WS volume: a chatty socket (HMR, presence pings) can flood the ring —
+  same-byte-budget answer probably suffices, but maybe skip known-noise
+  connections (vite HMR) by default.
+- Is stripping permessage-deflate ever observable to the app beyond
+  bandwidth? (It should not be — the extension is negotiated, not assumed —
+  but verify against ws and socket.io.)
