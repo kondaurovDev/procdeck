@@ -150,3 +150,6 @@ not remove that work; it removes the need to distribute it per project.
 - `logs --follow` for pane output (only `--self` follows today) — an SSE
   consumer in the CLI; useful for humans, less so for agents (bounded pulls
   beat an open stream in a tool-call world).
+- **HTTP observability** — the harness's next layer: see the traffic
+  between the procs (statuses, bodies — the business data), not just their
+  logs. Full plan and decisions in docs/http-observability.md.
