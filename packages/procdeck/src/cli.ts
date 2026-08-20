@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, writeFileSync } from "node:fs"
+import { writeFileSync } from "node:fs"
 import * as path from "node:path"
 import { Console, Effect, Layer, Option } from "effect"
 import { Argument, CliConfig, Command, Flag, GlobalFlag } from "effect/unstable/cli"
