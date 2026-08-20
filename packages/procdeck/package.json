@@ -1,6 +1,6 @@
 {
   "name": "procdeck",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Interactive dev-process multiplexer with a web UI: terminal panes in a browser tab, declarative dependencies, assigned ports and a *.localhost reverse proxy.",
   "keywords": [
     "cli",
