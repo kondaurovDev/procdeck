@@ -3,16 +3,31 @@ import { defineConfig } from "procdeck"
 /**
  * A self-contained demo of every procdeck feature, using only Node:
  *
- * - `api` gets a free port assigned by procdeck (`${port}` — arrives as $PORT).
- * - `web` waits for `api` (`needs`), gets its own assigned port, and finds the
- *   api through `${port:api}` — no port numbers anywhere in the stack.
+ * - `api` gets a free port assigned by procdeck (`${port}` — arrives as
+ *   $PORT) and serves a small shop API with routes that succeed and fail.
+ * - `worker` waits for `api` (`needs`), passes a `preflight` gate first, and
+ *   buys things on a timer through `${port:api}` — server-to-server HTTP
+ *   that the observer captures (every third order is broken on purpose).
+ * - `chat` is a dependency-free WebSocket server; its messages are captured
+ *   per-frame with direction and text.
+ * - `web` serves the shop page: browser calls to `api.localhost`, a live
+ *   chat widget on `chat.localhost`.
  * - `clock` never listens, so readiness is "it spawned" (`readyWhen`).
  * - `flaky` shows alerts: when its output matches a pattern, the pane gets a
  *   badge in the UI.
  *
- * Run `pnpm dev`, open http://localhost:4820 — then http://web.localhost:4820
- * and http://api.localhost:4820: every pane is also reachable at a stable
- * subdomain of the UI port, whatever port it actually got.
+ * Run `pnpm dev`, open http://localhost:4830 — then http://web.localhost:4830
+ * (every pane is also reachable at a stable subdomain of the UI port,
+ * whatever port it actually got). Click around, then watch the traffic:
+ *
+ *     procdeck http                # every captured exchange, interleaved
+ *     procdeck http --digest       # 4xx/5xx grouped by route (worker's 422s)
+ *     procdeck http --status 5xx   # the cursed product
+ *     procdeck http --ws --body    # the chat messages, with text
+ *     procdeck errors api          # parsed + deduplicated error output
+ *
+ * And the verify loop: `procdeck mark` → click a button on the web page →
+ * `procdeck http --since-mark default --body`.
  */
 export default defineConfig({
   // `name` is the tab title and the installed app's name; it defaults to the
@@ -22,6 +37,25 @@ export default defineConfig({
     {
       id: "api",
       cmd: ["node", "servers/api.mjs"],
+      env: { PORT: "${port}" },
+    },
+    {
+      id: "worker",
+      cmd: ["node", "servers/worker.mjs"],
+      env: { API_URL: "http://localhost:${port:api}" },
+      needs: ["api"],
+      readyWhen: "started",
+      // A gate that must pass before the proc spawns; this one always does —
+      // swap the pattern for something failing to see the "blocked" state.
+      preflight: {
+        shell: "node --version",
+        expect: "v\\d+",
+        hint: "install Node 22+ first",
+      },
+    },
+    {
+      id: "chat",
+      cmd: ["node", "servers/chat.mjs"],
       env: { PORT: "${port}" },
     },
     {
