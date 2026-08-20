@@ -1,4 +1,4 @@
-import { createServer, request as httpRequest } from "node:http"
+import { createServer } from "node:http"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import type { Duplex } from "node:stream"
 import { readFile } from "node:fs/promises"
@@ -9,6 +9,7 @@ import { Effect, Stream } from "effect"
 import { HttpRouter, HttpServerResponse } from "effect/unstable/http"
 import type { Scope } from "effect"
 import type { ProcEvent } from "./events.ts"
+import { forwardRequest, forwardUpgrade } from "./interpose.ts"
 import type { Instance } from "./registry.ts"
 import type { Supervisor } from "./supervisor.ts"
 
@@ -198,6 +199,75 @@ const logsResponse = (supervisor: Supervisor, url: URL) => {
   }
 }
 
+/** Bounds for one `GET /http` answer — the exchange rings cap memory already. */
+const DEFAULT_HTTP_LIMIT = 50
+const MAX_HTTP_LIMIT = 1000
+
+/**
+ * `GET /http` — captured HTTP traffic (also `procdeck http`): `procs` (csv),
+ * `limit`, `sinceMs`/`untilMs`, `mark` (a named mark's snapshot), `sinceSeq`
+ * (resume cursor, like /logs), `status` ("5xx" / "422" / "error"), `path`
+ * (RegExp), `bodies=1` to include captured bodies and headers.
+ */
+const httpResponse = (supervisor: Supervisor, url: URL) => {
+  const param = (name: string) => url.searchParams.get(name) ?? undefined
+  const procs = param("procs")?.split(",").filter((id) => id.length > 0)
+  const limitRaw = param("limit")
+  const limit = limitRaw === undefined ? DEFAULT_HTTP_LIMIT : Number(limitRaw)
+  if (!Number.isInteger(limit) || limit < 0) return badRequest(`bad limit: ${limitRaw}`)
+
+  const epoch = (name: string): number | undefined | "bad" => {
+    const raw = param(name)
+    if (raw === undefined) return undefined
+    const value = Number(raw)
+    return Number.isFinite(value) ? value : "bad"
+  }
+  const sinceMs = epoch("sinceMs")
+  if (sinceMs === "bad") return badRequest(`bad sinceMs: ${param("sinceMs")}`)
+  const untilMs = epoch("untilMs")
+  if (untilMs === "bad") return badRequest(`bad untilMs: ${param("untilMs")}`)
+
+  let sinceSeq: Record<string, number> | undefined
+  const markName = param("mark")
+  if (markName !== undefined) {
+    const mark = supervisor.getMark(markName)
+    if (mark === undefined) {
+      return badRequest(`unknown mark "${markName}" — set one with POST /marks`)
+    }
+    sinceSeq = mark.httpSeqs
+  }
+  const seqRaw = param("sinceSeq")
+  if (seqRaw !== undefined) {
+    try {
+      const record = JSON.parse(seqRaw) as Record<string, unknown>
+      if (Object.values(record).some((seq) => !Number.isInteger(seq))) throw new Error("bad")
+      sinceSeq = { ...sinceSeq }
+      for (const [id, seq] of Object.entries(record as Record<string, number>)) {
+        sinceSeq[id] = Math.max(seq, sinceSeq[id] ?? 0)
+      }
+    } catch {
+      return badRequest(`bad sinceSeq: ${seqRaw} — a {proc: seq} JSON record`)
+    }
+  }
+
+  try {
+    return HttpServerResponse.jsonUnsafe(
+      supervisor.http({
+        procs,
+        sinceSeq,
+        sinceMs,
+        untilMs,
+        status: param("status"),
+        path: param("path"),
+        bodies: param("bodies") === "1",
+        limit: Math.min(limit, MAX_HTTP_LIMIT),
+      }),
+    )
+  } catch (cause) {
+    return badRequest((cause as Error).message)
+  }
+}
+
 const routes = (supervisor: Supervisor, deck: DeckInfo, hooks: ServerHooks) =>
   HttpRouter.addAll([
     HttpRouter.route("GET", `${API}/deck`, () =>
@@ -236,6 +306,9 @@ const routes = (supervisor: Supervisor, deck: DeckInfo, hooks: ServerHooks) =>
     ),
     HttpRouter.route("GET", `${API}/logs`, (request) =>
       Effect.sync(() => logsResponse(supervisor, new URL(request.url, "http://localhost"))),
+    ),
+    HttpRouter.route("GET", `${API}/http`, (request) =>
+      Effect.sync(() => httpResponse(supervisor, new URL(request.url, "http://localhost"))),
     ),
     HttpRouter.route("POST", `${API}/marks`, (request) =>
       Effect.gen(function* () {
@@ -307,15 +380,6 @@ const hostProcId = (host: string | undefined): string | undefined => {
   return name.endsWith(".localhost") ? name.slice(0, -".localhost".length) : undefined
 }
 
-const upstreamOptions = (req: IncomingMessage, port: number) => ({
-  host: "localhost",
-  port,
-  autoSelectFamily: true,
-  method: req.method,
-  path: req.url,
-  headers: { ...req.headers, host: `localhost:${port}` },
-})
-
 const refuse = (res: ServerResponse, status: number, message: string) => {
   if (!res.headersSent) res.writeHead(status, { "content-type": "text/plain; charset=utf-8" })
   res.end(`procdeck: ${message}\n`)
@@ -331,12 +395,15 @@ const proxyRequest = (
   if (port === undefined) {
     return refuse(res, 503, `"${id}" has no listening port yet — is it running?`)
   }
-  const upstream = httpRequest(upstreamOptions(req, port), (upRes) => {
-    res.writeHead(upRes.statusCode ?? 502, upRes.headers)
-    upRes.pipe(res)
+  // For interposed procs `port` is the observer, which records the exchange
+  // itself — `httpRecorder` is undefined there so nothing counts twice.
+  forwardRequest({
+    req,
+    res,
+    port,
+    record: supervisor.httpRecorder(id),
+    onError: (response) => refuse(response, 502, `"${id}" refused the connection on :${port}`),
   })
-  upstream.on("error", () => refuse(res, 502, `"${id}" refused the connection on :${port}`))
-  req.pipe(upstream)
 }
 
 /** WebSocket pass-through — vite HMR and friends live on `Upgrade`. */
@@ -352,32 +419,7 @@ const proxyUpgrade = (
     socket.destroy()
     return
   }
-
-  const upstream = httpRequest(upstreamOptions(req, port))
-  upstream.on("upgrade", (upRes, upSocket, upHead) => {
-    const lines = ["HTTP/1.1 101 Switching Protocols"]
-    for (let i = 0; i < upRes.rawHeaders.length; i += 2) {
-      lines.push(`${upRes.rawHeaders[i]}: ${upRes.rawHeaders[i + 1]}`)
-    }
-    socket.write(`${lines.join("\r\n")}\r\n\r\n`)
-    if (upHead.length > 0) socket.write(upHead)
-    if (head.length > 0) upSocket.write(head)
-    upSocket.pipe(socket)
-    socket.pipe(upSocket)
-    const drop = () => {
-      upSocket.destroy()
-      socket.destroy()
-    }
-    upSocket.on("error", drop)
-    socket.on("error", drop)
-  })
-  // The upstream answered without upgrading — relay the refusal and hang up.
-  upstream.on("response", (upRes) => {
-    socket.end(`HTTP/1.1 ${upRes.statusCode ?? 502} ${upRes.statusMessage ?? ""}\r\nconnection: close\r\n\r\n`)
-  })
-  upstream.on("error", () => socket.destroy())
-  socket.on("error", () => upstream.destroy())
-  upstream.end()
+  forwardUpgrade({ req, socket, head, port, record: supervisor.httpRecorder(id) })
 }
 
 /** Bridge one Node request/response pair to the web-standard handler. */

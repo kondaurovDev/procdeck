@@ -101,23 +101,36 @@ than log lines: the actual status and body caused by the change.
 
 ## Order of work
 
-1. **Tap the existing `*.localhost` proxy** — cheapest, code path exists,
-   covers browser → service. Ring buffer + `GET /http` on the deck API.
-2. **Assigned-port interposition** — the transparent per-proc proxy that
-   reveals server-to-server. Opt-out per proc in the config if it ever
-   bites (`observe: false`).
-3. **Agent surfaces** — `procdeck http` + `get_http` MCP tool, marks and
-   `since_last` wired through, redaction on, digest view.
+1. ~~**Tap the existing `*.localhost` proxy**~~ — shipped: the UI proxy
+   records into per-proc rings (`src/http-log.ts`, 512 KB each, seq-cursored)
+   via the shared capture-aware forwarding in `src/interpose.ts`;
+   `GET /http` on the deck API queries them.
+2. ~~**Assigned-port interposition**~~ — shipped: observed procs (the
+   default for `${port}` users) get a port *pair* — the proc binds a hidden
+   internal port, procdeck's observer listens on the public assigned one and
+   forwards. `${port:x}` cross-references and `url` resolve to the public
+   port, self-references in `shell`/`cmd`/`env` (and `PORT`) to the internal
+   one; readiness keys on the internal port. `observe: false` opts out. The
+   UI proxy forwards into the observer for interposed procs and records only
+   for opted-out ones — every exchange counts exactly once.
+3. ~~**Agent surfaces**~~ — shipped: `procdeck http [proc] [--status 5xx]
+   [--path RE] [--since-mark] [--body] [--digest] [--json]`, the `get_http`
+   MCP tool (with its own `since_last` cursor), marks carry `httpSeqs`
+   alongside line seqs, `timeline` returns the window's exchanges too.
+   Redaction on at capture time (auth/cookie headers never enter the ring);
+   digest normalizes routes (`/users/:id`) like error signatures.
 4. **WebSocket frame capture** — the RFC 6455 parser on both interception
    points, deflate stripped at the handshake; ws messages join the same
-   rings and surfaces (`--ws` filter or a `kind` field).
+   rings and surfaces (`--ws` filter or a `kind` field). (The upgrade
+   handshake is already recorded as a status-101 exchange.)
 5. **UI network tab**; CDP add-on and outbound instrumentation — much
    later, when the itch is real.
 
 ## Open questions
 
-- Body capture limits: 16 KB per body? per exchange? Measure against real
-  dev payloads before hardcoding.
+- Body capture limits: shipped at 16 KB per body (full sizes always recorded
+  in `reqBytes`/`resBytes`); measure against real dev payloads before
+  considering it settled.
 - Should the interposed proxy also serve as the readiness signal (a proc
   answering on its internal port is "ready" — sharper than "port open")?
 - Digest grouping: by exact path is too fine (`/users/42`), by first

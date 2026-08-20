@@ -307,6 +307,6 @@ export const mcp = Command.make(
   ({ mutations }) => runMcp({ version: VERSION, mutations }),
 ).pipe(
   Command.withDescription(
-    "MCP server over stdio for coding agents: deck_status, get_logs, get_errors, set_mark, wait_for — the same verbs as the CLI. Add once, globally: `claude mcp add procdeck -- procdeck mcp`; the instance registry finds the right deck for whatever project the agent is in.",
+    "MCP server over stdio for coding agents: deck_status, get_logs, get_http, get_errors, set_mark, wait_for — the same verbs as the CLI. Add once, globally: `claude mcp add procdeck -- procdeck mcp`; the instance registry finds the right deck for whatever project the agent is in.",
   ),
 )

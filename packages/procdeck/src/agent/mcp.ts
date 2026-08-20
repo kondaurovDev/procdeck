@@ -20,9 +20,10 @@ import * as path from "node:path"
 import { Effect, Layer, Schema } from "effect"
 import { McpProtocol, McpServer, Tool, Toolkit } from "effect/unstable/ai"
 import * as NodeStdio from "@effect/platform-node-shared/NodeStdio"
-import { apiGet, apiPost, logsParams, statusReport, waitForProc } from "./client.ts"
+import { apiGet, apiPost, httpParams, logsParams, statusReport, waitForProc } from "./client.ts"
 import { locateConfig } from "../config.ts"
 import { extractErrors } from "./errors.ts"
+import type { HttpResult } from "../http-log.ts"
 import type { LogsResult, Mark } from "../lines.ts"
 import { findInstance } from "../registry.ts"
 import type { Instance } from "../registry.ts"
@@ -81,9 +82,25 @@ const GetLogs = Tool.make("get_logs", {
   success: Schema.Unknown,
 })
 
+const GetHttp = Tool.make("get_http", {
+  description:
+    'HTTP traffic captured between the deck\'s processes and into them (via the *.localhost proxy and each proc\'s assigned `${port}`): method, path, status, duration and body sizes per exchange. The verify loop\'s second half: set_mark → act → get_http with `since_mark` shows exactly which requests your action caused and what they returned — stronger evidence than log lines. Narrow with `status` ("5xx", "422", or "error"), `path` (RegExp), `since_seconds`, `since_mark`, or `since_last: true` for only what arrived after your previous get_http call. Set `bodies: true` to include captured request/response bodies (text only, truncated; auth headers always redacted). Blind spots: outbound calls to the internet and procs on hardcoded ports.',
+  parameters: Schema.Struct({
+    proc: Schema.optionalKey(Schema.String),
+    limit: Schema.optionalKey(Schema.Number),
+    status: Schema.optionalKey(Schema.String),
+    path: Schema.optionalKey(Schema.String),
+    since_seconds: Schema.optionalKey(Schema.Number),
+    since_mark: Schema.optionalKey(Schema.String),
+    since_last: Schema.optionalKey(Schema.Boolean),
+    bodies: Schema.optionalKey(Schema.Boolean),
+  }),
+  success: Schema.Unknown,
+})
+
 const Timeline = Tool.make("timeline", {
   description:
-    'Interleaved output of several processes (default: all) around a moment in time — "the frontend threw a 500 at T; what were api and worker doing right then?". `at_ms` is epoch milliseconds, same clock as every log line\'s `ts` and get_errors\' lastTs (default: now). `window_seconds` (default 10) is the half-width: lines within ±window are returned.',
+    'Interleaved output of several processes (default: all) around a moment in time, plus the HTTP exchanges captured in the same window — "the frontend threw a 500 at T; what were api and worker doing right then, and which requests flew?". `at_ms` is epoch milliseconds, same clock as every log line\'s `ts` and get_errors\' lastTs (default: now). `window_seconds` (default 10) is the half-width.',
   parameters: Schema.Struct({
     at_ms: Schema.optionalKey(Schema.Number),
     window_seconds: Schema.optionalKey(Schema.Number),
@@ -172,6 +189,8 @@ const logsPath = (options: {
  * them (for the procs it covered); `since_last: true` reads from there.
  */
 const cursors: Record<string, number> = {}
+/** The same, for get_http — the two streams have independent seq spaces. */
+const httpCursors: Record<string, number> = {}
 
 const readHandlers = {
   deck_status: () => withDeck((instance) => statusReport(instance)),
@@ -197,22 +216,54 @@ const readHandlers = {
       Object.assign(cursors, result.nextSeq)
       return result
     }),
+  get_http: (input: {
+    proc?: string
+    limit?: number
+    status?: string
+    path?: string
+    since_seconds?: number
+    since_mark?: string
+    since_last?: boolean
+    bodies?: boolean
+  }) =>
+    withDeck(async (instance) => {
+      const params = httpParams({
+        proc: input.proc,
+        limit: input.limit ?? 50,
+        status: input.status,
+        path: input.path,
+        sinceMs:
+          input.since_seconds === undefined ? undefined : Date.now() - input.since_seconds * 1000,
+        mark: input.since_mark,
+        sinceSeq: input.since_last === true ? httpCursors : undefined,
+        bodies: input.bodies,
+      })
+      const result = await apiGet<HttpResult>(instance, `/http?${params}`)
+      Object.assign(httpCursors, result.nextSeq)
+      return result
+    }),
   timeline: (input: {
     at_ms?: number
     window_seconds?: number
     procs?: ReadonlyArray<string>
     lines?: number
   }) =>
-    withDeck((instance) => {
+    withDeck(async (instance) => {
       const at = input.at_ms ?? Date.now()
       const window = (input.window_seconds ?? 10) * 1000
+      const proc = input.procs?.join(",")
       const params = logsParams({
-        proc: input.procs?.join(","),
+        proc,
         lines: input.lines ?? 200,
         sinceMs: at - window,
         untilMs: at + window,
       })
-      return apiGet<LogsResult>(instance, `/logs?${params}`)
+      const logs = await apiGet<LogsResult>(instance, `/logs?${params}`)
+      const traffic = await apiGet<HttpResult>(
+        instance,
+        `/http?${httpParams({ proc, limit: 100, sinceMs: at - window, untilMs: at + window })}`,
+      )
+      return { ...logs, http: traffic.exchanges }
     }),
   get_errors: (input: { proc?: string; since_seconds?: number; since_mark?: string }) =>
     withDeck(async (instance) => {
@@ -258,6 +309,7 @@ export const runMcp = (options: { version: string; mutations: boolean }) => {
     const kit = Toolkit.make(
       DeckStatus,
       GetLogs,
+      GetHttp,
       Timeline,
       GetErrors,
       SetMark,
@@ -273,7 +325,7 @@ export const runMcp = (options: { version: string; mutations: boolean }) => {
       ),
     )
   }
-  const kit = Toolkit.make(DeckStatus, GetLogs, Timeline, GetErrors, SetMark, WaitFor)
+  const kit = Toolkit.make(DeckStatus, GetLogs, GetHttp, Timeline, GetErrors, SetMark, WaitFor)
   return Layer.launch(
     McpServer.toolkit(kit).pipe(
       Layer.provide(kit.toLayer(readHandlers)),

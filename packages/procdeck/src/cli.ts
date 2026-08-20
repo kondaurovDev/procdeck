@@ -12,6 +12,7 @@ import * as NodeTerminal from "@effect/platform-node-shared/NodeTerminal"
 import { apiGet, apiPost, deckUrl as url, describeProc, statusReport } from "./agent/client.ts"
 import { appendSnippet, findInstructionsFile } from "./agent/discover.ts"
 import { agents, errors, logs, mark, mcp, waitFor } from "./commands/agent.ts"
+import { http } from "./commands/http.ts"
 import {
   callApi,
   configArgument,
@@ -387,6 +388,7 @@ const procdeck = Command.make(
     ls,
     open,
     logs,
+    http,
     mark,
     waitFor,
     errors,

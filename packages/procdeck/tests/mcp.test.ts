@@ -126,6 +126,7 @@ describe("mcp", () => {
       expect(await session.toolNames()).toEqual([
         "deck_status",
         "get_errors",
+        "get_http",
         "get_logs",
         "set_mark",
         "timeline",
@@ -174,6 +175,14 @@ describe("mcp", () => {
       expect(now).toContain("tick")
       const past = await session.callTool("timeline", { at_ms: 1000, window_seconds: 5 })
       expect(past).toContain('"lines":[]')
+
+      // get_http: the ticker makes no requests, so the shape is an empty
+      // capture — the tool answers rather than erroring on a quiet deck.
+      const traffic = await session.callTool("get_http", { proc: "ticker" })
+      expect(traffic).toContain('"exchanges":[]')
+
+      // timeline carries the same-window http exchanges alongside the lines.
+      expect(now).toContain('"http":[]')
 
       // Problems come back as values, not protocol errors.
       const unknown = await session.callTool("get_logs", { proc: "nope" })

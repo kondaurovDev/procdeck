@@ -140,6 +140,38 @@ export const logsParams = (options: {
   return params
 }
 
+/** Query-string builder for `GET /http` — one spelling of the parameters. */
+export const httpParams = (options: {
+  /** Proc id, or several as csv. */
+  proc?: string | undefined
+  limit: number
+  /** "5xx" / "422" / "error". */
+  status?: string | undefined
+  /** RegExp source matched against the path. */
+  path?: string | undefined
+  sinceMs?: number | undefined
+  untilMs?: number | undefined
+  mark?: string | undefined
+  /** Per-proc resume cursors (a previous response's `nextSeq`). */
+  sinceSeq?: Record<string, number> | undefined
+  /** Include captured bodies and headers. */
+  bodies?: boolean | undefined
+}): URLSearchParams => {
+  const params = new URLSearchParams()
+  if (options.proc !== undefined) params.set("procs", options.proc)
+  params.set("limit", String(options.limit))
+  if (options.status !== undefined) params.set("status", options.status)
+  if (options.path !== undefined) params.set("path", options.path)
+  if (options.sinceMs !== undefined) params.set("sinceMs", String(options.sinceMs))
+  if (options.untilMs !== undefined) params.set("untilMs", String(options.untilMs))
+  if (options.mark !== undefined) params.set("mark", options.mark)
+  if (options.sinceSeq !== undefined && Object.keys(options.sinceSeq).length > 0) {
+    params.set("sinceSeq", JSON.stringify(options.sinceSeq))
+  }
+  if (options.bodies === true) params.set("bodies", "1")
+  return params
+}
+
 export type WaitOutcome =
   | { ok: true; message: string; elapsedSeconds: number }
   | {

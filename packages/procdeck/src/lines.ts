@@ -49,6 +49,8 @@ export type Mark = {
   name: string
   at: number
   seqs: Record<string, number>
+  /** The same snapshot in every proc's HTTP exchange ring (`procdeck http`). */
+  httpSeqs: Record<string, number>
 }
 
 // CSI (colors, cursor), OSC (titles, links), DCS/PM/APC strings, then any

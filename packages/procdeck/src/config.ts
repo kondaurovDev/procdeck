@@ -130,6 +130,12 @@ export const ProcSpecSchema = Schema.Struct({
         'What "ready" means for dependents: "listening" (default) — the process tree opened a TCP port; "started" — it merely spawned, for procs that never listen.',
     }),
   ),
+  observe: Schema.optionalKey(
+    Schema.Boolean.annotate({
+      description:
+        "Route this proc's assigned `${port}` through procdeck's HTTP observer, capturing requests and responses for `procdeck http`. Defaults to true for procs that use `${port}`; false hands the proc the public port directly (no traffic capture).",
+    }),
+  ),
   preflight: Schema.optionalKey(PreflightSchema),
   alerts: Schema.optionalKey(
     Schema.Array(AlertSchema).annotate({
@@ -181,21 +187,39 @@ const portRefs = (spec: ProcSpec): Array<string> =>
     [...text.matchAll(PORT_TEMPLATE)].flatMap((match) => (match[1] === undefined ? [] : [match[1]])),
   )
 
-/** Substitute `${port}` / `${port:id}` with the ports assigned at startup. */
-export const resolveSpec = (spec: ProcSpec, assigned: Map<string, number>): ProcSpec => {
-  const sub = (text: string): string =>
+/**
+ * Substitute `${port}` / `${port:id}` with the ports assigned at startup.
+ *
+ * When `internal` maps this proc's id (the HTTP observer interposes on its
+ * assigned port), self references in `shell` / `cmd` / `env` resolve to the
+ * hidden internal port the proc must actually bind, while `${port:x}` cross
+ * references and the `url` keep the public port — that is where the service
+ * is reachable, through the observer.
+ */
+export const resolveSpec = (
+  spec: ProcSpec,
+  assigned: Map<string, number>,
+  internal?: Map<string, number>,
+): ProcSpec => {
+  const sub = (text: string, own: number | undefined): string =>
     text.replace(PORT_TEMPLATE, (whole, ref: string | undefined) => {
-      const port = assigned.get(ref ?? spec.id)
+      const port =
+        ref === undefined || ref === spec.id
+          ? (own ?? assigned.get(spec.id))
+          : assigned.get(ref)
       return port === undefined ? whole : String(port)
     })
+  const own = internal?.get(spec.id)
+  const bind = (text: string) => sub(text, own)
+  const publicOnly = (text: string) => sub(text, undefined)
   return {
     ...spec,
-    ...(spec.shell === undefined ? {} : { shell: sub(spec.shell) }),
-    ...(spec.cmd === undefined ? {} : { cmd: spec.cmd.map(sub) }),
+    ...(spec.shell === undefined ? {} : { shell: bind(spec.shell) }),
+    ...(spec.cmd === undefined ? {} : { cmd: spec.cmd.map(bind) }),
     ...(spec.env === undefined
       ? {}
-      : { env: Object.fromEntries(Object.entries(spec.env).map(([key, value]) => [key, sub(value)])) }),
-    ...(spec.url === undefined ? {} : { url: sub(spec.url) }),
+      : { env: Object.fromEntries(Object.entries(spec.env).map(([key, value]) => [key, bind(value)])) }),
+    ...(spec.url === undefined ? {} : { url: publicOnly(spec.url) }),
   }
 }
 

@@ -27,9 +27,12 @@ the deck already runs them (\`procdeck up\` brings it back if it is down).
 - \`procdeck logs [proc] [--grep RE] [--since 5m] [--lines N]\` — recent
   output; without \`proc\` every process interleaved with \`[id]\` prefixes.
 - \`procdeck errors [proc]\` — recent errors, parsed and deduplicated.
+- \`procdeck http [proc] [--status 5xx] [--path RE] [--body]\` — captured
+  HTTP traffic between and into the procs (method, path, status, duration);
+  \`--digest\` groups 4xx/5xx by route.
 - Verify a change: \`procdeck mark\` → act (edit, \`procdeck restart <proc>\`,
-  hit the endpoint) → \`procdeck logs --since-mark default\` shows only what
-  your action caused.
+  hit the endpoint) → \`procdeck logs --since-mark default\` / \`procdeck http
+  --since-mark default\` show only what your action caused.
 - \`procdeck wait-for <proc> [--pattern RE]\` — block until ready after a
   restart; exits 1 fast if it crashed (with the log tail), 2 on timeout.
 `
@@ -59,6 +62,12 @@ alerting) so you skip log-reading when everything is green.
 - \`procdeck errors [proc]\` — errors parsed out of the output and
   deduplicated: "same TypeError, 41×, last 3s ago" plus one sample trace.
   Heuristic — fall back to \`logs --grep\` if it misses something.
+- \`procdeck http [proc] [--status 5xx] [--path RE] [--body]\` — captured
+  HTTP traffic (requests into the procs and between them): method, path,
+  status, duration. \`--body\` adds the captured text bodies; \`--digest\`
+  groups 4xx/5xx by route. Traffic is seen on \`*.localhost\` addresses and
+  assigned \`\${port}\` ports — not on hardcoded ports or calls out to the
+  internet.
 - Add \`--json\` to any of these for machine-readable output.
 
 ## Verifying a change (the loop that matters)
@@ -70,7 +79,8 @@ alerting) so you skip log-reading when everything is green.
    log tail on stderr (exit 1); timeout is exit 2.
 4. Exercise it (curl the endpoint, run the test).
 5. \`procdeck logs --since-mark default\` / \`procdeck errors --since-mark
-   default\` — only what your action caused.
+   default\` / \`procdeck http --since-mark default\` — only what your
+   action caused; \`http\` shows the actual statuses and bodies.
 
 ## Notes
 
@@ -79,8 +89,8 @@ alerting) so you skip log-reading when everything is green.
 - Each proc may have a stable address: \`http://<id>.localhost:<ui-port>\`
   (see \`proxyUrl\` in status output).
 - MCP alternative: \`claude mcp add procdeck -- procdeck mcp\` exposes these
-  as tools (deck_status, get_logs, get_errors, set_mark, wait_for, timeline)
-  in every procdeck project at once.
+  as tools (deck_status, get_logs, get_http, get_errors, set_mark, wait_for,
+  timeline) in every procdeck project at once.
 `
 
 /** The instructions file to extend: prefer CLAUDE.md, else AGENTS.md. */

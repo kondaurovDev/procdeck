@@ -145,6 +145,39 @@ describe("resolveSpec", () => {
     const spec = decode({ procs: [{ id: "a", shell: "x ${port}" }] }).procs[0]!
     expect(resolveSpec(spec, new Map()).shell).toBe("x ${port}")
   })
+
+  test("with an internal map, the proc binds internal but url and cross-refs stay public", () => {
+    const config = decode({
+      procs: [
+        {
+          id: "api",
+          cmd: ["serve", "--port", "${port}"],
+          env: { SELF: "http://localhost:${port:api}" },
+          url: "http://localhost:${port}",
+        },
+        { id: "web", shell: "web ${port}", env: { API_URL: "http://localhost:${port:api}" } },
+      ],
+    })
+    const assigned = new Map([
+      ["api", 50001],
+      ["web", 50002],
+    ])
+    const internal = new Map([
+      ["api", 60001],
+      ["web", 60002],
+    ])
+    const api = resolveSpec(config.procs[0]!, assigned, internal)
+    const web = resolveSpec(config.procs[1]!, assigned, internal)
+    // The proc binds the hidden internal port…
+    expect(api.cmd).toEqual(["serve", "--port", "60001"])
+    // …explicit self-references included — `${port:api}` inside api still
+    // means "the port I bind".
+    expect(api.env?.["SELF"]).toBe("http://localhost:60001")
+    // …but the world reaches it on the public one, through the observer.
+    expect(api.url).toBe("http://localhost:50001")
+    expect(web.env?.["API_URL"]).toBe("http://localhost:50001")
+    expect(web.shell).toBe("web 60002")
+  })
 })
 
 // Temp decks live next to the tests, not in the OS temp dir: loading a `.mjs`

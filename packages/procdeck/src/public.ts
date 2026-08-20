@@ -47,6 +47,12 @@ export type ProcSpec = {
   readonly needs?: ReadonlyArray<string>
   /** What "ready" means for dependents. Defaults to "listening". */
   readonly readyWhen?: "listening" | "started"
+  /**
+   * Route this proc's assigned `${port}` through procdeck's HTTP observer
+   * (`procdeck http` captures requests/responses). Defaults to true for
+   * procs that use `${port}`; false hands the proc the public port directly.
+   */
+  readonly observe?: boolean
   readonly preflight?: Preflight
   readonly alerts?: ReadonlyArray<Alert>
 }

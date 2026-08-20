@@ -5,6 +5,10 @@ import type { LoadedConfig, ProcSpec } from "./config.ts"
 import type { ProcEvent, ProcInfo, ProcStatus } from "./events.ts"
 import { describeCommand, runPreflight, spawnProc, terminate } from "./proc.ts"
 import type { SpawnedProc } from "./proc.ts"
+import { HttpBuffer, queryHttp } from "./http-log.ts"
+import type { HttpQuery, HttpResult } from "./http-log.ts"
+import { startObserver } from "./interpose.ts"
+import type { RecordExchange } from "./interpose.ts"
 import { LineBuffer, queryLogs } from "./lines.ts"
 import type { LogsQuery, LogsResult, Mark } from "./lines.ts"
 import { detectPorts, findFreePorts, isInternalPort, samePorts } from "./ports.ts"
@@ -29,6 +33,11 @@ type Runtime = {
   resolved: ProcSpec
   /** Free port assigned at startup, for specs that use `${port}`. */
   assignedPort: number | undefined
+  /**
+   * Where the proc actually binds when the HTTP observer interposes: procdeck
+   * listens on `assignedPort` and forwards here. undefined = not interposed.
+   */
+  internalPort: number | undefined
   status: ProcStatus
   proc: SpawnedProc | undefined
   /** Open once the proc is "ready" for dependents (see `readyWhen`). */
@@ -43,6 +52,8 @@ type Runtime = {
   backlogBytes: number
   /** The same output as plain, timestamped lines — for logs queries. */
   lines: LineBuffer
+  /** Captured HTTP exchanges through the proxies — for `procdeck http`. */
+  http: HttpBuffer
   /** Chunks emitted so far — `seq` of the next one. */
   seq: number
   /** Successful spawns so far; `restarts` in the status is this minus one. */
@@ -93,6 +104,15 @@ export type Supervisor = {
    * Throws on an unknown proc or a bad grep pattern — callers answer 400.
    */
   logs: (query: LogsQuery) => LogsResult
+  /** Query the per-proc HTTP exchange rings (docs/http-observability.md). */
+  http: (query: HttpQuery) => HttpResult
+  /**
+   * Where the `*.localhost` proxy should record an exchange for this proc —
+   * undefined when the observer on the assigned port already sees the
+   * traffic (the UI proxy forwards into it, so recording twice would
+   * double-count) or when the proc is unknown.
+   */
+  httpRecorder: (id: string) => RecordExchange | undefined
   /** Snapshot "now" across every proc's line stream under a name. */
   mark: (name: string) => Mark
   getMark: (name: string) => Mark | undefined
@@ -105,22 +125,34 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
   // Assign a free port to every spec that asks for one (`${port}`) before
   // anything spawns — the assignments stay stable for the supervisor's
   // lifetime, so `${port:other}` references and the proxy table never move.
+  // Observed procs (the default) get a *pair*: the public assigned port,
+  // where procdeck's HTTP observer listens, and a hidden internal one the
+  // proc actually binds — so `${port:api}` traffic flows through the
+  // observer and gets captured (docs/http-observability.md).
   const wantsPort = loaded.config.procs.filter(usesOwnPort)
-  const freePorts = yield* Effect.promise(() => findFreePorts(wantsPort.length))
+  const observedSpecs = wantsPort.filter((spec) => spec.observe !== false)
+  const freePorts = yield* Effect.promise(() =>
+    findFreePorts(wantsPort.length + observedSpecs.length),
+  )
   const assigned = new Map(wantsPort.map((spec, index) => [spec.id, freePorts[index]!]))
+  const internal = new Map(
+    observedSpecs.map((spec, index) => [spec.id, freePorts[wantsPort.length + index]!]),
+  )
 
   const runtimes = new Map<string, Runtime>()
   for (const spec of loaded.config.procs) {
     const assignedPort = assigned.get(spec.id)
-    const resolved = resolveSpec(spec, assigned)
+    const internalPort = internal.get(spec.id)
+    const resolved = resolveSpec(spec, assigned, internal)
     runtimes.set(spec.id, {
       spec,
       resolved:
         assignedPort === undefined
           ? resolved
-          // The PaaS contract: the assigned port also arrives as `PORT`.
-          : { ...resolved, env: { PORT: String(assignedPort), ...resolved.env } },
+          // The PaaS contract: the port to bind also arrives as `PORT`.
+          : { ...resolved, env: { PORT: String(internalPort ?? assignedPort), ...resolved.env } },
       assignedPort,
+      internalPort,
       status: { id: spec.id, state: "stopped" },
       proc: undefined,
       ready: Latch.makeUnsafe(false),
@@ -130,11 +162,28 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       backlog: [],
       backlogBytes: 0,
       lines: new LineBuffer(),
+      http: new HttpBuffer(),
       seq: 0,
       spawns: 0,
       cols: DEFAULT_COLS,
       rows: DEFAULT_ROWS,
     })
+  }
+
+  // One observer per interposed proc, for the supervisor's whole lifetime —
+  // the public port answers (502) even while the proc restarts.
+  for (const [id, internalPort] of internal) {
+    const runtime = runtimes.get(id)!
+    yield* Effect.acquireRelease(
+      Effect.promise(() =>
+        startObserver({
+          publicPort: assigned.get(id)!,
+          internalPort,
+          record: (capture) => runtime.http.record(capture),
+        }),
+      ),
+      (close) => Effect.promise(close),
+    )
   }
 
   // Published from PTY callbacks, so it has to work outside of an Effect.
@@ -380,8 +429,11 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
           setStatus(runtime, { ...runtime.status, ports })
         }
         if (runtime.spec.readyWhen !== "started") {
-          // With a url or an assigned port, only that port counts — see `requiredPort`.
-          const required = requiredPort(runtime.resolved) ?? runtime.assignedPort
+          // With a url or an assigned port, only that port counts — see
+          // `requiredPort`. Interposed procs bind the internal port; the
+          // public one is procdeck's observer and would never show up here.
+          const required =
+            runtime.internalPort ?? requiredPort(runtime.resolved) ?? runtime.assignedPort
           const ready = required === undefined ? ports.length > 0 : ports.includes(required)
           if (ready) runtime.ready.openUnsafe()
         }
@@ -438,10 +490,24 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       )
     },
     logs: (query) => queryLogs(lineBuffers(), query),
+    http: (query) =>
+      queryHttp(new Map([...runtimes].map(([id, runtime]) => [id, runtime.http] as const)), query),
+    httpRecorder: (id) => {
+      const runtime = runtimes.get(id)
+      // Interposed procs are already captured by their observer — the UI
+      // proxy forwards into the public port, so recording here would count
+      // every browser request twice.
+      if (runtime === undefined || runtime.internalPort !== undefined) return undefined
+      return (capture) => runtime.http.record(capture)
+    },
     mark: (name) => {
       const seqs: Record<string, number> = {}
-      for (const [id, runtime] of runtimes) seqs[id] = runtime.lines.nextSeq
-      const mark: Mark = { name, at: Date.now(), seqs }
+      const httpSeqs: Record<string, number> = {}
+      for (const [id, runtime] of runtimes) {
+        seqs[id] = runtime.lines.nextSeq
+        httpSeqs[id] = runtime.http.nextSeq
+      }
+      const mark: Mark = { name, at: Date.now(), seqs, httpSeqs }
       marks.delete(name) // re-marking moves the name to the newest slot
       marks.set(name, mark)
       if (marks.size > MARKS_CAP) {
