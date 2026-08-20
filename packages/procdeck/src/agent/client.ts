@@ -154,7 +154,9 @@ export const httpParams = (options: {
   mark?: string | undefined
   /** Per-proc resume cursors (a previous response's `nextSeq`). */
   sinceSeq?: Record<string, number> | undefined
-  /** Include captured bodies and headers. */
+  /** Only this kind of capture; undefined = both. */
+  kind?: "http" | "ws" | undefined
+  /** Include captured bodies and headers (and ws message text). */
   bodies?: boolean | undefined
 }): URLSearchParams => {
   const params = new URLSearchParams()
@@ -168,6 +170,7 @@ export const httpParams = (options: {
   if (options.sinceSeq !== undefined && Object.keys(options.sinceSeq).length > 0) {
     params.set("sinceSeq", JSON.stringify(options.sinceSeq))
   }
+  if (options.kind !== undefined) params.set("kind", options.kind)
   if (options.bodies === true) params.set("bodies", "1")
   return params
 }

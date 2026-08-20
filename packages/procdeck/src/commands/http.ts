@@ -9,7 +9,7 @@ import { Console, Effect, Option } from "effect"
 import { Argument, Command, Flag } from "effect/unstable/cli"
 import { apiGet, httpParams } from "../agent/client.ts"
 import { digestHttp } from "../http-log.ts"
-import type { HttpDigestGroup, HttpExchange, HttpResult } from "../http-log.ts"
+import type { DeckCapture, HttpDigestGroup, HttpResult } from "../http-log.ts"
 import {
   callApi,
   describeUptime,
@@ -32,8 +32,16 @@ const clock = (ts: number): string => {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`
 }
 
-const renderExchange = (exchange: HttpExchange, multi: boolean, bodies: boolean): string => {
+const renderExchange = (exchange: DeckCapture, multi: boolean, bodies: boolean): string => {
   const who = multi ? `[${exchange.proc}] ` : ""
+  if (exchange.kind === "ws") {
+    // "→" flows into the proc (client → server), "←" out of it.
+    const arrow = exchange.dir === "in" ? "→" : "←"
+    const head = `${clock(exchange.ts)} ${who}ws${arrow} ${exchange.path} ${exchange.opcode} ${size(exchange.size)} #${exchange.connId}`
+    return bodies && exchange.text !== undefined && exchange.text.length > 0
+      ? `${head}\n  msg: ${exchange.text.split("\n").join(`\n  `)}`
+      : head
+  }
   const status = exchange.status === 0 ? "refused" : String(exchange.status)
   const head = `${clock(exchange.ts)} ${who}${exchange.method} ${exchange.path} → ${status} ${exchange.durationMs}ms ${size(exchange.resBytes)}`
   if (!bodies) return head
@@ -79,15 +87,18 @@ export const http = Command.make(
       Flag.optional,
       Flag.withDescription("only exchanges after `procdeck mark <name>` was set"),
     ),
+    ws: Flag.boolean("ws").pipe(
+      Flag.withDescription("only WebSocket messages (default: http and ws interleaved)"),
+    ),
     body: Flag.boolean("body").pipe(
-      Flag.withDescription("include captured request/response bodies (text, truncated)"),
+      Flag.withDescription("include captured request/response bodies and ws message text"),
     ),
     digest: Flag.boolean("digest").pipe(
       Flag.withDescription("4xx/5xx grouped by route with counts — the errors view for traffic"),
     ),
     json: jsonFlag,
   },
-  ({ body, digest, json, limit, path, proc, since, sinceMark, status }) =>
+  ({ body, digest, json, limit, path, proc, since, sinceMark, status, ws }) =>
     Effect.gen(function* () {
       const instance = yield* requireInstance(Option.none())
       let sinceMs: number | undefined
@@ -103,6 +114,7 @@ export const http = Command.make(
         path: Option.getOrUndefined(path),
         sinceMs,
         mark: Option.getOrUndefined(sinceMark),
+        kind: ws ? "ws" : undefined,
         bodies: body,
       })
       const result = yield* callApi(() => apiGet<HttpResult>(instance, `/http?${params}`))
@@ -138,6 +150,6 @@ export const http = Command.make(
     }),
 ).pipe(
   Command.withDescription(
-    "HTTP traffic captured between and into the deck's processes: method, path, status, duration — the business data, not just the logs. `--digest` groups 4xx/5xx by route; the mark → act → `http --since-mark` loop shows exactly which requests a change caused.",
+    "HTTP traffic captured between and into the deck's processes: method, path, status, duration — and WebSocket messages on the same connections (`--ws`). The business data, not just the logs. `--digest` groups 4xx/5xx by route; the mark → act → `http --since-mark` loop shows exactly which requests a change caused.",
   ),
 )

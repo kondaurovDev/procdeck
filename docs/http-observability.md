@@ -48,26 +48,30 @@ seq-cursored, marks apply):
 - Redaction is on by default (`authorization`, `cookie`, `set-cookie`,
   obvious token headers); a flag can widen capture for local debugging.
 
-### WebSocket messages — same rings, per-frame capture
+### WebSocket messages — same rings, per-frame capture (shipped)
 
 WebSockets carry business data too (chats, live updates, socket.io,
 GraphQL subscriptions) and they pass through the same two interception
-points — `proxyUpgrade` already pipes the upgraded sockets today. After the
-101 the stream is framed (RFC 6455); a small parser (header, opcode,
-client→server unmasking, reassemble continuation frames until FIN) turns it
-into messages in the same per-proc ring:
+points. After the 101 the stream is framed (RFC 6455); the parser in
+`src/ws.ts` (header, opcode, client→server unmasking, continuation-frame
+reassembly until FIN, gives up quietly on anything it cannot parse) turns
+both directions into messages in the same per-proc ring:
 
-    { proc, ts, seq, connId, dir: "in" | "out",
+    { proc, ts, seq, kind: "ws", connId, dir: "in" | "out", path,
       text?,                   // opcode 1, truncated like HTTP bodies
       size }                   // always; binary frames record size only
 
-- The upgrade itself is logged as a normal HTTP exchange (status 101) that
-  opens `connId`; close/ping/pong are facts on the connection, not messages.
+- The upgrade itself is logged as a normal HTTP exchange (status 101)
+  carrying the same `connId`; close/ping/pong are facts on the connection,
+  not messages (skipped in v1).
 - **permessage-deflate**: libraries negotiate frame compression, which would
-  make payloads unreadable. The proxy strips `Sec-WebSocket-Extensions`
-  from the handshake so both sides speak uncompressed — free on loopback,
-  and every text frame stays plain text. (Opt-out with the same
-  `observe: false` if an app insists on the extension.)
+  make payloads unreadable. The capturing proxy strips
+  `Sec-WebSocket-Extensions` from the handshake so both sides speak
+  uncompressed — free on loopback, and every text frame stays plain text.
+  (Opt-out with the same `observe: false` if an app insists on the
+  extension.)
+- Surfaces: `procdeck http --ws` (text with `--body`), `get_http` with
+  `kind: "ws"`; by default http and ws interleave in one timeline.
 - socket.io / engine.io framing (`42["event",...]`) is still text —
   captured raw; recognizing it is a later nicety.
 
@@ -97,7 +101,8 @@ than log lines: the actual status and body caused by the change.
 - **Traffic on hardcoded ports** (a proc that ignores `${port}` and binds
   3000 itself). Port detection already knows who listens where, so the UI
   and `http` output can at least say "this port is not observed".
-- gRPC and binary WebSocket payloads — facts and sizes, not contents.
+- gRPC and binary WebSocket payloads — facts and sizes, not contents. (Text
+  WebSocket messages *are* captured — see above.)
 
 ## Order of work
 
@@ -119,10 +124,11 @@ than log lines: the actual status and body caused by the change.
    alongside line seqs, `timeline` returns the window's exchanges too.
    Redaction on at capture time (auth/cookie headers never enter the ring);
    digest normalizes routes (`/users/:id`) like error signatures.
-4. **WebSocket frame capture** — the RFC 6455 parser on both interception
-   points, deflate stripped at the handshake; ws messages join the same
-   rings and surfaces (`--ws` filter or a `kind` field). (The upgrade
-   handshake is already recorded as a status-101 exchange.)
+4. ~~**WebSocket frame capture**~~ — shipped: the RFC 6455 parser
+   (`src/ws.ts`) taps both directions at both interception points, deflate
+   is stripped at the handshake; ws messages join the same rings with
+   `kind: "ws"` and a `connId` shared with their 101 upgrade exchange.
+   `--ws` / `kind` narrow the surfaces to them.
 5. **UI network tab**; CDP add-on and outbound instrumentation — much
    later, when the itch is real.
 

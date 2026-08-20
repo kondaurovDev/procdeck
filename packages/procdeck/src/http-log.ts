@@ -9,6 +9,8 @@
 
 /** One captured request/response pair, before proc/seq attribution. */
 export type HttpCapture = {
+  /** Discriminant against WsCapture; absent means "http". */
+  kind?: "http" | undefined
   /** Epoch ms when the request reached the proxy. */
   ts: number
   method: string
@@ -26,10 +28,37 @@ export type HttpCapture = {
   /** Headers, sensitive values redacted at capture time — never stored raw. */
   reqHeaders?: Record<string, string> | undefined
   resHeaders?: Record<string, string> | undefined
+  /** For 101 upgrades: ties the exchange to its WsCapture messages. */
+  connId?: number | undefined
 }
 
-/** A capture in a proc's ring: attributed and cursor-addressable. */
+/** One captured WebSocket message (reassembled frames), same rings. */
+export type WsCapture = {
+  kind: "ws"
+  /** Epoch ms when the message completed. */
+  ts: number
+  /** Shared with the status-101 upgrade exchange that opened the socket. */
+  connId: number
+  /** "in" = into the proc (client → server), "out" = out of it. */
+  dir: "in" | "out"
+  opcode: "text" | "binary"
+  /** The upgrade request's path — so `--path` filters apply to ws too. */
+  path: string
+  /** Full message size in bytes; `text` below may be truncated. */
+  size: number
+  /** Text payload (opcode "text"), truncated like HTTP bodies. */
+  text?: string | undefined
+}
+
+/** Anything a proc's ring holds. */
+export type Capture = HttpCapture | WsCapture
+
+/** An HTTP exchange in a proc's ring: attributed and cursor-addressable. */
 export type HttpExchange = HttpCapture & { proc: string; seq: number }
+/** A WebSocket message, attributed the same way. */
+export type WsMessage = WsCapture & { proc: string; seq: number }
+/** What queries return — the interleaved union. */
+export type DeckCapture = HttpExchange | WsMessage
 
 export type HttpQuery = {
   /** Proc ids to include; undefined = every proc. */
@@ -38,10 +67,13 @@ export type HttpQuery = {
   sinceSeq?: Record<string, number> | undefined
   sinceMs?: number | undefined
   untilMs?: number | undefined
-  /** "5xx" (class), "422" (exact), or "error" (>=400 and never-answered). */
+  /** "5xx" (class), "422" (exact), or "error" (>=400 and never-answered).
+   * WebSocket messages have no status, so any status filter excludes them. */
   status?: string | undefined
   /** RegExp source matched against the path (case-insensitive). */
   path?: string | undefined
+  /** Only this kind of capture; undefined = both, interleaved. */
+  captureKind?: "http" | "ws" | undefined
   /** Include bodies and headers in the result (off = metadata only). */
   bodies?: boolean | undefined
   /** Max exchanges returned — the *tail* of the matches. */
@@ -49,10 +81,10 @@ export type HttpQuery = {
 }
 
 export type HttpResult = {
-  exchanges: Array<HttpExchange>
-  /** Per requested proc: the seq the next exchange will get — a resume cursor. */
+  exchanges: Array<DeckCapture>
+  /** Per requested proc: the seq the next capture will get — a resume cursor. */
   nextSeq: Record<string, number>
-  /** Matching exchanges dropped by `limit` (the oldest ones). */
+  /** Matching captures dropped by `limit` (the oldest ones). */
   omitted: number
 }
 
@@ -135,18 +167,18 @@ export const redactHeaders = (
   return out
 }
 
-/** Byte-bounded, seq-cursored ring of one proc's exchanges. */
+/** Byte-bounded, seq-cursored ring of one proc's captures. */
 export class HttpBuffer {
-  private items: Array<HttpCapture & { seq: number }> = []
+  private items: Array<Capture & { seq: number }> = []
   private bytes = 0
   private seq = 0
 
-  /** The seq the next recorded exchange will get. */
+  /** The seq the next recorded capture will get. */
   get nextSeq(): number {
     return this.seq
   }
 
-  record(capture: HttpCapture): void {
+  record(capture: Capture): void {
     const item = { ...capture, seq: this.seq++ }
     this.items.push(item)
     this.bytes += cost(item)
@@ -161,7 +193,7 @@ export class HttpBuffer {
       sinceMs?: number | undefined
       untilMs?: number | undefined
     } = {},
-  ): Array<HttpCapture & { seq: number }> {
+  ): Array<Capture & { seq: number }> {
     const { sinceMs, sinceSeq, untilMs } = options
     return this.items.filter(
       (item) =>
@@ -172,14 +204,16 @@ export class HttpBuffer {
   }
 }
 
-/** Approximate memory footprint of one exchange, for the ring's byte budget. */
-const cost = (capture: HttpCapture): number =>
-  64 +
-  capture.path.length +
-  (capture.reqBody?.length ?? 0) +
-  (capture.resBody?.length ?? 0) +
-  (capture.reqHeaders === undefined ? 0 : JSON.stringify(capture.reqHeaders).length) +
-  (capture.resHeaders === undefined ? 0 : JSON.stringify(capture.resHeaders).length)
+/** Approximate memory footprint of one capture, for the ring's byte budget. */
+const cost = (capture: Capture): number =>
+  capture.kind === "ws"
+    ? 64 + capture.path.length + (capture.text?.length ?? 0)
+    : 64 +
+      capture.path.length +
+      (capture.reqBody?.length ?? 0) +
+      (capture.resBody?.length ?? 0) +
+      (capture.reqHeaders === undefined ? 0 : JSON.stringify(capture.reqHeaders).length) +
+      (capture.resHeaders === undefined ? 0 : JSON.stringify(capture.resHeaders).length)
 
 /** "5xx" / "404" / "error" → a status predicate; undefined = unparsable. */
 export const statusMatcher = (raw: string): ((status: number) => boolean) | undefined => {
@@ -196,8 +230,12 @@ export const statusMatcher = (raw: string): ((status: number) => boolean) | unde
   return undefined
 }
 
-const withoutBodies = (exchange: HttpExchange): HttpExchange => {
-  const { reqBody: _rq, reqHeaders: _rh, resBody: _sb, resHeaders: _sh, ...rest } = exchange
+const withoutBodies = (capture: DeckCapture): DeckCapture => {
+  if (capture.kind === "ws") {
+    const { text: _t, ...rest } = capture
+    return rest
+  }
+  const { reqBody: _rq, reqHeaders: _rh, resBody: _sb, resHeaders: _sh, ...rest } = capture
   return rest
 }
 
@@ -214,7 +252,7 @@ export const queryHttp = (buffers: Map<string, HttpBuffer>, query: HttpQuery): H
     throw new Error(`bad status filter "${query.status}" — try 5xx, 422 or error`)
   }
 
-  const matched: Array<HttpExchange> = []
+  const matched: Array<DeckCapture> = []
   const nextSeq: Record<string, number> = {}
   for (const id of ids) {
     const buffer = buffers.get(id)
@@ -225,8 +263,11 @@ export const queryHttp = (buffers: Map<string, HttpBuffer>, query: HttpQuery): H
       sinceMs: query.sinceMs,
       untilMs: query.untilMs,
     })) {
+      const itemKind = item.kind === "ws" ? "ws" : "http"
+      if (query.captureKind !== undefined && itemKind !== query.captureKind) continue
       if (pathPattern !== undefined && !pathPattern.test(item.path)) continue
-      if (matchStatus !== undefined && !matchStatus(item.status)) continue
+      // A status filter names response codes — ws messages have none.
+      if (matchStatus !== undefined && (item.kind === "ws" || !matchStatus(item.status))) continue
       matched.push({ ...item, proc: id })
     }
   }
@@ -275,9 +316,10 @@ export type HttpDigestGroup = {
  * The `errors` analog for traffic: 4xx/5xx (and never-answered) exchanges
  * grouped by proc + method + normalized route + status, most recent first.
  */
-export const digestHttp = (exchanges: Array<HttpExchange>): Array<HttpDigestGroup> => {
+export const digestHttp = (exchanges: Array<DeckCapture>): Array<HttpDigestGroup> => {
   const groups = new Map<string, HttpDigestGroup>()
   for (const exchange of exchanges) {
+    if (exchange.kind === "ws") continue // messages have no failure status
     if (exchange.status < 400 && exchange.status !== 0) continue
     const route = normalizePath(exchange.path)
     const key = `${exchange.proc} ${exchange.method} ${route} ${exchange.status}`

@@ -10,7 +10,14 @@ import {
   redactHeaders,
   statusMatcher,
 } from "../src/http-log.ts"
-import type { HttpCapture } from "../src/http-log.ts"
+import type { DeckCapture, HttpCapture, HttpExchange } from "../src/http-log.ts"
+
+/** Most assertions look at http entries; make the union access explicit. */
+const asHttp = (capture: DeckCapture | undefined): HttpExchange => {
+  expect(capture).toBeDefined()
+  expect(capture!.kind).not.toBe("ws")
+  return capture as HttpExchange
+}
 
 const capture = (over: Partial<HttpCapture>): HttpCapture => ({
   ts: 0,
@@ -144,14 +151,14 @@ describe("queryHttp", () => {
       "api:/orders",
     ])
     expect(result.nextSeq).toEqual({ api: 2, web: 1 })
-    expect(result.exchanges[0]!.reqBody).toBeUndefined()
-    expect(result.exchanges[0]!.reqHeaders).toBeUndefined()
+    expect(asHttp(result.exchanges[0]).reqBody).toBeUndefined()
+    expect(asHttp(result.exchanges[0]).reqHeaders).toBeUndefined()
   })
 
   test("bodies come back only when asked", () => {
     const result = queryHttp(deck(), { limit: 10, bodies: true })
-    expect(result.exchanges[0]!.reqBody).toBe("req")
-    expect(result.exchanges[0]!.reqHeaders).toEqual({ host: "x" })
+    expect(asHttp(result.exchanges[0]).reqBody).toBe("req")
+    expect(asHttp(result.exchanges[0]).reqHeaders).toEqual({ host: "x" })
   })
 
   test("status and path filters, limit keeps the tail", () => {

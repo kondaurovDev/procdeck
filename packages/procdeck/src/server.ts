@@ -250,6 +250,11 @@ const httpResponse = (supervisor: Supervisor, url: URL) => {
     }
   }
 
+  const kind = param("kind")
+  if (kind !== undefined && kind !== "http" && kind !== "ws") {
+    return badRequest(`bad kind: ${kind} — "http" or "ws"`)
+  }
+
   try {
     return HttpServerResponse.jsonUnsafe(
       supervisor.http({
@@ -259,6 +264,7 @@ const httpResponse = (supervisor: Supervisor, url: URL) => {
         untilMs,
         status: param("status"),
         path: param("path"),
+        captureKind: kind,
         bodies: param("bodies") === "1",
         limit: Math.min(limit, MAX_HTTP_LIMIT),
       }),

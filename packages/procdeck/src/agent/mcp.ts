@@ -84,12 +84,13 @@ const GetLogs = Tool.make("get_logs", {
 
 const GetHttp = Tool.make("get_http", {
   description:
-    'HTTP traffic captured between the deck\'s processes and into them (via the *.localhost proxy and each proc\'s assigned `${port}`): method, path, status, duration and body sizes per exchange. The verify loop\'s second half: set_mark → act → get_http with `since_mark` shows exactly which requests your action caused and what they returned — stronger evidence than log lines. Narrow with `status` ("5xx", "422", or "error"), `path` (RegExp), `since_seconds`, `since_mark`, or `since_last: true` for only what arrived after your previous get_http call. Set `bodies: true` to include captured request/response bodies (text only, truncated; auth headers always redacted). Blind spots: outbound calls to the internet and procs on hardcoded ports.',
+    'HTTP traffic captured between the deck\'s processes and into them (via the *.localhost proxy and each proc\'s assigned `${port}`): method, path, status, duration and body sizes per exchange — plus WebSocket messages on the same connections (kind "ws": direction, size, text; a `connId` ties them to their status-101 upgrade). The verify loop\'s second half: set_mark → act → get_http with `since_mark` shows exactly which requests your action caused and what they returned — stronger evidence than log lines. Narrow with `status` ("5xx", "422", or "error"), `path` (RegExp), `kind` ("http" | "ws"), `since_seconds`, `since_mark`, or `since_last: true` for only what arrived after your previous get_http call. Set `bodies: true` to include captured request/response bodies and ws message text (text only, truncated; auth headers always redacted). Blind spots: outbound calls to the internet and procs on hardcoded ports.',
   parameters: Schema.Struct({
     proc: Schema.optionalKey(Schema.String),
     limit: Schema.optionalKey(Schema.Number),
     status: Schema.optionalKey(Schema.String),
     path: Schema.optionalKey(Schema.String),
+    kind: Schema.optionalKey(Schema.Literals(["http", "ws"])),
     since_seconds: Schema.optionalKey(Schema.Number),
     since_mark: Schema.optionalKey(Schema.String),
     since_last: Schema.optionalKey(Schema.Boolean),
@@ -221,6 +222,7 @@ const readHandlers = {
     limit?: number
     status?: string
     path?: string
+    kind?: "http" | "ws"
     since_seconds?: number
     since_mark?: string
     since_last?: boolean
@@ -232,6 +234,7 @@ const readHandlers = {
         limit: input.limit ?? 50,
         status: input.status,
         path: input.path,
+        kind: input.kind,
         sinceMs:
           input.since_seconds === undefined ? undefined : Date.now() - input.since_seconds * 1000,
         mark: input.since_mark,

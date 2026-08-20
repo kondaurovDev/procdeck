@@ -17,9 +17,10 @@ import { createServer, request as httpRequest } from "node:http"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import type { Duplex } from "node:stream"
 import { BodyTap, isTextType, redactHeaders } from "./http-log.ts"
-import type { HttpCapture } from "./http-log.ts"
+import type { Capture } from "./http-log.ts"
+import { WsMessageParser } from "./ws.ts"
 
-export type RecordExchange = (capture: HttpCapture) => void
+export type RecordExchange = (capture: Capture) => void
 
 /**
  * Upstream is dialed as `localhost` with `autoSelectFamily`, not a literal
@@ -92,10 +93,14 @@ export const forwardRequest = (options: {
   req.pipe(upstream)
 }
 
+/** Ties a 101 exchange to the WebSocket messages captured on its socket. */
+let nextConnId = 1
+
 /**
  * WebSocket (and any Upgrade) pass-through. The upgrade handshake is recorded
- * as a normal exchange (status 101); frames stay opaque for now — per-frame
- * capture is a later phase of docs/http-observability.md.
+ * as a normal exchange (status 101) carrying a `connId`; every text/binary
+ * message on the socket is then captured as a `ws` entry with the same
+ * connId (frames parsed and reassembled per RFC 6455 in `ws.ts`).
  */
 export const forwardUpgrade = (options: {
   req: IncomingMessage
@@ -106,18 +111,26 @@ export const forwardUpgrade = (options: {
 }): void => {
   const { head, port, record, req, socket } = options
   const started = Date.now()
+  const connId = record === undefined ? undefined : nextConnId++
+  const path = req.url ?? "/"
+
+  // Where we capture, no compression may be negotiated: stripping the offer
+  // makes both sides speak plain frames (permessage-deflate would turn every
+  // payload into deflate bytes). Free on loopback.
+  if (record !== undefined) delete req.headers["sec-websocket-extensions"]
 
   const finish = (status: number, resHeaders?: Record<string, string>) => {
     record?.({
       ts: started,
       method: req.method ?? "GET",
-      path: req.url ?? "/",
+      path,
       status,
       durationMs: Date.now() - started,
       reqBytes: 0,
       resBytes: 0,
       reqHeaders: redactHeaders(req.headers),
       resHeaders,
+      connId,
     })
   }
 
@@ -129,8 +142,44 @@ export const forwardUpgrade = (options: {
       lines.push(`${upRes.rawHeaders[i]}: ${upRes.rawHeaders[i + 1]}`)
     }
     socket.write(`${lines.join("\r\n")}\r\n\r\n`)
-    if (upHead.length > 0) socket.write(upHead)
-    if (head.length > 0) upSocket.write(head)
+
+    // Tap both directions before any post-handshake byte flows: "in" is
+    // client → proc, "out" is proc → client. The taps only observe; the
+    // pipes below still move the actual bytes.
+    let tapIn: ((chunk: Buffer) => void) | undefined
+    let tapOut: ((chunk: Buffer) => void) | undefined
+    if (record !== undefined && connId !== undefined) {
+      const tap = (dir: "in" | "out") => {
+        const parser = new WsMessageParser()
+        return (chunk: Buffer) => {
+          for (const message of parser.push(chunk)) {
+            record({
+              kind: "ws",
+              ts: Date.now(),
+              connId,
+              dir,
+              opcode: message.opcode,
+              path,
+              size: message.size,
+              text: message.opcode === "text" ? message.data.toString("utf8") : undefined,
+            })
+          }
+        }
+      }
+      tapIn = tap("in")
+      tapOut = tap("out")
+      socket.on("data", tapIn)
+      upSocket.on("data", tapOut)
+    }
+
+    if (upHead.length > 0) {
+      tapOut?.(upHead)
+      socket.write(upHead)
+    }
+    if (head.length > 0) {
+      tapIn?.(head)
+      upSocket.write(head)
+    }
     upSocket.pipe(socket)
     socket.pipe(upSocket)
     const drop = () => {

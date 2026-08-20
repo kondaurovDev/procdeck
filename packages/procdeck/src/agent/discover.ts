@@ -65,9 +65,10 @@ alerting) so you skip log-reading when everything is green.
 - \`procdeck http [proc] [--status 5xx] [--path RE] [--body]\` — captured
   HTTP traffic (requests into the procs and between them): method, path,
   status, duration. \`--body\` adds the captured text bodies; \`--digest\`
-  groups 4xx/5xx by route. Traffic is seen on \`*.localhost\` addresses and
-  assigned \`\${port}\` ports — not on hardcoded ports or calls out to the
-  internet.
+  groups 4xx/5xx by route; \`--ws\` narrows to WebSocket messages (captured
+  on the same connections, with direction and text). Traffic is seen on
+  \`*.localhost\` addresses and assigned \`\${port}\` ports — not on
+  hardcoded ports or calls out to the internet.
 - Add \`--json\` to any of these for machine-readable output.
 
 ## Verifying a change (the loop that matters)
