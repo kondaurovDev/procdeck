@@ -125,6 +125,131 @@ describe("cli", () => {
     expect(open.out).toContain("`procdeck up` first")
   }, 40_000)
 
+  test("agent loop: status --json → wait-for → mark → logs --since-mark → errors", async () => {
+    const agentProject = realpathSync(mkdtempSync(path.join(tmpdir(), "procdeck-cli-agent-")))
+    const inAgent = async (...args: Array<string>) => {
+      try {
+        const { stdout, stderr } = await run(process.execPath, [CLI, ...args], {
+          env,
+          cwd: agentProject,
+        })
+        return { code: 0, out: stdout, err: stderr }
+      } catch (cause) {
+        const failure = cause as { code?: number; stdout?: string; stderr?: string }
+        return { code: failure.code ?? 1, out: failure.stdout ?? "", err: failure.stderr ?? "" }
+      }
+    }
+    writeFileSync(
+      path.join(agentProject, "procdeck.config.json"),
+      JSON.stringify({
+        name: "agenttest",
+        port: 4878,
+        procs: [
+          {
+            id: "ticker",
+            cmd: [
+              "node",
+              "-e",
+              'console.log("hello-from-ticker"); console.log("TypeError: boom is not a function"); console.log("    at main (index.js:1:1)"); setInterval(() => console.log("tick"), 150)',
+            ],
+          },
+          {
+            id: "server",
+            cmd: [
+              "node",
+              "-e",
+              'setTimeout(() => require("net").createServer().listen(0, () => console.log("server-ready")), 300); setInterval(() => {}, 1000)',
+            ],
+          },
+          { id: "boom", cmd: ["node", "-e", 'console.error("Error: kaboom"); process.exit(1)'] },
+        ],
+      }),
+    )
+
+    try {
+      const up = await inAgent("up", "--no-open")
+      expect(up.code, up.out + up.err).toBe(0)
+
+      // status --json: machine-readable, with the crashed proc under attention.
+      const status = await inAgent("status", "--json")
+      expect(status.code, status.err).toBe(0)
+      const parsed = JSON.parse(status.out) as {
+        up: boolean
+        name: string
+        attention: Array<{ id: string; reason: string }>
+        procs: Array<{ id: string }>
+      }
+      expect(parsed.up).toBe(true)
+      expect(parsed.name).toBe("agenttest")
+      expect(parsed.procs.map((proc) => proc.id).sort()).toEqual(["boom", "server", "ticker"])
+      expect(parsed.attention).toEqual([{ id: "boom", reason: "exit 1" }])
+
+      // wait-for: a listening port (default) and an output pattern.
+      const port = await inAgent("wait-for", "server", "--timeout", "15s")
+      expect(port.code, port.out + port.err).toBe(0)
+      expect(port.out).toMatch(/"server" is listening on :\d+/)
+      const pattern = await inAgent("wait-for", "ticker", "--pattern", "tick", "--timeout", "15s")
+      expect(pattern.code, pattern.out + pattern.err).toBe(0)
+      expect(pattern.out).toContain('matched /tick/')
+
+      // wait-for a crashed proc fails fast (exit 1), tail on stderr.
+      const crashed = await inAgent("wait-for", "boom", "--timeout", "15s")
+      expect(crashed.code).toBe(1)
+      expect(crashed.err).toContain('"boom" exit 1')
+      expect(crashed.err).toContain("kaboom")
+
+      // logs: single proc, grep, interleaved [id] prefixes, --json shape.
+      const grep = await inAgent("logs", "ticker", "--grep", "hello")
+      expect(grep.code, grep.err).toBe(0)
+      expect(grep.out).toContain("hello-from-ticker")
+      expect(grep.out).not.toContain("[ticker]")
+      const all = await inAgent("logs", "--grep", "hello|server-ready", "--lines", "50")
+      expect(all.out).toContain("[ticker] hello-from-ticker")
+      const asJson = await inAgent("logs", "ticker", "--grep", "hello", "--json")
+      const logsParsed = JSON.parse(asJson.out) as {
+        lines: Array<{ proc: string; text: string; seq: number; ts: number }>
+        nextSeq: Record<string, number>
+        omitted: number
+      }
+      expect(logsParsed.lines[0]!.text).toBe("hello-from-ticker")
+      expect(logsParsed.nextSeq["ticker"]).toBeGreaterThan(0)
+
+      // mark → new output only.
+      const mark = await inAgent("mark", "m1")
+      expect(mark.code, mark.err).toBe(0)
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      const sinceMark = await inAgent("logs", "ticker", "--since-mark", "m1")
+      expect(sinceMark.code, sinceMark.err).toBe(0)
+      expect(sinceMark.out).not.toContain("hello-from-ticker")
+      expect(sinceMark.out).toContain("tick")
+      const unknownMark = await inAgent("logs", "--since-mark", "nope")
+      expect(unknownMark.code).toBe(1)
+      expect(unknownMark.err).toContain('unknown mark "nope"')
+
+      // restart <proc>: one process, not the deck — then wait-for catches
+      // the fresh run's startup line.
+      const restart = await inAgent("restart", "ticker")
+      expect(restart.code, restart.out + restart.err).toBe(0)
+      expect(restart.out).toContain('"ticker" restarted')
+      const fresh = await inAgent("wait-for", "ticker", "--pattern", "hello-from-ticker", "--timeout", "15s")
+      expect(fresh.code, fresh.out + fresh.err).toBe(0)
+      const unknownProc = await inAgent("restart", "definitely-not-here")
+      expect(unknownProc.code).toBe(1)
+      expect(unknownProc.err).toContain('unknown proc "definitely-not-here" — one of: ticker')
+
+      // errors: the stack trace is grouped, good news is not reported.
+      const errors = await inAgent("errors", "ticker")
+      expect(errors.code, errors.err).toBe(0)
+      expect(errors.out).toContain("TypeError: boom is not a function")
+      expect(errors.out).toContain("at main")
+      // 2×: the restart above re-printed the startup error — dedup counted it.
+      expect(errors.out).toMatch(/\[ticker\] 2×/)
+    } finally {
+      await inAgent("down")
+      rmSync(agentProject, { recursive: true, force: true })
+    }
+  }, 60_000)
+
   test("works from a subdirectory, and reports a bad config in the terminal", async () => {
     const nested = path.join(project, "packages", "web")
     mkdirSync(nested, { recursive: true })

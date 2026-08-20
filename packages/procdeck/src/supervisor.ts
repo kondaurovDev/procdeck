@@ -5,6 +5,8 @@ import type { LoadedConfig, ProcSpec } from "./config.ts"
 import type { ProcEvent, ProcInfo, ProcStatus } from "./events.ts"
 import { describeCommand, runPreflight, spawnProc, terminate } from "./proc.ts"
 import type { SpawnedProc } from "./proc.ts"
+import { LineBuffer, queryLogs } from "./lines.ts"
+import type { LogsQuery, LogsResult, Mark } from "./lines.ts"
 import { detectPorts, findFreePorts, isInternalPort, samePorts } from "./ports.ts"
 
 const DEFAULT_COLS = 120
@@ -39,6 +41,8 @@ type Runtime = {
   /** Recent output chunks for replay to new subscribers, oldest first. */
   backlog: Array<{ seq: number; data: string }>
   backlogBytes: number
+  /** The same output as plain, timestamped lines — for logs queries. */
+  lines: LineBuffer
   /** Chunks emitted so far — `seq` of the next one. */
   seq: number
   /** Successful spawns so far; `restarts` in the status is this minus one. */
@@ -84,6 +88,14 @@ export type Supervisor = {
    * tree is listening on. `undefined` = nothing to proxy to right now.
    */
   proxyPort: (id: string) => number | undefined
+  /**
+   * Query the per-proc line buffers (plain text, timestamped, `seq`-cursored).
+   * Throws on an unknown proc or a bad grep pattern — callers answer 400.
+   */
+  logs: (query: LogsQuery) => LogsResult
+  /** Snapshot "now" across every proc's line stream under a name. */
+  mark: (name: string) => Mark
+  getMark: (name: string) => Mark | undefined
 }
 
 const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
@@ -117,6 +129,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       tail: "",
       backlog: [],
       backlogBytes: 0,
+      lines: new LineBuffer(),
       seq: 0,
       spawns: 0,
       cols: DEFAULT_COLS,
@@ -190,6 +203,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
   // boundaries). First match wins until the next spawn resets it.
   /** A line from procdeck itself into the pane — part of the history too. */
   const say = (runtime: Runtime, data: string) => {
+    runtime.lines.push(data, Date.now())
     emit({ type: "log", id: runtime.spec.id, data, seq: remember(runtime, data) })
   }
 
@@ -378,6 +392,14 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
 
   const uiPort = loaded.config.port ?? DEFAULT_UI_PORT
 
+  // Named marks: (proc → next line seq) snapshots, `logs --since-mark`'s
+  // anchor. In-memory on purpose — marks die with the deck, re-marking is
+  // free. Named, so two agents don't clobber each other's cursor.
+  const MARKS_CAP = 100
+  const marks = new Map<string, Mark>()
+  const lineBuffers = () =>
+    new Map([...runtimes].map(([id, runtime]) => [id, runtime.lines] as const))
+
   const supervisor: Supervisor = {
     events,
     list: () =>
@@ -415,6 +437,19 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
         runtime.ports.find((port) => !isInternalPort(port))
       )
     },
+    logs: (query) => queryLogs(lineBuffers(), query),
+    mark: (name) => {
+      const seqs: Record<string, number> = {}
+      for (const [id, runtime] of runtimes) seqs[id] = runtime.lines.nextSeq
+      const mark: Mark = { name, at: Date.now(), seqs }
+      marks.delete(name) // re-marking moves the name to the newest slot
+      marks.set(name, mark)
+      if (marks.size > MARKS_CAP) {
+        marks.delete(marks.keys().next().value!)
+      }
+      return mark
+    },
+    getMark: (name) => marks.get(name),
   }
 
   const stopAll = Effect.forEach([...runtimes.keys()], stop, {

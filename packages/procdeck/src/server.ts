@@ -114,6 +114,90 @@ const manifest = (deck: DeckInfo) => ({
   ],
 })
 
+const badRequest = (message: string) =>
+  HttpServerResponse.jsonUnsafe({ error: message }, { status: 400 })
+
+/** Bounds for one `GET /logs` answer — the line buffers cap memory already. */
+const DEFAULT_LOG_LINES = 200
+const MAX_LOG_LINES = 5000
+
+/**
+ * `GET /logs` — the agent-facing log query (also `procdeck logs`):
+ * `procs` (csv, default all), `lines` (tail cap), `grep` (case-insensitive
+ * RegExp), `sinceMs`/`untilMs` (epoch window — together, "around T"), `mark`
+ * (a named mark's snapshot as the start), `sinceSeq` (resume cursor — an
+ * integer for a single proc, or a JSON `{proc: seq}` record for several).
+ */
+const logsResponse = (supervisor: Supervisor, url: URL) => {
+  const param = (name: string) => url.searchParams.get(name) ?? undefined
+  const procs = param("procs")?.split(",").filter((id) => id.length > 0)
+  const limitRaw = param("lines")
+  const limit = limitRaw === undefined ? DEFAULT_LOG_LINES : Number(limitRaw)
+  if (!Number.isInteger(limit) || limit < 0) return badRequest(`bad lines: ${limitRaw}`)
+
+  const epoch = (name: string): number | undefined | "bad" => {
+    const raw = param(name)
+    if (raw === undefined) return undefined
+    const value = Number(raw)
+    return Number.isFinite(value) ? value : "bad"
+  }
+  const sinceMs = epoch("sinceMs")
+  if (sinceMs === "bad") return badRequest(`bad sinceMs: ${param("sinceMs")}`)
+  const untilMs = epoch("untilMs")
+  if (untilMs === "bad") return badRequest(`bad untilMs: ${param("untilMs")}`)
+
+  let sinceSeq: Record<string, number> | undefined
+  const markName = param("mark")
+  if (markName !== undefined) {
+    const mark = supervisor.getMark(markName)
+    if (mark === undefined) {
+      return badRequest(`unknown mark "${markName}" — set one with POST /marks`)
+    }
+    sinceSeq = mark.seqs
+  }
+  // Whatever cursor sources combine (mark + explicit), the later one wins
+  // per proc — "since" can only move forward.
+  const advance = (cursors: Record<string, number>) => {
+    sinceSeq = { ...sinceSeq }
+    for (const [id, seq] of Object.entries(cursors)) {
+      sinceSeq[id] = Math.max(seq, sinceSeq[id] ?? 0)
+    }
+  }
+  const seqRaw = param("sinceSeq")
+  if (seqRaw !== undefined) {
+    if (seqRaw.startsWith("{")) {
+      try {
+        const record = JSON.parse(seqRaw) as Record<string, unknown>
+        if (Object.values(record).some((seq) => !Number.isInteger(seq))) throw new Error("bad")
+        advance(record as Record<string, number>)
+      } catch {
+        return badRequest(`bad sinceSeq: ${seqRaw} — an integer or a {proc: seq} JSON record`)
+      }
+    } else {
+      const seq = Number(seqRaw)
+      if (!Number.isInteger(seq) || procs?.length !== 1) {
+        return badRequest("a bare sinceSeq integer needs a single proc in `procs`")
+      }
+      advance({ [procs[0]!]: seq })
+    }
+  }
+
+  try {
+    return HttpServerResponse.jsonUnsafe(
+      supervisor.logs({
+        procs,
+        sinceSeq,
+        sinceMs,
+        untilMs,
+        grep: param("grep"),
+        limit: Math.min(limit, MAX_LOG_LINES),
+      }),
+    )
+  } catch (cause) {
+    return badRequest((cause as Error).message)
+  }
+}
+
 const routes = (supervisor: Supervisor, deck: DeckInfo, hooks: ServerHooks) =>
   HttpRouter.addAll([
     HttpRouter.route("GET", `${API}/deck`, () =>
@@ -149,6 +233,21 @@ const routes = (supervisor: Supervisor, deck: DeckInfo, hooks: ServerHooks) =>
     ),
     HttpRouter.route("GET", `${API}/procs`, () =>
       Effect.sync(() => HttpServerResponse.jsonUnsafe(supervisor.list())),
+    ),
+    HttpRouter.route("GET", `${API}/logs`, (request) =>
+      Effect.sync(() => logsResponse(supervisor, new URL(request.url, "http://localhost"))),
+    ),
+    HttpRouter.route("POST", `${API}/marks`, (request) =>
+      Effect.gen(function* () {
+        const body = (yield* request.json.pipe(Effect.catch(() => Effect.succeed(null)))) as {
+          name?: string
+        } | null
+        const name = body?.name ?? "default"
+        if (name.length === 0 || name.length > 64) {
+          return badRequest("mark name must be 1–64 characters")
+        }
+        return HttpServerResponse.jsonUnsafe(supervisor.mark(name))
+      }),
     ),
     HttpRouter.route("GET", `${API}/events`, () => sse(supervisor)),
     HttpRouter.route("POST", `${API}/procs/:id/:action`, (request) =>
