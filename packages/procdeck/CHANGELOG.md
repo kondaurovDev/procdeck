@@ -1,5 +1,50 @@
 # procdeck
 
+## 0.5.0
+
+### Minor Changes
+
+- 10b557f: procdeck is now a harness for coding agents, not just a dashboard for humans.
+  New CLI verbs, all bounded and `--json`-able: `status --json` grows an
+  `attention` list (crashed / blocked / alerting procs with reasons — the
+  cheapest first question); `logs [proc]` returns pane output as plain
+  timestamped lines (ANSI stripped, `\r` progress bars keep only their final
+  state), filterable with `--grep`, `--since`, `--lines` — no proc means every
+  proc interleaved with `[id]` prefixes, and the old daemon-log behaviour moved
+  to `logs --self [-f]`; `mark [name]` drops a named marker in every proc's
+  stream and `--since-mark` shows only what happened after it — the verify
+  loop (mark → edit → restart → check) in four commands; `wait-for <proc>
+[--pattern RE]` blocks until a listening port or a matching line, failing
+  fast with the log tail if the proc crashes instead (exit 2 on timeout);
+  `errors [proc]` parses stack traces out of recent output and deduplicates
+  them by signature ("same TypeError, 41×, last 3s ago"); `restart <proc>`
+  restarts a single process. `procdeck mcp` serves the same verbs over MCP
+  (stdio) — `claude mcp add procdeck -- procdeck mcp` once, globally, and the
+  instance registry finds the right deck per project; read-only by default,
+  `--mutations` adds restart/stop/start, plus `since_last` cursors and a
+  `timeline` tool. `procdeck agents` (and `procdeck init`) plant the discovery:
+  a `## procdeck` section in CLAUDE.md / AGENTS.md and a Claude Code skill
+  teaching the loop.
+- 10b557f: procdeck sees the traffic now, not just the logs. Procs that use `${port}`
+  get an HTTP observer interposed on their assigned port: the proc binds a
+  hidden internal port, procdeck listens on the public one and forwards — so
+  requests between processes (`${port:api}`) and into them are captured
+  transparently, statuses and bodies included, with zero app changes
+  (`"observe": false` opts a proc out; the `*.localhost` proxy captures for
+  opted-out procs). WebSocket connections are captured per-message with
+  direction and text — compression is stripped at the handshake so frames stay
+  readable. Bodies are text-only and truncated (16 KB); `authorization`,
+  `cookie` and friends are redacted before anything is stored. Three surfaces
+  over the same per-proc rings: `procdeck http [proc] [--status 5xx|422|error]
+[--path RE] [--since-mark] [--ws] [--body] [--digest] [--json]` — `--digest`
+  groups 4xx/5xx by route with path params collapsed (`/users/:id`); a
+  `get_http` MCP tool with `since_last` cursors (and `timeline` now carries
+  the window's exchanges); and a traffic view in the UI — the ⇄ position of
+  the layout switch — with kind/proc/errors filters, click-to-expand bodies,
+  pause and clear. Marks span both streams, so mark → act →
+  `http --since-mark` shows exactly which requests a change caused and what
+  they returned.
+
 ## 0.4.0
 
 ### Minor Changes
