@@ -21,11 +21,11 @@ import { Effect, Layer, Schema } from "effect"
 import { McpProtocol, McpServer, Tool, Toolkit } from "effect/unstable/ai"
 import * as NodeStdio from "@effect/platform-node-shared/NodeStdio"
 import { apiGet, apiPost, logsParams, statusReport, waitForProc } from "./client.ts"
-import { locateConfig } from "./config.ts"
+import { locateConfig } from "../config.ts"
 import { extractErrors } from "./errors.ts"
-import type { LogsResult, Mark } from "./lines.ts"
-import { findInstance } from "./registry.ts"
-import type { Instance } from "./registry.ts"
+import type { LogsResult, Mark } from "../lines.ts"
+import { findInstance } from "../registry.ts"
+import type { Instance } from "../registry.ts"
 
 /** The deck for the cwd's project — resolved per call, never cached. */
 const resolveDeck = (): { instance: Instance } | { error: string } => {

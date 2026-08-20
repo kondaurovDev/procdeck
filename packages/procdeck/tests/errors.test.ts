@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { extractErrors, signatureOf } from "../src/errors.ts"
+import { extractErrors, signatureOf } from "../src/agent/errors.ts"
 import type { DeckLogLine } from "../src/lines.ts"
 
 const lines = (proc: string, texts: Array<string>, startTs = 0): Array<DeckLogLine> =>

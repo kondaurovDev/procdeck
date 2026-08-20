@@ -4,9 +4,9 @@
  * "ask the deck", two front doors.
  */
 
-import type { ProcInfo } from "./events.ts"
-import type { LogsResult } from "./lines.ts"
-import type { Instance } from "./registry.ts"
+import type { ProcInfo } from "../events.ts"
+import type { LogsResult } from "../lines.ts"
+import type { Instance } from "../registry.ts"
 
 export const deckUrl = (instance: Instance): string => `http://localhost:${instance.port}`
 
