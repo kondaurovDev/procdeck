@@ -1,14 +1,20 @@
 import { Schema as S } from "effect"
-import { DeckInfo, InstanceInfo, ProcInfo } from "./schema.ts"
+import { DeckInfo, InstanceInfo, ProcInfo, TrafficEntry } from "./schema.ts"
 import type { ProcStatus } from "./schema.ts"
 
 /**
  * How the main area shows the panes. One switch, not independent toggles —
- * a future "merged" (single chronological stream) is the third position of
- * the same control. See docs/plan.md, "Layout modes".
+ * "http" is the traffic view (captured HTTP exchanges and WebSocket
+ * messages, docs/http-observability.md); a future "merged" (single
+ * chronological log stream) would be the fourth position of the same
+ * control. See docs/plan.md, "Layout modes".
  */
-export const Layout = S.Literals(["single", "grid"])
+export const Layout = S.Literals(["single", "grid", "http"])
 export type Layout = typeof Layout.Type
+
+/** Traffic-view kind filter. */
+export const TrafficKind = S.Literals(["all", "http", "ws"])
+export type TrafficKind = typeof TrafficKind.Type
 
 /**
  * The SSE feed's health. `connecting` until the first open (no banner — the
@@ -77,6 +83,23 @@ export const Model = S.Struct({
   shutdown: S.Boolean,
   /** Deck switcher dropdown: undefined = closed, else the registry as fetched. */
   switcher: S.UndefinedOr(S.Array(InstanceInfo)),
+  /**
+   * The traffic view's rolling window of captured entries, appended by the
+   * poll while the view is open, capped in update.ts. Filters below narrow
+   * what is *shown*, never what is kept.
+   */
+  traffic: S.Array(TrafficEntry),
+  /** Per-proc poll cursor — a `GET /http` response's nextSeq, merged. */
+  trafficSeq: S.UndefinedOr(S.Record(S.String, S.Number)),
+  trafficKind: TrafficKind,
+  /** Show only 4xx/5xx/refused exchanges. */
+  trafficErrorsOnly: S.Boolean,
+  /** Show only this proc's entries; undefined = every proc. */
+  trafficProc: S.UndefinedOr(S.String),
+  /** Expanded row (`proc#seq`), showing bodies and headers. */
+  trafficOpen: S.UndefinedOr(S.String),
+  /** Paused: keep what is on screen, stop appending. */
+  trafficPaused: S.Boolean,
 })
 export type Model = typeof Model.Type
 

@@ -89,8 +89,10 @@ than log lines: the actual status and body caused by the change.
 - **MCP**: `get_http` mirroring the CLI verb 1:1 (+ `since_last` cursors and
   `timeline` gaining http events, so the agent can pivot error → moment →
   requests around it).
-- **UI**: a network tab per pane, devtools-lite — later; the agent surfaces
-  come first.
+- **UI**: shipped as a deck-wide traffic view — the third position of the
+  layout switch (⇄), not a per-pane tab: one interleaved, newest-first
+  stream with kind/proc/errors filters, click-to-expand bodies, pause and
+  clear. Polls `GET /http` with a seq cursor once a second while open.
 
 ## What this deliberately does not see
 
@@ -129,8 +131,9 @@ than log lines: the actual status and body caused by the change.
    is stripped at the handshake; ws messages join the same rings with
    `kind: "ws"` and a `connId` shared with their 101 upgrade exchange.
    `--ws` / `kind` narrow the surfaces to them.
-5. **UI network tab**; CDP add-on and outbound instrumentation — much
-   later, when the itch is real.
+5. ~~**UI network tab**~~ — shipped as the traffic view (see Surfaces).
+   CDP add-on and outbound instrumentation stay out — much later, when the
+   itch is real.
 
 ## Open questions
 

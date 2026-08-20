@@ -8,6 +8,7 @@ import {
   FetchDeck,
   FetchInstances,
   FetchProcs,
+  FetchTraffic,
   FindInTerminal,
   FitTerminals,
   FocusSearch,
@@ -74,7 +75,11 @@ const ERROR_PATTERN = /\b(error|exception|fatal|panic|traceback)\b|\bERR\b/i
 
 /** Panes whose terminal is on screen — the only ones xterm can measure. */
 const visibleIds = (model: Model): Array<string> =>
-  model.layout === "grid" ? gridIds(model) : model.active === undefined ? [] : [model.active]
+  model.layout === "grid"
+    ? gridIds(model)
+    : model.layout === "http" || model.active === undefined
+      ? []
+      : [model.active]
 
 /** Re-measure whatever is on screen and hand the keyboard to the active pane. */
 const refit = (model: Model): Command.Command<Message> =>
@@ -92,7 +97,10 @@ const activate = (model: Model, id: string): Result => {
   return [next, [refit(next)]]
 }
 
-const LAYOUTS: ReadonlyArray<Layout> = ["single", "grid"]
+const LAYOUTS: ReadonlyArray<Layout> = ["single", "grid", "http"]
+
+/** Entries the traffic view keeps; the server rings hold more, `procdeck http` has it all. */
+const TRAFFIC_CAP = 400
 
 const setLayout = (model: Model, layout: Layout): Result => {
   if (layout === model.layout) return [model, []]
@@ -275,6 +283,32 @@ const step = (model: Model, message: Message): Result =>
       ],
       ResizedWindow: () => (model.active === undefined ? [model, []] : [model, [refit(model)]]),
 
+      PolledTraffic: () => [model, [FetchTraffic({ sinceSeq: model.trafficSeq })]],
+      GotTraffic: ({ entries, nextSeq }) => [
+        evo(model, {
+          traffic: (traffic) =>
+            entries.length === 0 ? traffic : [...traffic, ...entries].slice(-TRAFFIC_CAP),
+          trafficSeq: (cursor) => ({ ...cursor, ...nextSeq }),
+        }),
+        [],
+      ],
+      ChoseTrafficKind: ({ kind }) => [evo(model, { trafficKind: () => kind }), []],
+      ToggledTrafficErrors: () => [
+        evo(model, { trafficErrorsOnly: (errorsOnly) => !errorsOnly }),
+        [],
+      ],
+      ChoseTrafficProc: ({ id }) => [evo(model, { trafficProc: () => id }), []],
+      ToggledTrafficRow: ({ key }) => [
+        evo(model, { trafficOpen: (open) => (open === key ? undefined : key) }),
+        [],
+      ],
+      // Keeps the cursor: what was on screen goes away, only news comes back.
+      ClearedTraffic: () => [
+        evo(model, { traffic: () => [], trafficOpen: () => undefined }),
+        [],
+      ],
+      ToggledTrafficPause: () => [evo(model, { trafficPaused: (paused) => !paused }), []],
+
       InstallBecameAvailable: () => [evo(model, { installable: () => true }), []],
       ClickedInstall: () => [model, [PromptInstall()]],
       PromptedInstall: () => [evo(model, { installable: () => false }), []],
@@ -347,6 +381,13 @@ export const init = (): Result => {
     notifyPermission: currentNotifyPermission(),
     shutdown: false,
     switcher: undefined,
+    traffic: [],
+    trafficSeq: undefined,
+    trafficKind: "all",
+    trafficErrorsOnly: false,
+    trafficProc: undefined,
+    trafficOpen: undefined,
+    trafficPaused: false,
   }
   // The inline script in index.html already painted the scheme before the
   // first frame; this keeps the theme-color meta honest if it did not run.

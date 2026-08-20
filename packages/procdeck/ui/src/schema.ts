@@ -65,4 +65,42 @@ export const InstanceInfo = S.Struct({
 })
 export type InstanceInfo = typeof InstanceInfo.Type
 
+/**
+ * One captured entry from `GET /http` — an HTTP exchange, or (kind "ws") a
+ * WebSocket message. One loose struct instead of a union: the two shapes
+ * share proc/seq/ts/path, and optionalKey keeps the rest honest.
+ */
+export const TrafficEntry = S.Struct({
+  proc: S.String,
+  seq: S.Number,
+  ts: S.Number,
+  kind: S.optionalKey(S.Literals(["http", "ws"])),
+  path: S.String,
+  // HTTP exchange fields
+  method: S.optionalKey(S.String),
+  status: S.optionalKey(S.Number),
+  durationMs: S.optionalKey(S.Number),
+  reqBytes: S.optionalKey(S.Number),
+  resBytes: S.optionalKey(S.Number),
+  reqBody: S.optionalKey(S.String),
+  resBody: S.optionalKey(S.String),
+  reqHeaders: S.optionalKey(S.Record(S.String, S.String)),
+  resHeaders: S.optionalKey(S.Record(S.String, S.String)),
+  connId: S.optionalKey(S.Number),
+  // WebSocket message fields
+  dir: S.optionalKey(S.Literals(["in", "out"])),
+  opcode: S.optionalKey(S.String),
+  size: S.optionalKey(S.Number),
+  text: S.optionalKey(S.String),
+})
+export type TrafficEntry = typeof TrafficEntry.Type
+
+/** The `GET /http` answer. */
+export const TrafficResult = S.Struct({
+  exchanges: S.Array(TrafficEntry),
+  nextSeq: S.Record(S.String, S.Number),
+  omitted: S.Number,
+})
+export type TrafficResult = typeof TrafficResult.Type
+
 export const API = "/__procdeck/api"

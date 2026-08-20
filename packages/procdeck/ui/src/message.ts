@@ -1,7 +1,7 @@
 import { Schema as S } from "effect"
 import { m } from "foldkit/message"
-import { Layout, NotifyPermission, Theme } from "./model.ts"
-import { DeckInfo, InstanceInfo, ProcInfo, ProcStatus } from "./schema.ts"
+import { Layout, NotifyPermission, Theme, TrafficKind } from "./model.ts"
+import { DeckInfo, InstanceInfo, ProcInfo, ProcStatus, TrafficEntry } from "./schema.ts"
 
 // Server data arriving
 export const GotDeck = m("GotDeck", { deck: DeckInfo })
@@ -74,6 +74,21 @@ export const ChangedSearch = m("ChangedSearch", { query: S.String })
 export const SteppedSearch = m("SteppedSearch", { backwards: S.Boolean })
 export const ClosedSearch = m("ClosedSearch")
 
+// Traffic view (the layout's "http" position) — a 1s poll of GET /http with
+// a per-proc seq cursor, active only while the view is open and not paused.
+export const PolledTraffic = m("PolledTraffic")
+export const GotTraffic = m("GotTraffic", {
+  entries: S.Array(TrafficEntry),
+  nextSeq: S.Record(S.String, S.Number),
+})
+export const ChoseTrafficKind = m("ChoseTrafficKind", { kind: TrafficKind })
+export const ToggledTrafficErrors = m("ToggledTrafficErrors")
+export const ChoseTrafficProc = m("ChoseTrafficProc", { id: S.UndefinedOr(S.String) })
+/** Click a row to expand its bodies/headers; clicking again closes it. */
+export const ToggledTrafficRow = m("ToggledTrafficRow", { key: S.String })
+export const ClearedTraffic = m("ClearedTraffic")
+export const ToggledTrafficPause = m("ToggledTrafficPause")
+
 // Web-app install (see install.ts)
 export const InstallBecameAvailable = m("InstallBecameAvailable")
 export const ClickedInstall = m("ClickedInstall")
@@ -124,6 +139,14 @@ export const Message = S.Union([
   ChangedSearch,
   SteppedSearch,
   ClosedSearch,
+  PolledTraffic,
+  GotTraffic,
+  ChoseTrafficKind,
+  ToggledTrafficErrors,
+  ChoseTrafficProc,
+  ToggledTrafficRow,
+  ClearedTraffic,
+  ToggledTrafficPause,
   InstallBecameAvailable,
   ClickedInstall,
   PromptedInstall,

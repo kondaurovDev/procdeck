@@ -1,12 +1,13 @@
 import { Effect, Schema as S } from "effect"
 import { Command } from "foldkit"
-import { API, DeckInfo, InstanceInfo, ProcInfo } from "./schema.ts"
+import { API, DeckInfo, InstanceInfo, ProcInfo, TrafficResult } from "./schema.ts"
 import {
   CompletedRequest,
   FailedFetchProcs,
   GotDeck,
   GotInstances,
   GotProcs,
+  GotTraffic,
   ShutDown,
 } from "./message.ts"
 import { Scheme, Theme } from "./model.ts"
@@ -43,6 +44,28 @@ export const FetchDeck = Command.define("FetchDeck", {
     const deck = yield* S.decodeUnknownEffect(DeckInfo)(raw)
     return GotDeck({ deck })
   }).pipe(Effect.catch(() => Effect.succeed(CompletedRequest()))),
+})
+
+/**
+ * One traffic poll: everything after the cursor (or the recent tail on the
+ * first call), bodies included so expanding a row is instant. Failure is
+ * quiet — the next tick retries.
+ */
+export const FetchTraffic = Command.define("FetchTraffic", {
+  args: { sinceSeq: S.UndefinedOr(S.Record(S.String, S.Number)) },
+  messages: [GotTraffic, CompletedRequest],
+  execute: ({ sinceSeq }) =>
+    Effect.gen(function* () {
+      const params = new URLSearchParams({ limit: "300", bodies: "1" })
+      if (sinceSeq !== undefined && Object.keys(sinceSeq).length > 0) {
+        params.set("sinceSeq", JSON.stringify(sinceSeq))
+      }
+      const raw = yield* Effect.tryPromise(() =>
+        fetch(`${API}/http?${params}`).then((response) => response.json()),
+      )
+      const result = yield* S.decodeUnknownEffect(TrafficResult)(raw)
+      return GotTraffic({ entries: result.exchanges, nextSeq: result.nextSeq })
+    }).pipe(Effect.catch(() => Effect.succeed(CompletedRequest()))),
 })
 
 /** The registry, for the deck switcher. Failure just leaves the list empty. */

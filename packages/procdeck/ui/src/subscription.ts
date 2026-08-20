@@ -6,6 +6,7 @@ import {
   OpenedSearch,
   PressedClear,
   PressedPin,
+  PolledTraffic,
   PressedRestart,
   PressedToggle,
   ReceivedLog,
@@ -165,6 +166,19 @@ const tickStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
   ),
 )
 
+/** Traffic-view poll: fires immediately on subscribe, then every second. */
+const trafficStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
+  Effect.acquireRelease(
+    Effect.sync(() => {
+      Queue.offerUnsafe(queue, PolledTraffic())
+      return setInterval(() => {
+        Queue.offerUnsafe(queue, PolledTraffic())
+      }, 1000)
+    }),
+    (id) => Effect.sync(() => clearInterval(id)),
+  ),
+)
+
 export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
   /**
    * Gated on every pane's terminal being mounted: the server replays its ring
@@ -209,6 +223,16 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
     {
       modelToDependencies: () => ({ on: true }),
       dependenciesToStream: () => systemSchemeStream,
+    },
+  ),
+  // The traffic view's poll — alive only while the view is open and running.
+  traffic: entry(
+    { on: S.Boolean },
+    {
+      modelToDependencies: (model) => ({
+        on: model.layout === "http" && !model.trafficPaused && model.stream !== "reconnecting",
+      }),
+      dependenciesToStream: ({ on }) => (on ? trafficStream : Stream.empty),
     },
   ),
   // Uptime / "exited 2m ago" clock — only ticks while there is something to age.

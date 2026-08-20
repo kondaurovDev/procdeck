@@ -22,6 +22,7 @@ import { attentionCount, gridIds } from "./model.ts"
 import type { Layout, Model, Theme } from "./model.ts"
 import type { ProcInfo, ProcStatus } from "./schema.ts"
 import { MountTerminal } from "./terminal.ts"
+import { trafficView } from "./traffic.ts"
 
 /**
  * Split detected ports into ones a human wants to open and machinery noise.
@@ -194,7 +195,12 @@ const paneActions = (info: ProcInfo, pinned: boolean, h: HtmlBuilder<Message>): 
  */
 const tile = (info: ProcInfo, model: Model, h: HtmlBuilder<Message>): Html => {
   const isActive = info.id === model.active
-  const shown = model.layout === "single" ? isActive : gridIds(model).includes(info.id)
+  const shown =
+    model.layout === "http"
+      ? false
+      : model.layout === "single"
+        ? isActive
+        : gridIds(model).includes(info.id)
   return h.div(
     [
       h.Key(info.id),
@@ -271,6 +277,7 @@ const gridColumns = (n: number): number => Math.max(1, Math.min(4, Math.ceil(Mat
 const LAYOUT_OPTIONS: ReadonlyArray<{ layout: Layout; label: string; hint: string }> = [
   { layout: "single", label: "▣", hint: "single pane" },
   { layout: "grid", label: "⊞", hint: "grid — all panes tiled" },
+  { layout: "http", label: "⇄", hint: "traffic — captured HTTP and WebSocket" },
 ]
 
 const layoutSwitch = (model: Model, h: HtmlBuilder<Message>): Html =>
@@ -568,11 +575,17 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
       h.main(
         [],
         [
+          // Hidden (not unmounted) in the traffic view: the xterm instances
+          // keep their scrollback, exactly like hidden tiles in single layout.
           h.div(
-            [h.Class(`terminals ${model.layout} cols-${gridColumns(gridIds(model).length)}`)],
+            [
+              h.Class(`terminals ${model.layout} cols-${gridColumns(gridIds(model).length)}`),
+              h.Hidden(model.layout === "http"),
+            ],
             model.procs.map((info) => tile(info, model, h)),
           ),
           ...tray(model, h),
+          ...(model.layout === "http" ? [trafficView(model, h)] : []),
         ],
       ),
     ],
