@@ -166,6 +166,7 @@ const upHandler = ({
       yield* Console.log(
         `procdeck: "${running.name}" is already up → ${url(running)} (pid ${running.pid})`,
       )
+      yield* versionNotice(running)
       if (open) openBrowser(url(running))
       return
     }
@@ -192,6 +193,14 @@ const upHandler = ({
     if (open) openBrowser(url(instance))
   })
 
+/** One line when a deck was started by a different procdeck than this CLI. */
+const versionNotice = (instance: Instance) =>
+  instance.version === VERSION
+    ? Effect.void
+    : Console.log(
+        `procdeck: deck runs v${instance.version}, CLI is v${VERSION} — \`procdeck restart\` picks up the new version`,
+      )
+
 const downHandler = ({ config }: { config: Option.Option<string> }) =>
   Effect.gen(function* () {
     const root = yield* resolveRoot(config)
@@ -215,6 +224,44 @@ const down = Command.make("down", { config: configArgument }, downHandler).pipe(
   Command.withDescription("Stop the deck: every process tree is terminated, then procdeck exits."),
 )
 
+/**
+ * `restart --all`: every deck in the registry, stop-then-detach, straight from
+ * its registry entry (config path + root) — no cwd involved. Decks running in
+ * the foreground are skipped: killing someone's terminal session from another
+ * shell and re-parenting it into the background would be a surprise, not a
+ * restart. One deck failing to come back does not stop the rest.
+ */
+const restartAllHandler = Effect.gen(function* () {
+  const instances = listInstances()
+  if (instances.length === 0) return yield* Console.log("procdeck: no decks are up")
+  let failures = 0
+  for (const instance of instances) {
+    if (instance.mode === "foreground") {
+      yield* Console.log(
+        `procdeck: skipping "${instance.name}" (${pretty(instance.root)}) — foreground deck, restart it in its own terminal`,
+      )
+      continue
+    }
+    process.stdout.write(`procdeck: restarting "${instance.name}" (${pretty(instance.root)})… `)
+    yield* Effect.promise(() => shutdown(instance))
+    const outcome = yield* Effect.promise(async () => {
+      try {
+        const fresh = await detach(process.argv[1]!, instance.config, instance.root)
+        return `up → ${url(fresh)} (v${fresh.version})`
+      } catch (cause) {
+        failures += 1
+        return `failed: ${(cause as Error).message}`
+      }
+    })
+    yield* Console.log(outcome)
+  }
+  if (failures > 0) {
+    return yield* fail(
+      `${failures} deck${failures === 1 ? "" : "s"} did not come back — see above`,
+    )
+  }
+})
+
 const restart = Command.make(
   "restart",
   {
@@ -222,11 +269,18 @@ const restart = Command.make(
       Argument.optional,
       Argument.withDescription("proc id — restart just this process (default: the whole deck)"),
     ),
+    all: Flag.boolean("all").pipe(
+      Flag.withDescription("restart every deck on this machine (e.g. after updating procdeck)"),
+    ),
     fg: fgFlag,
     open: openFlag,
   },
-  ({ fg, open, proc }) =>
-    Option.isSome(proc)
+  ({ all, fg, open, proc }) =>
+    all
+      ? Option.isSome(proc)
+        ? fail(`--all restarts every deck — drop "${proc.value}"`)
+        : restartAllHandler
+      : Option.isSome(proc)
       ? Effect.gen(function* () {
           const instance = yield* requireInstance(Option.none())
           const procs = yield* callApi(() => apiGet<Array<ProcInfo>>(instance, "/procs"))
@@ -247,7 +301,7 @@ const restart = Command.make(
         ),
 ).pipe(
   Command.withDescription(
-    "Restart one proc (`restart api`), or the whole deck (`restart`) — the latter after updating procdeck or editing the config.",
+    "Restart one proc (`restart api`), the whole deck (`restart`), or every deck on this machine (`restart --all`) — the deck-wide forms after updating procdeck or editing the config.",
   ),
 )
 
@@ -271,8 +325,9 @@ const status = Command.make(
       }
       const procs = yield* fetchProcs(instance)
       yield* Console.log(
-        `${instance.name} · ${url(instance)} · up ${describeUptime(instance.startedAt)} · pid ${instance.pid} · ${countRunning(procs)}${instance.mode === "foreground" ? " · foreground" : ""}`,
+        `${instance.name} · ${url(instance)} · up ${describeUptime(instance.startedAt)} · pid ${instance.pid} · ${countRunning(procs)} · v${instance.version}${instance.mode === "foreground" ? " · foreground" : ""}`,
       )
+      yield* versionNotice(instance)
       if (procs === undefined || procs.length === 0) return
       yield* Console.log(
         table(
@@ -303,10 +358,16 @@ const ls = Command.make("ls", {}, () =>
           `:${instance.port}`,
           `up ${describeUptime(instance.startedAt)}`,
           countRunning(procs[i]),
+          `v${instance.version}`,
           pretty(instance.root),
         ]),
       ),
     )
+    if (instances.some((instance) => instance.version !== VERSION)) {
+      yield* Console.log(
+        `procdeck: some decks run a different procdeck than the CLI (v${VERSION}) — \`procdeck restart --all\` brings them over`,
+      )
+    }
   }),
 ).pipe(Command.withDescription("Every running deck on this machine."))
 

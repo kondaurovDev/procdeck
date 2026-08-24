@@ -61,6 +61,7 @@ export const InstanceInfo = S.Struct({
   root: S.String,
   port: S.Number,
   startedAt: S.Number,
+  version: S.optionalKey(S.String),
   self: S.Boolean,
 })
 export type InstanceInfo = typeof InstanceInfo.Type

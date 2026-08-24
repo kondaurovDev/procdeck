@@ -84,7 +84,7 @@ describe("cli", () => {
     const instances = (await fetch(`http://localhost:${PORT}/__procdeck/api/instances`).then(
       (response) => response.json(),
     )) as Array<{ name: string; self: boolean }>
-    expect(instances).toEqual([{ name: "clitest", self: true, root: project, port: PORT, startedAt: expect.any(Number) }])
+    expect(instances).toEqual([{ name: "clitest", self: true, root: project, port: PORT, startedAt: expect.any(Number), version: expect.any(String) }])
 
     const status = await procdeck("status")
     expect(status.code, status.out).toBe(0)
@@ -124,6 +124,37 @@ describe("cli", () => {
     expect(open.code).toBe(1)
     expect(open.out).toContain("`procdeck up` first")
   }, 40_000)
+
+  test("restart --all: every registered deck is stopped and detached again", async () => {
+    const up = await procdeck("up", "--no-open")
+    expect(up.code, up.out).toBe(0)
+    const before = findInstance(project)
+    expect(before).toBeDefined()
+
+    // --all and a proc id contradict each other.
+    const both = await procdeck("restart", "--all", "sleeper")
+    expect(both.code).toBe(1)
+    expect(both.out).toContain("--all restarts every deck")
+
+    const restart = await procdeck("restart", "--all")
+    expect(restart.code, restart.out).toBe(0)
+    expect(restart.out).toContain('restarting "clitest"')
+    expect(restart.out).toContain(`up → http://localhost:${PORT}`)
+
+    const after = findInstance(project)
+    expect(after).toBeDefined()
+    expect(after!.pid).not.toBe(before!.pid)
+    expect(isAlive(before!.pid)).toBe(false)
+    expect(isAlive(after!.pid)).toBe(true)
+
+    const down = await procdeck("down")
+    expect(down.code, down.out).toBe(0)
+
+    // With nothing up, --all has nothing to do and says so.
+    const idle = await procdeck("restart", "--all")
+    expect(idle.code, idle.out).toBe(0)
+    expect(idle.out).toContain("no decks are up")
+  }, 60_000)
 
   test("agent loop: status --json → wait-for → mark → logs --since-mark → errors", async () => {
     const agentProject = realpathSync(mkdtempSync(path.join(tmpdir(), "procdeck-cli-agent-")))

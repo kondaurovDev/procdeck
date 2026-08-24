@@ -287,6 +287,7 @@ const routes = (supervisor: Supervisor, deck: DeckInfo, hooks: ServerHooks) =>
             root: instance.root,
             port: instance.port,
             startedAt: instance.startedAt,
+            version: instance.version,
             self: instance.root === deck.root,
           })),
         ),

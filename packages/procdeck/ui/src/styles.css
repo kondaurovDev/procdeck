@@ -193,6 +193,12 @@ button.deck-name .caret {
   white-space: normal;
   line-height: 1.4;
 }
+/* This deck's own procdeck version, a quiet footer under the deck list. */
+.switcher > .version {
+  margin-top: 2px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+}
 .switcher a {
   display: flex;
   gap: 8px;

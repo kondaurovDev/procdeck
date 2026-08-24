@@ -470,25 +470,34 @@ const deckSwitcher = (model: Model, name: string, h: HtmlBuilder<Message>): Html
         ? [
             h.div(
               [h.Class("switcher")],
-              others.length === 0
-                ? [
-                    h.span(
-                      [h.Class("meta")],
-                      ["no other decks are up — `procdeck up` in another project adds it here"],
-                    ),
-                  ]
-                : others.map((instance) =>
-                    h.a(
-                      [
-                        h.Href(`http://localhost:${instance.port}`),
-                        h.Title(`${instance.root} · up ${formatUptime(model.now - instance.startedAt)}`),
-                      ],
-                      [
-                        h.span([h.Class("name")], [instance.name]),
-                        h.span([h.Class("meta")], [`:${instance.port}`]),
-                      ],
-                    ),
-                  ),
+              [
+                ...(others.length === 0
+                  ? [
+                      h.span(
+                        [h.Class("meta")],
+                        ["no other decks are up — `procdeck up` in another project adds it here"],
+                      ),
+                    ]
+                  : others.map((instance) =>
+                      h.a(
+                        [
+                          h.Href(`http://localhost:${instance.port}`),
+                          h.Title(
+                            `${instance.root} · up ${formatUptime(model.now - instance.startedAt)}${instance.version === undefined ? "" : ` · procdeck v${instance.version}`}`,
+                          ),
+                        ],
+                        [
+                          h.span([h.Class("name")], [instance.name]),
+                          h.span([h.Class("meta")], [`:${instance.port}`]),
+                        ],
+                      ),
+                    )),
+                // This deck's own procdeck version — the answer to "which
+                // version is this deck actually running?" after an update.
+                ...(model.deck?.version === undefined
+                  ? []
+                  : [h.span([h.Class("meta version")], [`procdeck v${model.deck.version}`])]),
+              ],
             ),
           ]
         : []),

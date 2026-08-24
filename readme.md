@@ -92,6 +92,7 @@ procdeck init               # write procdeck.config.json: one proc per workspace
 procdeck up [config]        # start (detached) and open the UI — idempotent
 procdeck down               # stop: every process tree is terminated
 procdeck restart            # down + up — after editing the config or updating procdeck
+procdeck restart --all      # the same for every deck on this machine
 procdeck status             # this project's deck: address, uptime, every proc's state
 procdeck ls                 # every running deck on this machine
 procdeck open               # open the UI — no port to remember
@@ -105,7 +106,9 @@ command works from any subdirectory of the project. Running decks register in
 `~/.procdeck/instances/` (one JSON per deck — that is how `down`, `ls` and the UI's
 deck switcher find them; stale entries are pruned by pid), and a detached deck's own
 output goes to `~/.procdeck/logs/`. `--no-open` skips the browser. Updating procdeck
-needs a `procdeck restart` — the running deck keeps the old code until then.
+needs a `procdeck restart` — the running deck keeps the old code until then. Which
+version a deck actually runs shows in `status`, `ls` and the UI's deck switcher, and
+`status` says so out loud when it differs from the CLI's.
 
 The server binds **127.0.0.1 only** — the UI types into real terminals, so it is not
 something to put on the LAN by accident. `"host": "0.0.0.0"` in the config opens it up
