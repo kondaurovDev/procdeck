@@ -6,7 +6,7 @@ import {
   ClearedTraffic,
   ToggledTrafficErrors,
   ToggledTrafficPause,
-  ToggledTrafficRow,
+  ToggledTrafficRow
 } from "./message.ts"
 import type { Model, TrafficKind } from "./model.ts"
 import type { TrafficEntry } from "./schema.ts"
@@ -61,9 +61,7 @@ const detail = (entry: TrafficEntry, h: HtmlBuilder<Message>): Html => {
   if (isWs(entry)) {
     return h.div(
       [h.Class("traffic-detail")],
-      [
-        ...block("message", entry.text ?? `(${entry.opcode ?? "binary"}, ${size(entry.size)})`),
-      ],
+      [...block("message", entry.text ?? `(${entry.opcode ?? "binary"}, ${size(entry.size)})`)]
     )
   }
   return h.div(
@@ -75,8 +73,8 @@ const detail = (entry: TrafficEntry, h: HtmlBuilder<Message>): Html => {
       ...block("response body", entry.resBody),
       ...(entry.reqBody === undefined && entry.resBody === undefined
         ? [h.div([h.Class("detail-label")], ["no captured bodies (binary or empty)"])]
-        : []),
-    ],
+        : [])
+    ]
   )
 }
 
@@ -86,45 +84,42 @@ const row = (entry: TrafficEntry, open: boolean, h: HtmlBuilder<Message>): Array
     ? [
         // "→" flows into the proc (client → server), "←" out of it.
         h.span([h.Class("method ws")], [entry.dir === "in" ? "ws→" : "ws←"]),
-        h.span(
-          [h.Class("path"), h.Title(entry.path)],
-          [entry.text ?? `(${entry.opcode ?? "?"})`],
-        ),
+        h.span([h.Class("path"), h.Title(entry.path)], [entry.text ?? `(${entry.opcode ?? "?"})`]),
         h.span([h.Class("status ws")], [`#${entry.connId ?? "?"}`]),
         h.span([h.Class("meta")], [""]),
-        h.span([h.Class("meta")], [size(entry.size)]),
+        h.span([h.Class("meta")], [size(entry.size)])
       ]
     : [
         h.span([h.Class("method")], [entry.method ?? "?"]),
         h.span([h.Class("path"), h.Title(entry.path)], [entry.path]),
         h.span(
           [h.Class(statusClass(entry.status))],
-          [entry.status === 0 ? "refused" : String(entry.status ?? "?")],
+          [entry.status === 0 ? "refused" : String(entry.status ?? "?")]
         ),
         h.span([h.Class("meta")], [entry.durationMs === undefined ? "" : `${entry.durationMs}ms`]),
-        h.span([h.Class("meta")], [size(entry.resBytes)]),
+        h.span([h.Class("meta")], [size(entry.resBytes)])
       ]
   return [
     h.div(
       [
         h.Key(key),
         h.Class(open ? "traffic-row open" : "traffic-row"),
-        h.OnClick(ToggledTrafficRow({ key })),
+        h.OnClick(ToggledTrafficRow({ key }))
       ],
       [
         h.span([h.Class("meta")], [clock(entry.ts)]),
         h.span([h.Class("proc-tag")], [entry.proc]),
-        ...head,
-      ],
+        ...head
+      ]
     ),
-    ...(open ? [detail(entry, h)] : []),
+    ...(open ? [detail(entry, h)] : [])
   ]
 }
 
 const KIND_OPTIONS: ReadonlyArray<{ kind: TrafficKind; label: string; hint: string }> = [
   { kind: "all", label: "all", hint: "http and ws interleaved" },
   { kind: "http", label: "http", hint: "only http exchanges" },
-  { kind: "ws", label: "ws", hint: "only WebSocket messages" },
+  { kind: "ws", label: "ws", hint: "only WebSocket messages" }
 ]
 
 const toolbar = (model: Model, shownCount: number, h: HtmlBuilder<Message>): Html =>
@@ -138,19 +133,19 @@ const toolbar = (model: Model, shownCount: number, h: HtmlBuilder<Message>): Htm
             [
               h.Class(model.trafficKind === kind ? "on" : ""),
               h.Title(hint),
-              h.OnClick(ChoseTrafficKind({ kind })),
+              h.OnClick(ChoseTrafficKind({ kind }))
             ],
-            [label],
-          ),
-        ),
+            [label]
+          )
+        )
       ),
       h.button(
         [
           h.Class(model.trafficErrorsOnly ? "on" : ""),
           h.Title("only 4xx / 5xx / refused"),
-          h.OnClick(ToggledTrafficErrors()),
+          h.OnClick(ToggledTrafficErrors())
         ],
-        ["errors"],
+        ["errors"]
       ),
       h.span(
         [h.Class("segmented procs")],
@@ -158,20 +153,20 @@ const toolbar = (model: Model, shownCount: number, h: HtmlBuilder<Message>): Htm
           h.button(
             [
               h.Class(model.trafficProc === undefined ? "on" : ""),
-              h.OnClick(ChoseTrafficProc({ id: undefined })),
+              h.OnClick(ChoseTrafficProc({ id: undefined }))
             ],
-            ["all procs"],
+            ["all procs"]
           ),
           ...model.procs.map((info) =>
             h.button(
               [
                 h.Class(model.trafficProc === info.id ? "on" : ""),
-                h.OnClick(ChoseTrafficProc({ id: info.id })),
+                h.OnClick(ChoseTrafficProc({ id: info.id }))
               ],
-              [info.id],
-            ),
-          ),
-        ],
+              [info.id]
+            )
+          )
+        ]
       ),
       h.span([h.Class("traffic-spacer")], []),
       h.span([h.Class("meta")], [`${shownCount} shown`]),
@@ -179,12 +174,15 @@ const toolbar = (model: Model, shownCount: number, h: HtmlBuilder<Message>): Htm
         [
           h.Class(model.trafficPaused ? "on" : ""),
           h.Title(model.trafficPaused ? "resume capture display" : "pause capture display"),
-          h.OnClick(ToggledTrafficPause()),
+          h.OnClick(ToggledTrafficPause())
         ],
-        [model.trafficPaused ? "▶" : "⏸"],
+        [model.trafficPaused ? "▶" : "⏸"]
       ),
-      h.button([h.Title("clear the list (capture keeps running)"), h.OnClick(ClearedTraffic())], ["⌫"]),
-    ],
+      h.button(
+        [h.Title("clear the list (capture keeps running)"), h.OnClick(ClearedTraffic())],
+        ["⌫"]
+      )
+    ]
   )
 
 export const trafficView = (model: Model, h: HtmlBuilder<Message>): Html => {
@@ -200,13 +198,15 @@ export const trafficView = (model: Model, h: HtmlBuilder<Message>): Html => {
               h.div(
                 [h.Class("traffic-empty")],
                 [
-                  "no captured traffic yet — requests to the panes' *.localhost addresses and to assigned ${port} ports land here (hardcoded ports and calls out to the internet are not seen); `procdeck http` shows the same stream in the terminal",
-                ],
-              ),
+                  "no captured traffic yet — requests to the panes' *.localhost addresses and to assigned ${port} ports land here (hardcoded ports and calls out to the internet are not seen); `procdeck http` shows the same stream in the terminal"
+                ]
+              )
             ]
           : // Newest first, so the latest exchange is always in sight.
-            entries.toReversed().flatMap((entry) => row(entry, model.trafficOpen === rowKey(entry), h)),
-      ),
-    ],
+            entries
+              .toReversed()
+              .flatMap((entry) => row(entry, model.trafficOpen === rowKey(entry), h))
+      )
+    ]
   )
 }

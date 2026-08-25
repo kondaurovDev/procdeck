@@ -64,8 +64,7 @@ const ANSI =
 // eslint-disable-next-line no-control-regex
 const CONTROLS = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g
 
-export const stripAnsi = (text: string): string =>
-  text.replace(ANSI, "").replace(CONTROLS, "")
+export const stripAnsi = (text: string): string => text.replace(ANSI, "").replace(CONTROLS, "")
 
 /** Byte budget per proc — same order as the chunk backlog's 256 KB. */
 const BUFFER_BYTES = 256 * 1024
@@ -118,14 +117,14 @@ export class LineBuffer {
       sinceSeq?: number | undefined
       sinceMs?: number | undefined
       untilMs?: number | undefined
-    } = {},
+    } = {}
   ): Array<LogLine> {
     const { sinceMs, sinceSeq, untilMs } = options
     return this.lines.filter(
       (line) =>
         (sinceSeq === undefined || line.seq >= sinceSeq) &&
         (sinceMs === undefined || line.ts >= sinceMs) &&
-        (untilMs === undefined || line.ts <= untilMs),
+        (untilMs === undefined || line.ts <= untilMs)
     )
   }
 }
@@ -135,10 +134,7 @@ export class LineBuffer {
  * tail. Throws on an invalid grep pattern or an unknown proc — callers turn
  * that into a 400 / a CLI failure.
  */
-export const queryLogs = (
-  buffers: Map<string, LineBuffer>,
-  query: LogsQuery,
-): LogsResult => {
+export const queryLogs = (buffers: Map<string, LineBuffer>, query: LogsQuery): LogsResult => {
   const ids = query.procs ?? [...buffers.keys()]
   const pattern = query.grep === undefined ? undefined : new RegExp(query.grep, "i")
 
@@ -151,7 +147,7 @@ export const queryLogs = (
     for (const line of buffer.slice({
       sinceSeq: query.sinceSeq?.[id],
       sinceMs: query.sinceMs,
-      untilMs: query.untilMs,
+      untilMs: query.untilMs
     })) {
       if (pattern === undefined || pattern.test(line.text)) {
         matched.push({ ...line, proc: id })

@@ -1,7 +1,7 @@
 # HTTP observability
 
 Dev apps are mostly HTTP apps. procdeck supervises the processes and shows
-their logs — but the *business data* flows as requests and responses between
+their logs — but the _business data_ flows as requests and responses between
 them, and today that is invisible unless someone printed it. The goal: see
 the traffic itself — "POST /orders returned 422 with this body" — for the
 agent (via the harness verbs) and for the human (a network view per pane).
@@ -10,11 +10,11 @@ buffers, marks, the CLI/MCP twin surfaces).
 
 ## Why not CDP (Chrome DevTools Protocol)
 
-CDP only sees the *browser's half* of the traffic: fetch/XHR from the page.
+CDP only sees the _browser's half_ of the traffic: fetch/XHR from the page.
 It misses server-to-server entirely (api → worker, backend → anything), needs
 a Chrome running with a debug port, and hands the agent what the human
 already has in DevTools. Not a foundation — at most a later add-on for
-watching what the page does with *third-party* domains.
+watching what the page does with _third-party_ domains.
 
 ## The insight: procdeck is already standing in the stream
 
@@ -26,7 +26,7 @@ Two interception points exist, one live and one latent:
    browser → service traffic for anyone using the stable pane addresses.
 2. **Assigned ports** (latent, the differentiator). procdeck already hands
    out `${port}` and procs address each other via `${port:api}`. So procdeck
-   can *interpose*: give the proc a hidden internal port, listen on the
+   can _interpose_: give the proc a hidden internal port, listen on the
    public assigned port itself, and forward — a transparent per-proc proxy
    with zero app changes. That exposes **all** traffic that flows through
    assigned ports, including server-to-server — the part CDP can never see.
@@ -82,7 +82,7 @@ than log lines: the actual status and body caused by the change.
 ## Surfaces
 
 - **CLI**: `procdeck http [proc] [--since-mark NAME] [--status 5xx|422]
-  [--path RE] [--body] [--json]` — bounded tail like `logs`, bodies only on
+[--path RE] [--body] [--json]` — bounded tail like `logs`, bodies only on
   request (token economy).
 - **Digest**: `procdeck http --digest` (or a separate verb) — 4xx/5xx
   grouped by route with counts, the `errors` analog for traffic.
@@ -104,7 +104,7 @@ than log lines: the actual status and body caused by the change.
   3000 itself). Port detection already knows who listens where, so the UI
   and `http` output can at least say "this port is not observed".
 - gRPC and binary WebSocket payloads — facts and sizes, not contents. (Text
-  WebSocket messages *are* captured — see above.)
+  WebSocket messages _are_ captured — see above.)
 
 ## Order of work
 
@@ -113,7 +113,7 @@ than log lines: the actual status and body caused by the change.
    via the shared capture-aware forwarding in `src/interpose.ts`;
    `GET /http` on the deck API queries them.
 2. ~~**Assigned-port interposition**~~ — shipped: observed procs (the
-   default for `${port}` users) get a port *pair* — the proc binds a hidden
+   default for `${port}` users) get a port _pair_ — the proc binds a hidden
    internal port, procdeck's observer listens on the public assigned one and
    forwards. `${port:x}` cross-references and `url` resolve to the public
    port, self-references in `shell`/`cmd`/`env` (and `PORT`) to the internal
@@ -121,7 +121,7 @@ than log lines: the actual status and body caused by the change.
    UI proxy forwards into the observer for interposed procs and records only
    for opted-out ones — every exchange counts exactly once.
 3. ~~**Agent surfaces**~~ — shipped: `procdeck http [proc] [--status 5xx]
-   [--path RE] [--since-mark] [--body] [--digest] [--json]`, the `get_http`
+[--path RE] [--since-mark] [--body] [--digest] [--json]`, the `get_http`
    MCP tool (with its own `since_last` cursor), marks carry `httpSeqs`
    alongside line seqs, `timeline` returns the window's exchanges too.
    Redaction on at capture time (auth/cookie headers never enter the ring);

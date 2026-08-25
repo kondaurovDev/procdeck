@@ -107,13 +107,22 @@ export const findInstructionsFile = (root: string): string | undefined => {
 export const appendSnippet = (file: string): "appended" | "already-there" => {
   const current = existsSync(file) ? readFileSync(file, "utf8") : ""
   if (current.includes(MARKER)) return "already-there"
-  const glue = current.length === 0 ? "" : current.endsWith("\n\n") ? "" : current.endsWith("\n") ? "\n" : "\n\n"
+  const glue =
+    current.length === 0
+      ? ""
+      : current.endsWith("\n\n")
+        ? ""
+        : current.endsWith("\n")
+          ? "\n"
+          : "\n\n"
   appendFileSync(file, `${glue}${SNIPPET}`)
   return "appended"
 }
 
 /** Write the Claude Code skill; an existing one is left alone. */
-export const writeSkill = (root: string): { outcome: "written" | "already-there"; file: string } => {
+export const writeSkill = (
+  root: string
+): { outcome: "written" | "already-there"; file: string } => {
   const dir = path.join(root, ".claude", "skills", "procdeck")
   const file = path.join(dir, "SKILL.md")
   if (existsSync(file)) return { outcome: "already-there", file }
@@ -133,13 +142,13 @@ export const setupAgents = (root: string): Array<string> => {
   actions.push(
     appended === "appended"
       ? `${path.basename(instructions)} — added a "## procdeck" section`
-      : `${path.basename(instructions)} — already has a "## procdeck" section, left as is`,
+      : `${path.basename(instructions)} — already has a "## procdeck" section, left as is`
   )
   const skill = writeSkill(root)
   actions.push(
     skill.outcome === "written"
       ? `.claude/skills/procdeck/SKILL.md — written (teaches the mark → act → since-mark loop)`
-      : `.claude/skills/procdeck/SKILL.md — already there, left as is`,
+      : `.claude/skills/procdeck/SKILL.md — already there, left as is`
   )
   return actions
 }

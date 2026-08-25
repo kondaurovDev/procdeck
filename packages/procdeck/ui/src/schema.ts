@@ -6,7 +6,14 @@ import { Schema as S } from "effect"
  * network boundary gets decoded, and because the Model is itself a Schema.
  */
 
-export const ProcState = S.Literals(["stopped", "waiting", "starting", "running", "exited", "blocked"])
+export const ProcState = S.Literals([
+  "stopped",
+  "waiting",
+  "starting",
+  "running",
+  "exited",
+  "blocked"
+])
 export type ProcState = typeof ProcState.Type
 
 export const ProcStatus = S.Struct({
@@ -20,7 +27,7 @@ export const ProcStatus = S.Struct({
   restarts: S.optionalKey(S.Number),
   ports: S.optionalKey(S.Array(S.Number)),
   hint: S.optionalKey(S.String),
-  alert: S.optionalKey(S.String),
+  alert: S.optionalKey(S.String)
 })
 export type ProcStatus = typeof ProcStatus.Type
 
@@ -30,7 +37,7 @@ export const ProcInfo = S.Struct({
   url: S.optionalKey(S.String),
   assignedPort: S.optionalKey(S.Number),
   proxyUrl: S.optionalKey(S.String),
-  status: ProcStatus,
+  status: ProcStatus
 })
 export type ProcInfo = typeof ProcInfo.Type
 
@@ -41,7 +48,7 @@ export type ProcInfo = typeof ProcInfo.Type
 export const ProcEvent = S.Union([
   S.Struct({ type: S.Literal("log"), id: S.String, data: S.String, seq: S.optionalKey(S.Number) }),
   S.Struct({ type: S.Literal("status"), status: ProcStatus }),
-  S.Struct({ type: S.Literal("synced") }),
+  S.Struct({ type: S.Literal("synced") })
 ])
 export type ProcEvent = typeof ProcEvent.Type
 
@@ -51,7 +58,7 @@ export const DeckInfo = S.Struct({
   /** Project root — shown in the shutdown banner ("procdeck up in …"). */
   root: S.optionalKey(S.String),
   port: S.optionalKey(S.Number),
-  version: S.optionalKey(S.String),
+  version: S.optionalKey(S.String)
 })
 export type DeckInfo = typeof DeckInfo.Type
 
@@ -62,7 +69,7 @@ export const InstanceInfo = S.Struct({
   port: S.Number,
   startedAt: S.Number,
   version: S.optionalKey(S.String),
-  self: S.Boolean,
+  self: S.Boolean
 })
 export type InstanceInfo = typeof InstanceInfo.Type
 
@@ -92,7 +99,7 @@ export const TrafficEntry = S.Struct({
   dir: S.optionalKey(S.Literals(["in", "out"])),
   opcode: S.optionalKey(S.String),
   size: S.optionalKey(S.Number),
-  text: S.optionalKey(S.String),
+  text: S.optionalKey(S.String)
 })
 export type TrafficEntry = typeof TrafficEntry.Type
 
@@ -100,7 +107,7 @@ export type TrafficEntry = typeof TrafficEntry.Type
 export const TrafficResult = S.Struct({
   exchanges: S.Array(TrafficEntry),
   nextSeq: S.Record(S.String, S.Number),
-  omitted: S.Number,
+  omitted: S.Number
 })
 export type TrafficResult = typeof TrafficResult.Type
 

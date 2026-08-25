@@ -16,7 +16,7 @@ import {
   ToggledNotifications,
   ToggledPin,
   ToggledSwitcher,
-  ZoomedProc,
+  ZoomedProc
 } from "./message.ts"
 import { attentionCount, gridIds } from "./model.ts"
 import type { Layout, Model, Theme } from "./model.ts"
@@ -30,8 +30,7 @@ import { trafficView } from "./traffic.ts"
  * workerd control ports (macOS ephemeral range starts at 49152) — real dev
  * servers live below both.
  */
-const isInternalPort = (port: number): boolean =>
-  port >= 49152 || (port >= 9229 && port <= 9249)
+const isInternalPort = (port: number): boolean => port >= 49152 || (port >= 9229 && port <= 9249)
 
 /**
  * Ports worth surfacing: the assigned one (even before the process binds it)
@@ -41,8 +40,8 @@ const usefulPorts = (info: ProcInfo): Array<number> =>
   [
     ...new Set([
       ...(info.assignedPort === undefined ? [] : [info.assignedPort]),
-      ...(info.status.ports ?? []).filter((port) => !isInternalPort(port)),
-    ]),
+      ...(info.status.ports ?? []).filter((port) => !isInternalPort(port))
+    ])
   ].sort((a, b) => a - b)
 
 /** Machinery ports — minus the assigned one, which is useful whatever its number. */
@@ -96,9 +95,9 @@ const badges = (info: ProcInfo, unread: number, h: HtmlBuilder<Message>): Array<
     : [
         h.span(
           [h.Class("badge err"), h.Title("errors in the log since you last looked")],
-          [unread > 99 ? "99+" : String(unread)],
-        ),
-      ]),
+          [unread > 99 ? "99+" : String(unread)]
+        )
+      ])
 ]
 
 /**
@@ -112,9 +111,9 @@ const pinButton = (id: string, pinned: boolean, h: HtmlBuilder<Message>): Html =
     [
       h.Class(pinned ? "pin on" : "pin"),
       h.Title(pinned ? "unpin from grid (⌥P)" : "pin to grid (⌥P)"),
-      h.OnClick(ToggledPin({ id })),
+      h.OnClick(ToggledPin({ id }))
     ],
-    ["📌"],
+    ["📌"]
   )
 
 const procRow = (
@@ -123,7 +122,7 @@ const procRow = (
   pinned: boolean,
   unread: number,
   now: number,
-  h: HtmlBuilder<Message>,
+  h: HtmlBuilder<Message>
 ): Html => {
   const ports = usefulPorts(info)
   // Right-aligned tail of the row: uptime while running, how it ended once exited.
@@ -134,7 +133,7 @@ const procRow = (
         ? `${describeExit(info.status)}${describeExitedAgo(info.status, now)}`
         : undefined
   const sub: Array<Html> = ports.map((port) =>
-    h.a([h.Href(portHref(info, port)), h.Target("_blank"), h.Class("port")], [`:${port}`]),
+    h.a([h.Href(portHref(info, port)), h.Target("_blank"), h.Class("port")], [`:${port}`])
   )
   if (tail !== undefined) {
     sub.push(h.span([h.Class(info.status.state === "exited" ? "up exit" : "up")], [tail]))
@@ -144,7 +143,7 @@ const procRow = (
     [
       h.Key(info.id),
       h.Class(isActive ? "proc active" : "proc"),
-      h.OnClick(ClickedProc({ id: info.id })),
+      h.OnClick(ClickedProc({ id: info.id }))
     ],
     [
       h.span([h.Class(`dot ${info.status.state}`)], []),
@@ -153,13 +152,13 @@ const procRow = (
         [
           h.div(
             [h.Class("name")],
-            [info.id, ...badges(info, unread, h), pinButton(info.id, pinned, h)],
+            [info.id, ...badges(info, unread, h), pinButton(info.id, pinned, h)]
           ),
           h.div([h.Class("cmd")], [info.command]),
-          ...(sub.length === 0 ? [] : [h.div([h.Class("sub")], sub)]),
-        ],
-      ),
-    ],
+          ...(sub.length === 0 ? [] : [h.div([h.Class("sub")], sub)])
+        ]
+      )
+    ]
   )
 }
 
@@ -174,16 +173,13 @@ const paneActions = (info: ProcInfo, pinned: boolean, h: HtmlBuilder<Message>): 
     [h.Class("pane-actions")],
     [
       pinButton(info.id, pinned, h),
-      h.button(
-        [h.Disabled(!busy), h.Title("restart (⌥R)"), h.OnClick(action("restart"))],
-        ["↻"],
-      ),
+      h.button([h.Disabled(!busy), h.Title("restart (⌥R)"), h.OnClick(action("restart"))], ["↻"]),
       // For "waiting" Stop means "cancel waiting for deps" — keep it enabled.
       idle
         ? h.button([h.Title("start (⌥S)"), h.OnClick(action("start"))], ["▶"])
         : h.button([h.Title("stop (⌥S)"), h.OnClick(action("stop"))], ["■"]),
-      h.button([h.Title("clear (⌘K)"), h.OnClick(action("clear"))], ["⌫"]),
-    ],
+      h.button([h.Title("clear (⌘K)"), h.OnClick(action("clear"))], ["⌫"])
+    ]
   )
 }
 
@@ -206,7 +202,7 @@ const tile = (info: ProcInfo, model: Model, h: HtmlBuilder<Message>): Html => {
       h.Key(info.id),
       h.Class(isActive ? "tile active" : "tile"),
       h.Hidden(!shown),
-      h.OnClick(ClickedProc({ id: info.id })),
+      h.OnClick(ClickedProc({ id: info.id }))
     ],
     [
       // Double-click zooms only from the header: inside xterm it selects a word.
@@ -214,7 +210,7 @@ const tile = (info: ProcInfo, model: Model, h: HtmlBuilder<Message>): Html => {
         [
           h.Class("tile-head"),
           h.Title(model.layout === "grid" ? "double-click to zoom" : ""),
-          h.OnDoubleClick(ZoomedProc({ id: info.id })),
+          h.OnDoubleClick(ZoomedProc({ id: info.id }))
         ],
         [
           h.span([h.Class(`dot ${info.status.state}`)], []),
@@ -223,13 +219,13 @@ const tile = (info: ProcInfo, model: Model, h: HtmlBuilder<Message>): Html => {
           // Lowest priority for space in the header: ellipsised, full text on hover.
           h.span(
             [h.Class("meta"), h.Title(describeStatus(info.status, model.now))],
-            [describeStatus(info.status, model.now)],
+            [describeStatus(info.status, model.now)]
           ),
-          paneActions(info, model.pinned.includes(info.id), h),
-        ],
+          paneActions(info, model.pinned.includes(info.id), h)
+        ]
       ),
-      h.div([h.Class("term"), h.OnMount(MountTerminal({ id: info.id }))], []),
-    ],
+      h.div([h.Class("term"), h.OnMount(MountTerminal({ id: info.id }))], [])
+    ]
   )
 }
 
@@ -256,18 +252,18 @@ const tray = (model: Model, h: HtmlBuilder<Message>): Array<Html> => {
               [
                 h.Class(info.id === model.active ? "peek active" : "peek"),
                 h.Title("peek: show only this pane"),
-                h.OnClick(ZoomedProc({ id: info.id })),
+                h.OnClick(ZoomedProc({ id: info.id }))
               ],
               [
                 h.span([h.Class(`dot ${info.status.state}`)], []),
-                h.span([h.Class("name")], [info.id, ...badges(info, model.unread[info.id] ?? 0, h)]),
-              ],
+                h.span([h.Class("name")], [info.id, ...badges(info, model.unread[info.id] ?? 0, h)])
+              ]
             ),
-            pinButton(info.id, false, h),
-          ],
-        ),
-      ),
-    ),
+            pinButton(info.id, false, h)
+          ]
+        )
+      )
+    )
   ]
 }
 
@@ -277,7 +273,7 @@ const gridColumns = (n: number): number => Math.max(1, Math.min(4, Math.ceil(Mat
 const LAYOUT_OPTIONS: ReadonlyArray<{ layout: Layout; label: string; hint: string }> = [
   { layout: "single", label: "▣", hint: "single pane" },
   { layout: "grid", label: "⊞", hint: "grid — all panes tiled" },
-  { layout: "http", label: "⇄", hint: "traffic — captured HTTP and WebSocket" },
+  { layout: "http", label: "⇄", hint: "traffic — captured HTTP and WebSocket" }
 ]
 
 const layoutSwitch = (model: Model, h: HtmlBuilder<Message>): Html =>
@@ -288,17 +284,17 @@ const layoutSwitch = (model: Model, h: HtmlBuilder<Message>): Html =>
         [
           h.Class(model.layout === layout ? "on" : ""),
           h.Title(`${hint} (⌥G)`),
-          h.OnClick(ChoseLayout({ layout })),
+          h.OnClick(ChoseLayout({ layout }))
         ],
-        [label],
-      ),
-    ),
+        [label]
+      )
+    )
   )
 
 const THEME_OPTIONS: ReadonlyArray<{ theme: Theme; label: string; hint: string }> = [
   { theme: "system", label: "◐", hint: "follow the OS" },
   { theme: "light", label: "☀", hint: "light" },
-  { theme: "dark", label: "☾", hint: "dark" },
+  { theme: "dark", label: "☾", hint: "dark" }
 ]
 
 const themeSwitch = (model: Model, h: HtmlBuilder<Message>): Html =>
@@ -309,11 +305,11 @@ const themeSwitch = (model: Model, h: HtmlBuilder<Message>): Html =>
         [
           h.Class(model.theme === theme ? "on" : ""),
           h.Title(`theme: ${hint}`),
-          h.OnClick(ChoseTheme({ theme })),
+          h.OnClick(ChoseTheme({ theme }))
         ],
-        [label],
-      ),
-    ),
+        [label]
+      )
+    )
   )
 
 /**
@@ -336,15 +332,21 @@ const paneLinks = (info: ProcInfo, compact: boolean, h: HtmlBuilder<Message>): A
   const links: Array<Html> = []
   const link = (href: string, label: string, title?: string) =>
     h.a(
-      [h.Href(href), h.Target("_blank"), h.Class("port"), ...(title === undefined ? [] : [h.Title(title)])],
-      [label],
+      [
+        h.Href(href),
+        h.Target("_blank"),
+        h.Class("port"),
+        ...(title === undefined ? [] : [h.Title(title)])
+      ],
+      [label]
     )
   const ports = usefulPorts(info)
   const primary = primaryUrl(info)
   if (compact) {
     const portList = ports.map((port) => `:${port}`).join("  ")
     if (primary !== undefined) links.push(link(primary, bareUrl(primary), portList || undefined))
-    else if (ports[0] !== undefined) links.push(link(portHref(info, ports[0]), `:${ports[0]}`, portList))
+    else if (ports[0] !== undefined)
+      links.push(link(portHref(info, ports[0]), `:${ports[0]}`, portList))
     return links
   }
   // The primary address first; the raw ports stay available as chips for
@@ -359,8 +361,8 @@ const paneLinks = (info: ProcInfo, compact: boolean, h: HtmlBuilder<Message>): A
     links.push(
       h.span(
         [h.Class("links-more"), h.Title(internal.map((port) => `:${port}`).join("  "))],
-        [`+${internal.length} internal`],
-      ),
+        [`+${internal.length} internal`]
+      )
     )
   }
   return links
@@ -372,7 +374,7 @@ const paneLinks = (info: ProcInfo, compact: boolean, h: HtmlBuilder<Message>): A
  */
 const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
   const anyBusy = model.procs.some(
-    (info) => info.status.state !== "stopped" && info.status.state !== "exited",
+    (info) => info.status.state !== "stopped" && info.status.state !== "exited"
   )
   return h.header(
     [],
@@ -383,24 +385,22 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
       ...(model.search === undefined
         ? []
         : [
-            h.input(
-              [
-                h.Class("search"),
-                h.Type("text"),
-                h.Value(model.search),
-                h.Placeholder("find…"),
-                h.Title("Enter next · ⇧Enter prev · Esc close"),
-                h.Autofocus(true),
-                h.OnInput((query) => ChangedSearch({ query })),
-                h.OnKeyDownPreventDefault((key, modifiers) =>
-                  key === "Enter"
-                    ? O.some(SteppedSearch({ backwards: modifiers.shiftKey }))
-                    : key === "Escape"
-                      ? O.some(ClosedSearch())
-                      : O.none(),
-                ),
-              ],
-            ),
+            h.input([
+              h.Class("search"),
+              h.Type("text"),
+              h.Value(model.search),
+              h.Placeholder("find…"),
+              h.Title("Enter next · ⇧Enter prev · Esc close"),
+              h.Autofocus(true),
+              h.OnInput((query) => ChangedSearch({ query })),
+              h.OnKeyDownPreventDefault((key, modifiers) =>
+                key === "Enter"
+                  ? O.some(SteppedSearch({ backwards: modifiers.shiftKey }))
+                  : key === "Escape"
+                    ? O.some(ClosedSearch())
+                    : O.none()
+              )
+            ])
           ]),
       ...(model.error === undefined ? [] : [h.span([h.Class("meta error")], [model.error])]),
       h.span(
@@ -414,36 +414,38 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
                   [
                     h.Class("install"),
                     h.Title("install procdeck as an app: own window, Dock icon"),
-                    h.OnClick(ClickedInstall()),
+                    h.OnClick(ClickedInstall())
                   ],
-                  ["⤓ install"],
-                ),
+                  ["⤓ install"]
+                )
               ]
             : []),
           h.button(
             [
               h.Disabled(model.procs.length === 0),
               h.Title("restart every proc (stopped ones start)"),
-              h.OnClick(ClickedRestartAll()),
+              h.OnClick(ClickedRestartAll())
             ],
-            ["↻ all"],
+            ["↻ all"]
           ),
           h.button(
             [h.Disabled(!anyBusy), h.Title("stop every proc"), h.OnClick(ClickedStopAll())],
-            ["■ all"],
+            ["■ all"]
           ),
           h.button(
             [
               h.Class("shutdown"),
               h.Disabled(model.shutdown),
-              h.Title("shut down procdeck: every proc is terminated (`procdeck up` brings it back)"),
-              h.OnClick(ClickedShutdown()),
+              h.Title(
+                "shut down procdeck: every proc is terminated (`procdeck up` brings it back)"
+              ),
+              h.OnClick(ClickedShutdown())
             ],
-            ["⏻"],
-          ),
-        ],
-      ),
-    ],
+            ["⏻"]
+          )
+        ]
+      )
+    ]
   )
 }
 
@@ -462,9 +464,9 @@ const deckSwitcher = (model: Model, name: string, h: HtmlBuilder<Message>): Html
         [
           h.Class("deck-name"),
           h.Title("other decks running on this machine"),
-          h.OnClick(ToggledSwitcher()),
+          h.OnClick(ToggledSwitcher())
         ],
-        [name, h.span([h.Class("caret")], ["▾"])],
+        [name, h.span([h.Class("caret")], ["▾"])]
       ),
       ...(open
         ? [
@@ -475,33 +477,33 @@ const deckSwitcher = (model: Model, name: string, h: HtmlBuilder<Message>): Html
                   ? [
                       h.span(
                         [h.Class("meta")],
-                        ["no other decks are up — `procdeck up` in another project adds it here"],
-                      ),
+                        ["no other decks are up — `procdeck up` in another project adds it here"]
+                      )
                     ]
                   : others.map((instance) =>
                       h.a(
                         [
                           h.Href(`http://localhost:${instance.port}`),
                           h.Title(
-                            `${instance.root} · up ${formatUptime(model.now - instance.startedAt)}${instance.version === undefined ? "" : ` · procdeck v${instance.version}`}`,
-                          ),
+                            `${instance.root} · up ${formatUptime(model.now - instance.startedAt)}${instance.version === undefined ? "" : ` · procdeck v${instance.version}`}`
+                          )
                         ],
                         [
                           h.span([h.Class("name")], [instance.name]),
-                          h.span([h.Class("meta")], [`:${instance.port}`]),
-                        ],
-                      ),
+                          h.span([h.Class("meta")], [`:${instance.port}`])
+                        ]
+                      )
                     )),
                 // This deck's own procdeck version — the answer to "which
                 // version is this deck actually running?" after an update.
                 ...(model.deck?.version === undefined
                   ? []
-                  : [h.span([h.Class("meta version")], [`procdeck v${model.deck.version}`])]),
-              ],
-            ),
+                  : [h.span([h.Class("meta version")], [`procdeck v${model.deck.version}`])])
+              ]
+            )
           ]
-        : []),
-    ],
+        : [])
+    ]
   )
 }
 
@@ -530,10 +532,10 @@ const notifyBell = (model: Model, h: HtmlBuilder<Message>): Array<Html> => {
       [
         h.Class(denied ? "bell denied" : model.notifications ? "bell on" : "bell"),
         h.Title(hint),
-        h.OnClick(ToggledNotifications()),
+        h.OnClick(ToggledNotifications())
       ],
-      [denied ? "🔕" : "🔔"],
-    ),
+      [denied ? "🔕" : "🔔"]
+    )
   ]
 }
 
@@ -552,9 +554,9 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
               [
                 model.shutdown
                   ? `procdeck is shut down — \`procdeck up\`${model.deck?.root === undefined ? "" : ` in ${model.deck.root}`} brings it back; this page reconnects by itself`
-                  : "reconnecting to procdeck…",
-              ],
-            ),
+                  : "reconnecting to procdeck…"
+              ]
+            )
           ]
         : []),
       h.aside(
@@ -569,17 +571,17 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
                 model.pinned.includes(info.id),
                 model.unread[info.id] ?? 0,
                 model.now,
-                h,
-              ),
-            ),
+                h
+              )
+            )
           ),
           h.div(
             [h.Class("hints")],
             [
-              "⌥↑↓ switch · ⌥R restart · ⌥S stop/start · ⌥G layout · ⌥Z zoom · ⌥P pin · ⌘K clear · ⌘F find",
-            ],
-          ),
-        ],
+              "⌥↑↓ switch · ⌥R restart · ⌥S stop/start · ⌥G layout · ⌥Z zoom · ⌥P pin · ⌘K clear · ⌘F find"
+            ]
+          )
+        ]
       ),
       h.main(
         [],
@@ -589,14 +591,14 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
           h.div(
             [
               h.Class(`terminals ${model.layout} cols-${gridColumns(gridIds(model).length)}`),
-              h.Hidden(model.layout === "http"),
+              h.Hidden(model.layout === "http")
             ],
-            model.procs.map((info) => tile(info, model, h)),
+            model.procs.map((info) => tile(info, model, h))
           ),
           ...tray(model, h),
-          ...(model.layout === "http" ? [trafficView(model, h)] : []),
-        ],
-      ),
-    ],
-  ),
+          ...(model.layout === "http" ? [trafficView(model, h)] : [])
+        ]
+      )
+    ]
+  )
 })

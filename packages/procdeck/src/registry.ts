@@ -7,7 +7,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
-  writeFileSync,
+  writeFileSync
 } from "node:fs"
 import { homedir } from "node:os"
 import * as path from "node:path"

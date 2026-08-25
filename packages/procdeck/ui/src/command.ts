@@ -8,7 +8,7 @@ import {
   GotInstances,
   GotProcs,
   GotTraffic,
-  ShutDown,
+  ShutDown
 } from "./message.ts"
 import { Scheme, Theme } from "./model.ts"
 import { registry } from "./terminal.ts"
@@ -19,19 +19,19 @@ const postJson = (path: string, body: unknown) =>
     fetch(`${API}${path}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    }),
+      body: JSON.stringify(body)
+    })
   )
 
 export const FetchProcs = Command.define("FetchProcs", {
   messages: [GotProcs, FailedFetchProcs],
   execute: Effect.gen(function* () {
     const raw = yield* Effect.tryPromise(() =>
-      fetch(`${API}/procs`).then((response) => response.json()),
+      fetch(`${API}/procs`).then((response) => response.json())
     )
     const procs = yield* S.decodeUnknownEffect(S.Array(ProcInfo))(raw)
     return GotProcs({ procs })
-  }).pipe(Effect.catch((error) => Effect.succeed(FailedFetchProcs({ error: String(error) })))),
+  }).pipe(Effect.catch((error) => Effect.succeed(FailedFetchProcs({ error: String(error) }))))
 })
 
 /** Deck name for the tab title. Failure is cosmetic — the UI keeps "procdeck". */
@@ -39,11 +39,11 @@ export const FetchDeck = Command.define("FetchDeck", {
   messages: [GotDeck, CompletedRequest],
   execute: Effect.gen(function* () {
     const raw = yield* Effect.tryPromise(() =>
-      fetch(`${API}/deck`).then((response) => response.json()),
+      fetch(`${API}/deck`).then((response) => response.json())
     )
     const deck = yield* S.decodeUnknownEffect(DeckInfo)(raw)
     return GotDeck({ deck })
-  }).pipe(Effect.catch(() => Effect.succeed(CompletedRequest()))),
+  }).pipe(Effect.catch(() => Effect.succeed(CompletedRequest())))
 })
 
 /**
@@ -61,11 +61,11 @@ export const FetchTraffic = Command.define("FetchTraffic", {
         params.set("sinceSeq", JSON.stringify(sinceSeq))
       }
       const raw = yield* Effect.tryPromise(() =>
-        fetch(`${API}/http?${params}`).then((response) => response.json()),
+        fetch(`${API}/http?${params}`).then((response) => response.json())
       )
       const result = yield* S.decodeUnknownEffect(TrafficResult)(raw)
       return GotTraffic({ entries: result.exchanges, nextSeq: result.nextSeq })
-    }).pipe(Effect.catch(() => Effect.succeed(CompletedRequest()))),
+    }).pipe(Effect.catch(() => Effect.succeed(CompletedRequest())))
 })
 
 /** The registry, for the deck switcher. Failure just leaves the list empty. */
@@ -73,11 +73,11 @@ export const FetchInstances = Command.define("FetchInstances", {
   messages: [GotInstances],
   execute: Effect.gen(function* () {
     const raw = yield* Effect.tryPromise(() =>
-      fetch(`${API}/instances`).then((response) => response.json()),
+      fetch(`${API}/instances`).then((response) => response.json())
     )
     const instances = yield* S.decodeUnknownEffect(S.Array(InstanceInfo))(raw)
     return GotInstances({ instances })
-  }).pipe(Effect.catch(() => Effect.succeed(GotInstances({ instances: [] })))),
+  }).pipe(Effect.catch(() => Effect.succeed(GotInstances({ instances: [] }))))
 })
 
 /**
@@ -90,13 +90,13 @@ export const Shutdown = Command.define("Shutdown", {
   execute: Effect.gen(function* () {
     const sure = yield* Effect.sync(() =>
       window.confirm(
-        "Shut down procdeck? Every proc is terminated. Run `procdeck up` to bring the deck back.",
-      ),
+        "Shut down procdeck? Every proc is terminated. Run `procdeck up` to bring the deck back."
+      )
     )
     if (!sure) return CompletedRequest()
     yield* postJson("/shutdown", {})
     return ShutDown()
-  }).pipe(Effect.catch(() => Effect.succeed(CompletedRequest()))),
+  }).pipe(Effect.catch(() => Effect.succeed(CompletedRequest())))
 })
 
 export const PostAction = Command.define("PostAction", {
@@ -105,8 +105,8 @@ export const PostAction = Command.define("PostAction", {
   execute: ({ id, action }) =>
     postJson(`/procs/${encodeURIComponent(id)}/${action}`, {}).pipe(
       Effect.as(CompletedRequest()),
-      Effect.catch(() => Effect.succeed(CompletedRequest())),
-    ),
+      Effect.catch(() => Effect.succeed(CompletedRequest()))
+    )
 })
 
 export const PostInput = Command.define("PostInput", {
@@ -115,8 +115,8 @@ export const PostInput = Command.define("PostInput", {
   execute: ({ id, data }) =>
     postJson(`/procs/${encodeURIComponent(id)}/input`, { data }).pipe(
       Effect.as(CompletedRequest()),
-      Effect.catch(() => Effect.succeed(CompletedRequest())),
-    ),
+      Effect.catch(() => Effect.succeed(CompletedRequest()))
+    )
 })
 
 /** Write a PTY chunk into the pane's xterm instance. */
@@ -127,7 +127,7 @@ export const WriteTerminal = Command.define("WriteTerminal", {
     Effect.sync(() => {
       registry.get(id)?.term.write(data)
       return CompletedRequest()
-    }),
+    })
 })
 
 /**
@@ -142,7 +142,7 @@ export const ResetTerminal = Command.define("ResetTerminal", {
     Effect.sync(() => {
       registry.get(id)?.term.reset()
       return CompletedRequest()
-    }),
+    })
 })
 
 /** Wipe the pane's screen and scrollback (the shell keeps running). */
@@ -153,7 +153,7 @@ export const ClearTerminal = Command.define("ClearTerminal", {
     Effect.sync(() => {
       registry.get(id)?.term.clear()
       return CompletedRequest()
-    }),
+    })
 })
 
 /** Drive the xterm search addon: live-narrowing while typing, stepping on Enter. */
@@ -168,7 +168,7 @@ export const FindInTerminal = Command.define("FindInTerminal", {
       else if (mode === "previous") entry.search.findPrevious(query)
       else entry.search.findNext(query, { incremental: mode === "incremental" })
       return CompletedRequest()
-    }),
+    })
 })
 
 /** Drop the search highlight and hand the keyboard back to the terminal. */
@@ -183,7 +183,7 @@ export const EndSearch = Command.define("EndSearch", {
         entry.term.focus()
       }
       return CompletedRequest()
-    }),
+    })
 })
 
 /**
@@ -193,15 +193,15 @@ export const EndSearch = Command.define("EndSearch", {
 export const FocusSearch = Command.define("FocusSearch", {
   messages: [CompletedRequest],
   execute: Effect.promise(
-    () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
   ).pipe(
     Effect.map(() => {
       const input = document.querySelector<HTMLInputElement>("input.search")
       input?.focus()
       input?.select()
       return CompletedRequest()
-    }),
-  ),
+    })
+  )
 })
 
 /**
@@ -222,11 +222,11 @@ export const ApplyTheme = Command.define("ApplyTheme", {
         ?.setAttribute("content", THEME_COLOR[scheme])
       for (const entry of registry.values()) entry.term.options.theme = xtermTheme(scheme)
       return CompletedRequest()
-    }),
+    })
 })
 
 const nextFrame = Effect.promise(
-  () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+  () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 )
 
 /**
@@ -249,10 +249,10 @@ export const FitTerminals = Command.define("FitTerminals", {
         entry.fit.fit()
         yield* postJson(`/procs/${encodeURIComponent(id)}/resize`, {
           cols: entry.term.cols,
-          rows: entry.term.rows,
+          rows: entry.term.rows
         }).pipe(Effect.catch(() => Effect.succeed(undefined)))
       }
       if (focus !== undefined) registry.get(focus)?.term.focus()
       return CompletedRequest()
-    }),
+    })
 })

@@ -700,7 +700,10 @@ button.pin.on {
 .traffic-empty {
   padding: 24px;
   color: var(--muted);
-  font: 13px/1.6 ui-sans-serif, system-ui, sans-serif;
+  font:
+    13px/1.6 ui-sans-serif,
+    system-ui,
+    sans-serif;
   max-width: 60ch;
 }
 .traffic-row {
@@ -757,7 +760,10 @@ button.pin.on {
 }
 .traffic-detail .detail-label {
   color: var(--muted);
-  font: 11px/2 ui-sans-serif, system-ui, sans-serif;
+  font:
+    11px/2 ui-sans-serif,
+    system-ui,
+    sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }

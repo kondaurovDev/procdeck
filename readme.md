@@ -179,28 +179,29 @@ export default defineConfig({
   port: 4820, // UI + proxy port
   procs: [
     {
-      id: "api",                        // pane name and the proxy subdomain
-      shell: "pnpm --filter api dev",   // or cmd: ["node", "server.js"]
-      env: { PORT: "${port}" },         // ask procdeck for a free port
-      preflight: {                      // gate: must pass before spawning
+      id: "api", // pane name and the proxy subdomain
+      shell: "pnpm --filter api dev", // or cmd: ["node", "server.js"]
+      env: { PORT: "${port}" }, // ask procdeck for a free port
+      preflight: {
+        // gate: must pass before spawning
         shell: "wrangler whoami",
         expect: "You are logged in",
-        hint: "run `wrangler login`, then Start",
+        hint: "run `wrangler login`, then Start"
       },
-      alerts: [{ pattern: "ERROR", label: "check me" }],
+      alerts: [{ pattern: "ERROR", label: "check me" }]
     },
     {
       id: "web",
       shell: "pnpm --filter web dev",
       env: { PORT: "${port}", API_URL: "http://localhost:${port:api}" },
-      needs: ["api"],                   // wait until api is listening
+      needs: ["api"] // wait until api is listening
     },
     {
       id: "worker",
       shell: "node worker.js",
-      readyWhen: "started",             // never listens; running = ready
-    },
-  ],
+      readyWhen: "started" // never listens; running = ready
+    }
+  ]
 })
 ```
 
@@ -220,23 +221,23 @@ Tips:
 
 ## How it fits together
 
-| Path                    | What                                                                                                  |
-| ----------------------- | ----------------------------------------------------------------------------------------------------- |
-| `packages/procdeck/src` | The server: plain-Node PTY layer, Effect supervisor, HTTP/SSE server with the reverse proxy.          |
-| `packages/procdeck/ui`  | [Foldkit](https://foldkit.dev) (Elm-on-Effect) app; built by vite, served statically by the server.   |
-| `example/`              | Self-contained demo stack (Node one-liners) exercising every feature.                                 |
+| Path                    | What                                                                                                |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| `packages/procdeck/src` | The server: plain-Node PTY layer, Effect supervisor, HTTP/SSE server with the reverse proxy.        |
+| `packages/procdeck/ui`  | [Foldkit](https://foldkit.dev) (Elm-on-Effect) app; built by vite, served statically by the server. |
+| `example/`              | Self-contained demo stack (Node one-liners) exercising every feature.                               |
 
-| File            | What                                                                                                 |
-| --------------- | ---------------------------------------------------------------------------------------------------- |
-| `proc.ts`       | Plain Node: PTY spawn, process-group kill, SIGTERM → SIGKILL escalation.                             |
-| `config.ts`     | Effect `Schema` for the config, `${port}` templating, loader.                                        |
-| `supervisor.ts` | Effect layer: scoped lifecycle, port assignment, `PubSub` fan-out, per-proc state.                   |
-| `ports.ts`      | Free-port allocation and `pgrep`+`lsof` listening-port discovery.                                    |
+| File            | What                                                                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `proc.ts`       | Plain Node: PTY spawn, process-group kill, SIGTERM → SIGKILL escalation.                                                                                      |
+| `config.ts`     | Effect `Schema` for the config, `${port}` templating, loader.                                                                                                 |
+| `supervisor.ts` | Effect layer: scoped lifecycle, port assignment, `PubSub` fan-out, per-proc state.                                                                            |
+| `ports.ts`      | Free-port allocation and `pgrep`+`lsof` listening-port discovery.                                                                                             |
 | `server.ts`     | `effect/unstable/http` router behind a small Node↔web-handler bridge; SSE downstream, POST upstream; `Host`-routed reverse proxy with WebSocket pass-through. |
-| `registry.ts`   | `~/.procdeck/instances/<id>.json` per running deck: how `down`/`ls`/the deck switcher find decks.     |
-| `lifecycle.ts`  | Detaching (`up` re-spawns itself as `up --fg` and waits for the registry entry), `down`, port probe.   |
-| `init.ts`       | `procdeck init`: workspace scan → a first config (one proc per package with a dev script).            |
-| `cli.ts`        | `effect/unstable/cli` commands; `up --fg` is the server, everything else talks to the registry/API.    |
+| `registry.ts`   | `~/.procdeck/instances/<id>.json` per running deck: how `down`/`ls`/the deck switcher find decks.                                                             |
+| `lifecycle.ts`  | Detaching (`up` re-spawns itself as `up --fg` and waits for the registry entry), `down`, port probe.                                                          |
+| `init.ts`       | `procdeck init`: workspace scan → a first config (one proc per package with a dev script).                                                                    |
+| `cli.ts`        | `effect/unstable/cli` commands; `up --fg` is the server, everything else talks to the registry/API.                                                           |
 
 Design notes worth keeping:
 
@@ -252,7 +253,7 @@ Design notes worth keeping:
   itself.
 - **Per-proc backlog, one stream per subscriber.** Each proc keeps its last 256 KB of
   output; a subscriber (an SSE connection) gets every proc's backlog and status, a
-  `synced` marker, then live events from a `PubSub` it subscribed to *before* the
+  `synced` marker, then live events from a `PubSub` it subscribed to _before_ the
   snapshot — no gap, and a per-proc chunk counter cuts the duplicate at the seam. A
   tab opened on a deck that has run for days still shows every pane's history, and
   the UI knows exactly which chunks are news (unread tallies, notifications).

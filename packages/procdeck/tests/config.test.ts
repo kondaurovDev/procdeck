@@ -7,7 +7,7 @@ import {
   loadConfig,
   ProcdeckConfigSchema,
   resolveSpec,
-  usesOwnPort,
+  usesOwnPort
 } from "../src/config.ts"
 
 const decode = Schema.decodeUnknownSync(ProcdeckConfigSchema)
@@ -18,8 +18,8 @@ describe("config schema", () => {
       port: 4820,
       procs: [
         { id: "web", shell: "pnpm dev", url: "http://localhost:2025" },
-        { id: "api", cmd: ["node", "server.js"], autostart: false, env: { DEBUG: "1" } },
-      ],
+        { id: "api", cmd: ["node", "server.js"], autostart: false, env: { DEBUG: "1" } }
+      ]
     })
     expect(config.procs).toHaveLength(2)
     expect(config.procs[1]!.autostart).toBe(false)
@@ -39,7 +39,7 @@ describe("config schema", () => {
 
   test("rejects unknown needs targets", () => {
     expect(() => decode({ procs: [{ id: "a", shell: "x", needs: ["ghost"] }] })).toThrow(
-      /unknown proc/,
+      /unknown proc/
     )
   })
 
@@ -48,9 +48,9 @@ describe("config schema", () => {
       decode({
         procs: [
           { id: "a", shell: "x", needs: ["b"] },
-          { id: "b", shell: "x", needs: ["a"] },
-        ],
-      }),
+          { id: "b", shell: "x", needs: ["a"] }
+        ]
+      })
     ).toThrow(/cycle/)
   })
 
@@ -59,9 +59,9 @@ describe("config schema", () => {
       decode({
         procs: [
           { id: "a", shell: "x" },
-          { id: "a", shell: "y" },
-        ],
-      }),
+          { id: "a", shell: "y" }
+        ]
+      })
     ).toThrow(/duplicate/)
   })
 
@@ -72,9 +72,9 @@ describe("config schema", () => {
           id: "api",
           shell: "pnpm dev",
           preflight: { shell: "wrangler whoami", hint: "run pnpm cloudflare:login" },
-          alerts: [{ pattern: "Opening a link", label: "needs login" }],
-        },
-      ],
+          alerts: [{ pattern: "Opening a link", label: "needs login" }]
+        }
+      ]
     })
     expect(config.procs[0]!.preflight?.hint).toBe("run pnpm cloudflare:login")
     expect(config.procs[0]!.alerts).toHaveLength(1)
@@ -82,7 +82,7 @@ describe("config schema", () => {
 
   test("rejects an alert with an invalid regex", () => {
     expect(() =>
-      decode({ procs: [{ id: "x", shell: "x", alerts: [{ pattern: "(", label: "bad" }] }] }),
+      decode({ procs: [{ id: "x", shell: "x", alerts: [{ pattern: "(", label: "bad" }] }] })
     ).toThrow()
   })
 
@@ -96,17 +96,17 @@ describe("config schema", () => {
     const config = decode({
       procs: [
         { id: "api", shell: "serve --port ${port}", url: "http://localhost:${port}" },
-        { id: "web", shell: "web", env: { API_URL: "http://localhost:${port:api}" } },
-      ],
+        { id: "web", shell: "web", env: { API_URL: "http://localhost:${port:api}" } }
+      ]
     })
     expect(usesOwnPort(config.procs[0]!)).toBe(true)
     expect(usesOwnPort(config.procs[1]!)).toBe(false)
   })
 
   test("rejects ${port:x} pointing at an unknown proc", () => {
-    expect(() =>
-      decode({ procs: [{ id: "web", shell: "web ${port:ghost}" }] }),
-    ).toThrow(/no proc "ghost"/)
+    expect(() => decode({ procs: [{ id: "web", shell: "web ${port:ghost}" }] })).toThrow(
+      /no proc "ghost"/
+    )
   })
 
   test("rejects ${port:x} pointing at a proc that does not use ${port}", () => {
@@ -114,9 +114,9 @@ describe("config schema", () => {
       decode({
         procs: [
           { id: "api", shell: "serve --port 3000" },
-          { id: "web", shell: "web ${port:api}" },
-        ],
-      }),
+          { id: "web", shell: "web ${port:api}" }
+        ]
+      })
     ).toThrow(/does not use/)
   })
 })
@@ -126,12 +126,12 @@ describe("resolveSpec", () => {
     const config = decode({
       procs: [
         { id: "api", cmd: ["serve", "--port", "${port}"], url: "http://localhost:${port}" },
-        { id: "web", shell: "web --port ${port}", env: { API_URL: "http://localhost:${port:api}" } },
-      ],
+        { id: "web", shell: "web --port ${port}", env: { API_URL: "http://localhost:${port:api}" } }
+      ]
     })
     const assigned = new Map([
       ["api", 50001],
-      ["web", 50002],
+      ["web", 50002]
     ])
     const api = resolveSpec(config.procs[0]!, assigned)
     const web = resolveSpec(config.procs[1]!, assigned)
@@ -153,18 +153,18 @@ describe("resolveSpec", () => {
           id: "api",
           cmd: ["serve", "--port", "${port}"],
           env: { SELF: "http://localhost:${port:api}" },
-          url: "http://localhost:${port}",
+          url: "http://localhost:${port}"
         },
-        { id: "web", shell: "web ${port}", env: { API_URL: "http://localhost:${port:api}" } },
-      ],
+        { id: "web", shell: "web ${port}", env: { API_URL: "http://localhost:${port:api}" } }
+      ]
     })
     const assigned = new Map([
       ["api", 50001],
-      ["web", 50002],
+      ["web", 50002]
     ])
     const internal = new Map([
       ["api", 60001],
-      ["web", 60002],
+      ["web", 60002]
     ])
     const api = resolveSpec(config.procs[0]!, assigned, internal)
     const web = resolveSpec(config.procs[1]!, assigned, internal)
@@ -200,7 +200,6 @@ afterAll(() => {
 })
 
 describe("loadConfig", () => {
-
   test("loads a JSON config, ignoring the $schema key", async () => {
     const file = deck(
       dir(),
@@ -208,8 +207,8 @@ describe("loadConfig", () => {
       JSON.stringify({
         $schema: "https://unpkg.com/procdeck/schema.json",
         name: "json-deck",
-        procs: [{ id: "api", shell: "serve --port ${port}" }],
-      }),
+        procs: [{ id: "api", shell: "serve --port ${port}" }]
+      })
     )
     const loaded = await Effect.runPromise(loadConfig(file))
     expect(loaded.name).toBe("json-deck")
@@ -220,7 +219,7 @@ describe("loadConfig", () => {
     const file = deck(
       dir(),
       "procdeck.config.json",
-      JSON.stringify({ procs: [{ id: "web", shell: "web", needs: ["ghost"] }] }),
+      JSON.stringify({ procs: [{ id: "web", shell: "web", needs: ["ghost"] }] })
     )
     await expect(Effect.runPromise(loadConfig(file))).rejects.toThrow(/unknown proc/)
   })
@@ -234,7 +233,7 @@ describe("loadConfig", () => {
     const file = deck(
       dir(),
       "procdeck.config.mjs",
-      'export default { name: "mjs-deck", procs: [{ id: "a", shell: "x" }] }\n',
+      'export default { name: "mjs-deck", procs: [{ id: "a", shell: "x" }] }\n'
     )
     const loaded = await Effect.runPromise(loadConfig(file))
     expect(loaded.name).toBe("mjs-deck")
@@ -250,7 +249,7 @@ describe("loadConfig", () => {
 
   test("fails with a plain message when the file is missing", async () => {
     await expect(
-      Effect.runPromise(loadConfig(path.join(dir(), "procdeck.config.json"))),
+      Effect.runPromise(loadConfig(path.join(dir(), "procdeck.config.json")))
     ).rejects.toThrow(/not found/)
   })
 })

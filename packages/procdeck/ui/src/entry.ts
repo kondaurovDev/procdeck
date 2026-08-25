@@ -12,7 +12,7 @@ const application = Runtime.makeApplication({
   update,
   view,
   subscriptions,
-  container: document.getElementById("root"),
+  container: document.getElementById("root")
 })
 
 Runtime.run(application)

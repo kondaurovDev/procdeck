@@ -40,7 +40,7 @@ const XTERM_THEMES: Record<Scheme, ITheme> = {
     background: "#0e1116",
     foreground: "#d8dee9",
     cursor: "#d8dee9",
-    selectionBackground: "#4c9aff55",
+    selectionBackground: "#4c9aff55"
   },
   light: {
     background: "#ffffff",
@@ -62,8 +62,8 @@ const XTERM_THEMES: Record<Scheme, ITheme> = {
     brightBlue: "#218bff",
     brightMagenta: "#a475f9",
     brightCyan: "#3192aa",
-    brightWhite: "#8c959f",
-  },
+    brightWhite: "#8c959f"
+  }
 }
 
 export const xtermTheme = (scheme: Scheme): ITheme => XTERM_THEMES[scheme]
@@ -82,6 +82,6 @@ export const systemSchemeStream: Stream.Stream<Message> = Stream.callback<Messag
       query.addEventListener("change", onChange)
       return { query, onChange }
     }),
-    ({ query, onChange }) => Effect.sync(() => query.removeEventListener("change", onChange)),
-  ),
+    ({ query, onChange }) => Effect.sync(() => query.removeEventListener("change", onChange))
+  )
 )

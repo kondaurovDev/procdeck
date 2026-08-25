@@ -37,7 +37,7 @@ export default defineConfig({
     {
       id: "api",
       cmd: ["node", "servers/api.mjs"],
-      env: { PORT: "${port}" },
+      env: { PORT: "${port}" }
     },
     {
       id: "worker",
@@ -50,30 +50,30 @@ export default defineConfig({
       preflight: {
         shell: "node --version",
         expect: "v\\d+",
-        hint: "install Node 22+ first",
-      },
+        hint: "install Node 22+ first"
+      }
     },
     {
       id: "chat",
       cmd: ["node", "servers/chat.mjs"],
-      env: { PORT: "${port}" },
+      env: { PORT: "${port}" }
     },
     {
       id: "web",
       cmd: ["node", "servers/web.mjs"],
       env: { PORT: "${port}", API_URL: "http://localhost:${port:api}" },
-      needs: ["api"],
+      needs: ["api"]
     },
     {
       id: "clock",
       shell: "while true; do date; sleep 1; done",
-      readyWhen: "started",
+      readyWhen: "started"
     },
     {
       id: "flaky",
       shell: "sleep 3; echo 'ERROR: something odd happened'; sleep 600",
       readyWhen: "started",
-      alerts: [{ pattern: "ERROR", label: "check me" }],
-    },
-  ],
+      alerts: [{ pattern: "ERROR", label: "check me" }]
+    }
+  ]
 })

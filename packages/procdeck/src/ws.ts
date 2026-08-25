@@ -89,7 +89,7 @@ export class WsMessageParser {
     const message: WsMessageEvent = {
       opcode: this.fragmentOpcode === TEXT ? "text" : "binary",
       data: Buffer.concat(this.fragments),
-      size: this.fragmentSize,
+      size: this.fragmentSize
     }
     this.fragments = []
     this.fragmentOpcode = undefined

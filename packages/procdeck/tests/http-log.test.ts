@@ -8,7 +8,7 @@ import {
   normalizePath,
   queryHttp,
   redactHeaders,
-  statusMatcher,
+  statusMatcher
 } from "../src/http-log.ts"
 import type { DeckCapture, HttpCapture, HttpExchange } from "../src/http-log.ts"
 
@@ -27,7 +27,7 @@ const capture = (over: Partial<HttpCapture>): HttpCapture => ({
   durationMs: 1,
   reqBytes: 0,
   resBytes: 0,
-  ...over,
+  ...over
 })
 
 describe("BodyTap", () => {
@@ -75,7 +75,7 @@ describe("redactHeaders", () => {
       Cookie: "sid=1",
       "Set-Cookie": ["a=1", "b=2"],
       "X-Api-Key": "k",
-      "Content-Type": "application/json",
+      "Content-Type": "application/json"
     })
     expect(redacted["authorization"]).toBe("[redacted]")
     expect(redacted["cookie"]).toBe("[redacted]")
@@ -131,15 +131,15 @@ describe("queryHttp", () => {
         status: 200,
         reqBody: "req",
         resBody: "res",
-        reqHeaders: { host: "x" },
-      }),
+        reqHeaders: { host: "x" }
+      })
     )
     api.record(capture({ ts: 300, method: "POST", path: "/orders", status: 422 }))
     const web = new HttpBuffer()
     web.record(capture({ ts: 200, path: "/index.html", status: 200 }))
     return new Map([
       ["api", api],
-      ["web", web],
+      ["web", web]
     ])
   }
 
@@ -148,7 +148,7 @@ describe("queryHttp", () => {
     expect(result.exchanges.map((e) => `${e.proc}:${e.path}`)).toEqual([
       "api:/users/42",
       "web:/index.html",
-      "api:/orders",
+      "api:/orders"
     ])
     expect(result.nextSeq).toEqual({ api: 2, web: 1 })
     expect(asHttp(result.exchanges[0]).reqBody).toBeUndefined()
@@ -191,7 +191,7 @@ describe("digestHttp", () => {
       { ...capture({ ts: 1, path: "/users/1", status: 500 }), proc: "api", seq: 0 },
       { ...capture({ ts: 9, path: "/users/2", status: 500 }), proc: "api", seq: 1 },
       { ...capture({ ts: 5, path: "/ok", status: 200 }), proc: "api", seq: 2 },
-      { ...capture({ ts: 20, path: "/dead", status: 0 }), proc: "web", seq: 0 },
+      { ...capture({ ts: 20, path: "/dead", status: 0 }), proc: "web", seq: 0 }
     ])
     expect(groups).toHaveLength(2)
     expect(groups[0]).toMatchObject({ proc: "web", path: "/dead", status: 0, count: 1 })
@@ -201,7 +201,7 @@ describe("digestHttp", () => {
       status: 500,
       count: 2,
       firstTs: 1,
-      lastTs: 9,
+      lastTs: 9
     })
   })
 })

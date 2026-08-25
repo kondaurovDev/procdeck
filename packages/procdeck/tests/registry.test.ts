@@ -9,7 +9,7 @@ import {
   instanceId,
   listInstances,
   logPath,
-  register,
+  register
 } from "../src/registry.ts"
 import type { Instance } from "../src/registry.ts"
 
@@ -36,7 +36,7 @@ const instance = (root: string, overrides: Partial<Instance> = {}): Instance => 
   startedAt: Date.now(),
   version: "0.0.0-test",
   mode: "detached",
-  ...overrides,
+  ...overrides
 })
 
 describe("registry", () => {

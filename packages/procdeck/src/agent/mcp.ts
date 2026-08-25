@@ -65,7 +65,7 @@ const DeckStatus = Tool.make("deck_status", {
   description:
     "Status of this project's procdeck deck (the dev-process manager): every process with state, ports, restarts and addresses, plus an `attention` list naming crashed / blocked / alerting procs with reasons. The cheapest question — call it first when anything seems broken, and before reading logs.",
   parameters: Schema.Struct({}),
-  success: Schema.Unknown,
+  success: Schema.Unknown
 })
 
 const GetLogs = Tool.make("get_logs", {
@@ -77,9 +77,9 @@ const GetLogs = Tool.make("get_logs", {
     grep: Schema.optionalKey(Schema.String),
     since_seconds: Schema.optionalKey(Schema.Number),
     since_mark: Schema.optionalKey(Schema.String),
-    since_last: Schema.optionalKey(Schema.Boolean),
+    since_last: Schema.optionalKey(Schema.Boolean)
   }),
-  success: Schema.Unknown,
+  success: Schema.Unknown
 })
 
 const GetHttp = Tool.make("get_http", {
@@ -94,21 +94,21 @@ const GetHttp = Tool.make("get_http", {
     since_seconds: Schema.optionalKey(Schema.Number),
     since_mark: Schema.optionalKey(Schema.String),
     since_last: Schema.optionalKey(Schema.Boolean),
-    bodies: Schema.optionalKey(Schema.Boolean),
+    bodies: Schema.optionalKey(Schema.Boolean)
   }),
-  success: Schema.Unknown,
+  success: Schema.Unknown
 })
 
 const Timeline = Tool.make("timeline", {
   description:
-    'Interleaved output of several processes (default: all) around a moment in time, plus the HTTP exchanges captured in the same window — "the frontend threw a 500 at T; what were api and worker doing right then, and which requests flew?". `at_ms` is epoch milliseconds, same clock as every log line\'s `ts` and get_errors\' lastTs (default: now). `window_seconds` (default 10) is the half-width.',
+    "Interleaved output of several processes (default: all) around a moment in time, plus the HTTP exchanges captured in the same window — \"the frontend threw a 500 at T; what were api and worker doing right then, and which requests flew?\". `at_ms` is epoch milliseconds, same clock as every log line's `ts` and get_errors' lastTs (default: now). `window_seconds` (default 10) is the half-width.",
   parameters: Schema.Struct({
     at_ms: Schema.optionalKey(Schema.Number),
     window_seconds: Schema.optionalKey(Schema.Number),
     procs: Schema.optionalKey(Schema.Array(Schema.String)),
-    lines: Schema.optionalKey(Schema.Number),
+    lines: Schema.optionalKey(Schema.Number)
   }),
-  success: Schema.Unknown,
+  success: Schema.Unknown
 })
 
 const GetErrors = Tool.make("get_errors", {
@@ -117,18 +117,18 @@ const GetErrors = Tool.make("get_errors", {
   parameters: Schema.Struct({
     proc: Schema.optionalKey(Schema.String),
     since_seconds: Schema.optionalKey(Schema.Number),
-    since_mark: Schema.optionalKey(Schema.String),
+    since_mark: Schema.optionalKey(Schema.String)
   }),
-  success: Schema.Unknown,
+  success: Schema.Unknown
 })
 
 const SetMark = Tool.make("set_mark", {
   description:
     'Drop a named marker at "now" in every process\'s output stream. The verify loop: set_mark → act (edit, restart, hit an endpoint) → get_logs/get_errors with since_mark shows only what your action caused. Marks are in-memory and die with the deck; re-marking the same name moves it.',
   parameters: Schema.Struct({
-    name: Schema.optionalKey(Schema.String),
+    name: Schema.optionalKey(Schema.String)
   }),
-  success: Schema.Unknown,
+  success: Schema.Unknown
 })
 
 const WaitFor = Tool.make("wait_for", {
@@ -137,9 +137,9 @@ const WaitFor = Tool.make("wait_for", {
   parameters: Schema.Struct({
     proc: Schema.String,
     pattern: Schema.optionalKey(Schema.String),
-    timeout_seconds: Schema.optionalKey(Schema.Number),
+    timeout_seconds: Schema.optionalKey(Schema.Number)
   }),
-  success: Schema.Unknown,
+  success: Schema.Unknown
 })
 
 const procParam = Schema.Struct({ proc: Schema.String })
@@ -148,19 +148,19 @@ const RestartProc = Tool.make("restart_proc", {
   description:
     "Restart one process of the deck by id (stop, then start). Follow with wait_for before exercising it.",
   parameters: procParam,
-  success: Schema.Unknown,
+  success: Schema.Unknown
 })
 
 const StopProc = Tool.make("stop_proc", {
   description: "Stop one process of the deck by id (the whole process tree).",
   parameters: procParam,
-  success: Schema.Unknown,
+  success: Schema.Unknown
 })
 
 const StartProc = Tool.make("start_proc", {
   description: "Start one stopped process of the deck by id.",
   parameters: procParam,
-  success: Schema.Unknown,
+  success: Schema.Unknown
 })
 
 // ---------------------------------------------------------------------------
@@ -180,8 +180,9 @@ const logsPath = (options: {
     proc: options.proc,
     lines: options.lines,
     grep: options.grep,
-    sinceMs: options.since_seconds === undefined ? undefined : Date.now() - options.since_seconds * 1000,
-    mark: options.since_mark,
+    sinceMs:
+      options.since_seconds === undefined ? undefined : Date.now() - options.since_seconds * 1000,
+    mark: options.since_mark
   })}`
 
 /**
@@ -211,7 +212,7 @@ const readHandlers = {
         sinceMs:
           input.since_seconds === undefined ? undefined : Date.now() - input.since_seconds * 1000,
         mark: input.since_mark,
-        sinceSeq: input.since_last === true ? cursors : undefined,
+        sinceSeq: input.since_last === true ? cursors : undefined
       })
       const result = await apiGet<LogsResult>(instance, `/logs?${params}`)
       Object.assign(cursors, result.nextSeq)
@@ -239,7 +240,7 @@ const readHandlers = {
           input.since_seconds === undefined ? undefined : Date.now() - input.since_seconds * 1000,
         mark: input.since_mark,
         sinceSeq: input.since_last === true ? httpCursors : undefined,
-        bodies: input.bodies,
+        bodies: input.bodies
       })
       const result = await apiGet<HttpResult>(instance, `/http?${params}`)
       Object.assign(httpCursors, result.nextSeq)
@@ -259,12 +260,12 @@ const readHandlers = {
         proc,
         lines: input.lines ?? 200,
         sinceMs: at - window,
-        untilMs: at + window,
+        untilMs: at + window
       })
       const logs = await apiGet<LogsResult>(instance, `/logs?${params}`)
       const traffic = await apiGet<HttpResult>(
         instance,
-        `/http?${httpParams({ proc, limit: 100, sinceMs: at - window, untilMs: at + window })}`,
+        `/http?${httpParams({ proc, limit: 100, sinceMs: at - window, untilMs: at + window })}`
       )
       return { ...logs, http: traffic.exchanges }
     }),
@@ -272,7 +273,7 @@ const readHandlers = {
     withDeck(async (instance) => {
       const result = await apiGet<LogsResult>(
         instance,
-        logsPath({ ...input, lines: ERRORS_SCAN_LINES }),
+        logsPath({ ...input, lines: ERRORS_SCAN_LINES })
       )
       return { errors: extractErrors(result.lines), scannedLines: result.lines.length }
     }),
@@ -283,9 +284,9 @@ const readHandlers = {
       waitForProc(instance, {
         proc: input.proc,
         pattern: input.pattern,
-        timeoutMs: (input.timeout_seconds ?? 30) * 1000,
-      }),
-    ),
+        timeoutMs: (input.timeout_seconds ?? 30) * 1000
+      })
+    )
 }
 
 const mutationHandlers = {
@@ -294,7 +295,7 @@ const mutationHandlers = {
   stop_proc: ({ proc }: { proc: string }) =>
     withDeck((instance) => apiPost(instance, `/procs/${encodeURIComponent(proc)}/stop`, {})),
   start_proc: ({ proc }: { proc: string }) =>
-    withDeck((instance) => apiPost(instance, `/procs/${encodeURIComponent(proc)}/start`, {})),
+    withDeck((instance) => apiPost(instance, `/procs/${encodeURIComponent(proc)}/start`, {}))
 }
 
 // ---------------------------------------------------------------------------
@@ -305,7 +306,7 @@ export const runMcp = (options: { version: string; mutations: boolean }) => {
   const transport = McpServer.layerStdio({
     name: "procdeck",
     version: options.version,
-    protocols: [McpProtocol.v2025_06_18],
+    protocols: [McpProtocol.v2025_06_18]
   }).pipe(Layer.provide(NodeStdio.layer))
 
   if (options.mutations) {
@@ -319,20 +320,20 @@ export const runMcp = (options: { version: string; mutations: boolean }) => {
       WaitFor,
       RestartProc,
       StopProc,
-      StartProc,
+      StartProc
     )
     return Layer.launch(
       McpServer.toolkit(kit).pipe(
         Layer.provide(kit.toLayer({ ...readHandlers, ...mutationHandlers })),
-        Layer.provideMerge(transport),
-      ),
+        Layer.provideMerge(transport)
+      )
     )
   }
   const kit = Toolkit.make(DeckStatus, GetLogs, GetHttp, Timeline, GetErrors, SetMark, WaitFor)
   return Layer.launch(
     McpServer.toolkit(kit).pipe(
       Layer.provide(kit.toLayer(readHandlers)),
-      Layer.provideMerge(transport),
-    ),
+      Layer.provideMerge(transport)
+    )
   )
 }

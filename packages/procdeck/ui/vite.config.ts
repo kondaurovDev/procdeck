@@ -14,7 +14,7 @@ export default defineConfig({
     proxy: {
       "/__procdeck": "http://localhost:4820",
       // Generated per deck by the server, not a static file.
-      "/manifest.webmanifest": "http://localhost:4820",
-    },
-  },
+      "/manifest.webmanifest": "http://localhost:4820"
+    }
+  }
 })

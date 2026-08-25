@@ -13,12 +13,12 @@ export const deckUrl = (instance: Instance): string => `http://localhost:${insta
 /** GET against the deck's API; a 4xx `{error}` body becomes the Error message. */
 export const apiGet = async <T>(instance: Instance, pathname: string): Promise<T> => {
   const response = await fetch(`${deckUrl(instance)}/__procdeck/api${pathname}`, {
-    signal: AbortSignal.timeout(5000),
+    signal: AbortSignal.timeout(5000)
   })
   const body: unknown = await response.json().catch(() => null)
   if (!response.ok) {
     throw new Error(
-      (body as { error?: string } | null)?.error ?? `deck answered HTTP ${response.status}`,
+      (body as { error?: string } | null)?.error ?? `deck answered HTTP ${response.status}`
     )
   }
   return body as T
@@ -27,18 +27,18 @@ export const apiGet = async <T>(instance: Instance, pathname: string): Promise<T
 export const apiPost = async <T>(
   instance: Instance,
   pathname: string,
-  body: unknown,
+  body: unknown
 ): Promise<T> => {
   const response = await fetch(`${deckUrl(instance)}/__procdeck/api${pathname}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(5000),
+    signal: AbortSignal.timeout(5000)
   })
   const answer: unknown = await response.json().catch(() => null)
   if (!response.ok) {
     throw new Error(
-      (answer as { error?: string } | null)?.error ?? `deck answered HTTP ${response.status}`,
+      (answer as { error?: string } | null)?.error ?? `deck answered HTTP ${response.status}`
     )
   }
   return answer as T
@@ -111,7 +111,7 @@ export const statusReport = async (instance: Instance): Promise<StatusReport> =>
     mode: instance.mode,
     startedAt: instance.startedAt,
     attention,
-    procs: procs ?? null,
+    procs: procs ?? null
   }
 }
 
@@ -201,7 +201,7 @@ export const waitForProc = async (
     pattern?: string | undefined
     timeoutMs: number
     pollMs?: number | undefined
-  },
+  }
 ): Promise<WaitOutcome> => {
   const { pattern, proc, timeoutMs } = options
   const pollMs = options.pollMs ?? 300
@@ -220,13 +220,13 @@ export const waitForProc = async (
     if (status.state === "exited") {
       const tail = await apiGet<LogsResult>(
         instance,
-        `/logs?procs=${encodeURIComponent(proc)}&lines=20`,
+        `/logs?procs=${encodeURIComponent(proc)}&lines=20`
       )
       return {
         ok: false,
         kind: "crashed",
         reason: `"${proc}" ${describeProc(info)} after ${elapsed()}`,
-        tail: tail.lines.map((line) => line.text),
+        tail: tail.lines.map((line) => line.text)
       }
     }
     if (status.state === "blocked") {
@@ -234,7 +234,7 @@ export const waitForProc = async (
         ok: false,
         kind: "blocked",
         reason: `"${proc}" is blocked${status.hint === undefined ? "" : ` — ${status.hint}`}`,
-        tail: [],
+        tail: []
       }
     }
     // A brief "stopped" can be the middle of a restart; a persistent one
@@ -245,7 +245,7 @@ export const waitForProc = async (
         ok: false,
         kind: "stopped",
         reason: `"${proc}" is stopped and nothing is starting it`,
-        tail: [],
+        tail: []
       }
     }
 
@@ -262,7 +262,7 @@ export const waitForProc = async (
         return {
           ok: true,
           message: `"${proc}" matched /${pattern}/ in ${elapsed()}: ${result.lines[0]!.text}`,
-          elapsedSeconds: elapsedSeconds(),
+          elapsedSeconds: elapsedSeconds()
         }
       }
       cursor = result.nextSeq[proc] ?? cursor
@@ -272,7 +272,7 @@ export const waitForProc = async (
         return {
           ok: true,
           message: `"${proc}" is listening on :${ports[0]} (${elapsed()})`,
-          elapsedSeconds: elapsedSeconds(),
+          elapsedSeconds: elapsedSeconds()
         }
       }
     }
@@ -284,7 +284,7 @@ export const waitForProc = async (
         reason: `timed out after ${Math.round(timeoutMs / 1000)}s waiting for "${proc}" to ${
           pattern === undefined ? "listen on a port" : `match /${pattern}/`
         }`,
-        tail: [],
+        tail: []
       }
     }
     await sleep(pollMs)

@@ -18,7 +18,7 @@ export const UiState = S.Struct({
   active: S.optionalKey(S.String),
   theme: S.optionalKey(Theme),
   pinned: S.optionalKey(S.Array(S.String)),
-  notifications: S.optionalKey(S.Boolean),
+  notifications: S.optionalKey(S.Boolean)
 })
 export type UiState = typeof UiState.Type
 
@@ -43,7 +43,7 @@ export const SaveUiState = Command.define("SaveUiState", {
     active: S.UndefinedOr(S.String),
     theme: Theme,
     pinned: S.Array(S.String),
-    notifications: S.Boolean,
+    notifications: S.Boolean
   },
   messages: [CompletedRequest],
   execute: (state) =>
@@ -54,5 +54,5 @@ export const SaveUiState = Command.define("SaveUiState", {
         // Storage unavailable — the UI still works, it just won't remember.
       }
       return CompletedRequest()
-    }),
+    })
 })

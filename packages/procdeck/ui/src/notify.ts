@@ -23,7 +23,7 @@ export const RequestNotifyPermission = Command.define("RequestNotifyPermission",
     if (!supported()) return GotNotifyPermission({ permission: "unsupported" })
     const permission = await Notification.requestPermission().catch(() => "denied" as const)
     return GotNotifyPermission({ permission })
-  }),
+  })
 })
 
 /**
@@ -46,7 +46,7 @@ export const Notify = Command.define("Notify", {
         notification.close()
       }
       return CompletedRequest()
-    }),
+    })
 })
 
 /** Swap the favicon between the plain icon and the badged one. */
@@ -59,5 +59,5 @@ export const SetFaviconBadge = Command.define("SetFaviconBadge", {
         .querySelector<HTMLLinkElement>('link[rel="icon"]')
         ?.setAttribute("href", on ? "/icon-alert.svg" : "/icon.svg")
       return CompletedRequest()
-    }),
+    })
 })

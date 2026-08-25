@@ -50,7 +50,7 @@ server.on("upgrade", (req, socket) => {
     .digest("base64")
   socket.write(
     "HTTP/1.1 101 Switching Protocols\r\nupgrade: websocket\r\nconnection: Upgrade\r\n" +
-      `sec-websocket-accept: ${accept}\r\n\r\n`,
+      `sec-websocket-accept: ${accept}\r\n\r\n`
   )
   clients.add(socket)
   console.log(`client joined (${clients.size} online)`)

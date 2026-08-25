@@ -20,7 +20,7 @@ const document = {
   $id: "https://unpkg.com/procdeck/schema.json",
   title: "procdeck config",
   ...schema,
-  ...(Object.keys(definitions).length > 0 ? { $defs: definitions } : {}),
+  ...(Object.keys(definitions).length > 0 ? { $defs: definitions } : {})
 }
 
 const out = path.join(import.meta.dirname, "..", "schema.json")

@@ -62,7 +62,7 @@ class McpSession {
     await this.request("initialize", {
       protocolVersion: "2025-06-18",
       capabilities: {},
-      clientInfo: { name: "procdeck-test", version: "0.0.0" },
+      clientInfo: { name: "procdeck-test", version: "0.0.0" }
     })
     this.notify("notifications/initialized")
   }
@@ -101,11 +101,11 @@ beforeAll(async () => {
           cmd: [
             "node",
             "-e",
-            'console.log("hello-from-mcp"); console.log("TypeError: nope is not a function"); console.log("    at main (index.js:1:1)"); setInterval(() => console.log("tick"), 150)',
-          ],
-        },
-      ],
-    }),
+            'console.log("hello-from-mcp"); console.log("TypeError: nope is not a function"); console.log("    at main (index.js:1:1)"); setInterval(() => console.log("tick"), 150)'
+          ]
+        }
+      ]
+    })
   )
   await run(process.execPath, [CLI, "up", "--no-open"], { env, cwd: project })
 }, 30_000)
@@ -130,7 +130,7 @@ describe("mcp", () => {
         "get_logs",
         "set_mark",
         "timeline",
-        "wait_for",
+        "wait_for"
       ])
 
       const status = await session.callTool("deck_status", {})
@@ -148,7 +148,7 @@ describe("mcp", () => {
       await new Promise((resolve) => setTimeout(resolve, 400))
       const sinceMark = await session.callTool("get_logs", {
         proc: "ticker",
-        since_mark: "mcp-test",
+        since_mark: "mcp-test"
       })
       expect(sinceMark).toContain("tick")
       expect(sinceMark).not.toContain("hello-from-mcp")
@@ -156,7 +156,7 @@ describe("mcp", () => {
       const waited = await session.callTool("wait_for", {
         proc: "ticker",
         pattern: "tick",
-        timeout_seconds: 10,
+        timeout_seconds: 10
       })
       expect(waited).toContain('"ok":true')
 
@@ -207,7 +207,7 @@ describe("mcp", () => {
       const waited = await session.callTool("wait_for", {
         proc: "ticker",
         pattern: "hello-from-mcp",
-        timeout_seconds: 10,
+        timeout_seconds: 10
       })
       expect(waited).toContain('"ok":true')
     } finally {

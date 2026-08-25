@@ -16,13 +16,18 @@ import {
   PostInput,
   ResetTerminal,
   Shutdown,
-  WriteTerminal,
+  WriteTerminal
 } from "./command.ts"
 import { PromptInstall } from "./install.ts"
 import type { Message } from "./message.ts"
 import { attentionCount, gridIds, isCrash } from "./model.ts"
 import type { Layout, Model } from "./model.ts"
-import { Notify, RequestNotifyPermission, SetFaviconBadge, currentNotifyPermission } from "./notify.ts"
+import {
+  Notify,
+  RequestNotifyPermission,
+  SetFaviconBadge,
+  currentNotifyPermission
+} from "./notify.ts"
 import type { ProcStatus } from "./schema.ts"
 import { SaveUiState, loadUiState } from "./storage.ts"
 import { resolveScheme, systemPrefersDark } from "./theme.ts"
@@ -33,7 +38,7 @@ type Result = readonly [Model, ReadonlyArray<Command.Command<Message>>]
 const paneAction = (
   model: Model,
   id: string | undefined,
-  action: "start" | "stop" | "restart" | "clear",
+  action: "start" | "stop" | "restart" | "clear"
 ): Result =>
   id === undefined
     ? [model, []]
@@ -53,7 +58,7 @@ const isIdle = (state: ProcStatus["state"]): boolean =>
 const notifyOnTransition = (
   model: Model,
   before: ProcStatus | undefined,
-  after: ProcStatus,
+  after: ProcStatus
 ): ReadonlyArray<Command.Command<Message>> => {
   if (!model.notifications || model.notifyPermission !== "granted") return []
   const tag = `procdeck:${after.id}`
@@ -92,7 +97,7 @@ const refit = (model: Model): Command.Command<Message> =>
 const activate = (model: Model, id: string): Result => {
   const next = evo(model, {
     active: () => id,
-    unread: ({ [id]: _read, ...rest }) => rest,
+    unread: ({ [id]: _read, ...rest }) => rest
   })
   return [next, [refit(next)]]
 }
@@ -113,7 +118,7 @@ const zoomTo = (model: Model, id: string): Result => {
   const next = evo(model, {
     layout: () => "single" as const,
     active: () => id,
-    unread: ({ [id]: _read, ...rest }) => rest,
+    unread: ({ [id]: _read, ...rest }) => rest
   })
   return [next, [refit(next)]]
 }
@@ -122,7 +127,7 @@ const zoomTo = (model: Model, id: string): Result => {
 const togglePin = (model: Model, id: string | undefined): Result => {
   if (id === undefined) return [model, []]
   const next = evo(model, {
-    pinned: (pinned) => (pinned.includes(id) ? pinned.filter((p) => p !== id) : [...pinned, id]),
+    pinned: (pinned) => (pinned.includes(id) ? pinned.filter((p) => p !== id) : [...pinned, id])
   })
   return [next, model.layout === "grid" ? [refit(next)] : []]
 }
@@ -143,9 +148,9 @@ const step = (model: Model, message: Message): Result =>
             const kept = pinned.filter((id) => procs.some((info) => info.id === id))
             // Same array when nothing was dropped, so the persist check stays quiet.
             return kept.length === pinned.length ? pinned : kept
-          },
+          }
         }),
-        [],
+        []
       ],
       FailedFetchProcs: ({ error }) => [evo(model, { error: () => error }), []],
 
@@ -160,7 +165,7 @@ const step = (model: Model, message: Message): Result =>
         // deck info again (the config may have changed).
         model.stream === "reconnecting"
           ? [...model.mounted.map((id) => ResetTerminal({ id })), FetchProcs(), FetchDeck()]
-          : [],
+          : []
       ],
       StreamDropped: () => [evo(model, { stream: () => "reconnecting" as const }), []],
 
@@ -168,7 +173,7 @@ const step = (model: Model, message: Message): Result =>
         const before = model.procs.find((info) => info.id === status.id)?.status
         const next = evo(model, {
           procs: (procs) =>
-            procs.map((info) => (info.id === status.id ? { ...info, status } : info)),
+            procs.map((info) => (info.id === status.id ? { ...info, status } : info))
         })
         // Replayed history walks through old transitions — none of them is news.
         return [next, live ? notifyOnTransition(next, before, status) : []]
@@ -181,13 +186,13 @@ const step = (model: Model, message: Message): Result =>
         live && id !== model.active && ERROR_PATTERN.test(data)
           ? evo(model, { unread: (unread) => ({ ...unread, [id]: (unread[id] ?? 0) + 1 }) })
           : model,
-        [WriteTerminal({ id, data })],
+        [WriteTerminal({ id, data })]
       ],
 
       MountedTerminal: ({ id }) => [
         evo(model, { mounted: (mounted) => [...mounted, id] }),
         // Size it if it is on screen (the active pane, or any pane in grid).
-        visibleIds(model).includes(id) ? [FitTerminals({ ids: [id], focus: model.active })] : [],
+        visibleIds(model).includes(id) ? [FitTerminals({ ids: [id], focus: model.active })] : []
       ],
       TypedInput: ({ id, data }) => [model, [PostInput({ id, data })]],
 
@@ -196,13 +201,13 @@ const step = (model: Model, message: Message): Result =>
       // Restart is stop+start on the server, so it also brings up stopped procs.
       ClickedRestartAll: () => [
         model,
-        model.procs.map((info) => PostAction({ id: info.id, action: "restart" })),
+        model.procs.map((info) => PostAction({ id: info.id, action: "restart" }))
       ],
       ClickedStopAll: () => [
         model,
         model.procs
           .filter((info) => !isIdle(info.status.state))
-          .map((info) => PostAction({ id: info.id, action: "stop" })),
+          .map((info) => PostAction({ id: info.id, action: "stop" }))
       ],
       ClickedShutdown: () => [model, [Shutdown()]],
       ShutDown: () => [evo(model, { shutdown: () => true, switcher: () => undefined }), []],
@@ -233,7 +238,7 @@ const step = (model: Model, message: Message): Result =>
           : [evo(model, { notifications: () => true }), [RequestNotifyPermission()]],
       GotNotifyPermission: ({ permission }) => [
         evo(model, { notifyPermission: () => permission }),
-        [],
+        []
       ],
 
       ChoseTheme: ({ theme }) => [evo(model, { theme: () => theme }), []],
@@ -256,13 +261,13 @@ const step = (model: Model, message: Message): Result =>
       OpenedSearch: () => [
         evo(model, { search: (search) => search ?? "" }),
         // Also fires when the box is already open: ⌘F refocuses and selects.
-        [FocusSearch()],
+        [FocusSearch()]
       ],
       ChangedSearch: ({ query }) => [
         evo(model, { search: () => query }),
         model.active === undefined
           ? []
-          : [FindInTerminal({ id: model.active, query, mode: "incremental" })],
+          : [FindInTerminal({ id: model.active, query, mode: "incremental" })]
       ],
       SteppedSearch: ({ backwards }) =>
         model.active === undefined || model.search === undefined || model.search === ""
@@ -273,13 +278,13 @@ const step = (model: Model, message: Message): Result =>
                 FindInTerminal({
                   id: model.active,
                   query: model.search,
-                  mode: backwards ? "previous" : "next",
-                }),
-              ],
+                  mode: backwards ? "previous" : "next"
+                })
+              ]
             ],
       ClosedSearch: () => [
         evo(model, { search: () => undefined }),
-        model.active === undefined ? [] : [EndSearch({ id: model.active })],
+        model.active === undefined ? [] : [EndSearch({ id: model.active })]
       ],
       ResizedWindow: () => (model.active === undefined ? [model, []] : [model, [refit(model)]]),
 
@@ -288,25 +293,22 @@ const step = (model: Model, message: Message): Result =>
         evo(model, {
           traffic: (traffic) =>
             entries.length === 0 ? traffic : [...traffic, ...entries].slice(-TRAFFIC_CAP),
-          trafficSeq: (cursor) => ({ ...cursor, ...nextSeq }),
+          trafficSeq: (cursor) => ({ ...cursor, ...nextSeq })
         }),
-        [],
+        []
       ],
       ChoseTrafficKind: ({ kind }) => [evo(model, { trafficKind: () => kind }), []],
       ToggledTrafficErrors: () => [
         evo(model, { trafficErrorsOnly: (errorsOnly) => !errorsOnly }),
-        [],
+        []
       ],
       ChoseTrafficProc: ({ id }) => [evo(model, { trafficProc: () => id }), []],
       ToggledTrafficRow: ({ key }) => [
         evo(model, { trafficOpen: (open) => (open === key ? undefined : key) }),
-        [],
+        []
       ],
       // Keeps the cursor: what was on screen goes away, only news comes back.
-      ClearedTraffic: () => [
-        evo(model, { traffic: () => [], trafficOpen: () => undefined }),
-        [],
-      ],
+      ClearedTraffic: () => [evo(model, { traffic: () => [], trafficOpen: () => undefined }), []],
       ToggledTrafficPause: () => [evo(model, { trafficPaused: (paused) => !paused }), []],
 
       InstallBecameAvailable: () => [evo(model, { installable: () => true }), []],
@@ -316,8 +318,8 @@ const step = (model: Model, message: Message): Result =>
 
       Ticked: ({ now }) => [evo(model, { now: () => now }), []],
 
-      CompletedRequest: () => [model, []],
-    }),
+      CompletedRequest: () => [model, []]
+    })
   )
 
 /**
@@ -349,13 +351,13 @@ export const update = (model: Model, message: Message): Result => {
               active: next.active,
               theme: next.theme,
               pinned: next.pinned,
-              notifications: next.notifications,
-            }),
+              notifications: next.notifications
+            })
           ]
         : []),
       ...(repaint ? [ApplyTheme({ theme: next.theme, scheme: resolveScheme(next) })] : []),
-      ...(rebadge ? [SetFaviconBadge({ on: attention })] : []),
-    ],
+      ...(rebadge ? [SetFaviconBadge({ on: attention })] : [])
+    ]
   ]
 }
 
@@ -387,12 +389,12 @@ export const init = (): Result => {
     trafficErrorsOnly: false,
     trafficProc: undefined,
     trafficOpen: undefined,
-    trafficPaused: false,
+    trafficPaused: false
   }
   // The inline script in index.html already painted the scheme before the
   // first frame; this keeps the theme-color meta honest if it did not run.
   return [
     model,
-    [FetchProcs(), FetchDeck(), ApplyTheme({ theme: model.theme, scheme: resolveScheme(model) })],
+    [FetchProcs(), FetchDeck(), ApplyTheme({ theme: model.theme, scheme: resolveScheme(model) })]
   ]
 }

@@ -27,7 +27,7 @@ const MIME: Record<string, string> = {
   ".map": "application/json",
   ".svg": "image/svg+xml",
   ".png": "image/png",
-  ".woff2": "font/woff2",
+  ".woff2": "font/woff2"
 }
 
 const NO_DIST = "procdeck UI is not built — run `pnpm --filter procdeck build` first."
@@ -46,7 +46,7 @@ const serveStatic = (pathname: string) =>
         : path.join(distDir, "index.html")
     const bytes = yield* Effect.promise(() => readFile(file))
     return HttpServerResponse.uint8Array(bytes, {
-      headers: { "content-type": MIME[path.extname(file)] ?? "application/octet-stream" },
+      headers: { "content-type": MIME[path.extname(file)] ?? "application/octet-stream" }
     })
   })
 
@@ -57,20 +57,20 @@ const serveStatic = (pathname: string) =>
  * subscription with it.
  */
 const sse = (
-  supervisor: Supervisor,
+  supervisor: Supervisor
 ): Effect.Effect<HttpServerResponse.HttpServerResponse, never, Scope.Scope> =>
   Effect.sync(() => {
     const encoder = new TextEncoder()
     const body = supervisor.events.pipe(
       Stream.map((event: ProcEvent) => `data: ${JSON.stringify(event)}\n\n`),
       Stream.merge(Stream.tick(HEARTBEAT).pipe(Stream.map(() => ": ping\n\n"))),
-      Stream.map((chunk) => encoder.encode(chunk)),
+      Stream.map((chunk) => encoder.encode(chunk))
     )
     return HttpServerResponse.stream(body, {
       headers: {
         "content-type": "text/event-stream",
-        "cache-control": "no-cache, no-transform",
-      },
+        "cache-control": "no-cache, no-transform"
+      }
     })
   })
 
@@ -111,8 +111,8 @@ const manifest = (deck: DeckInfo) => ({
   icons: [
     { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
     { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
-    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-  ],
+    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }
+  ]
 })
 
 const badRequest = (message: string) =>
@@ -131,7 +131,9 @@ const MAX_LOG_LINES = 5000
  */
 const logsResponse = (supervisor: Supervisor, url: URL) => {
   const param = (name: string) => url.searchParams.get(name) ?? undefined
-  const procs = param("procs")?.split(",").filter((id) => id.length > 0)
+  const procs = param("procs")
+    ?.split(",")
+    .filter((id) => id.length > 0)
   const limitRaw = param("lines")
   const limit = limitRaw === undefined ? DEFAULT_LOG_LINES : Number(limitRaw)
   if (!Number.isInteger(limit) || limit < 0) return badRequest(`bad lines: ${limitRaw}`)
@@ -191,8 +193,8 @@ const logsResponse = (supervisor: Supervisor, url: URL) => {
         sinceMs,
         untilMs,
         grep: param("grep"),
-        limit: Math.min(limit, MAX_LOG_LINES),
-      }),
+        limit: Math.min(limit, MAX_LOG_LINES)
+      })
     )
   } catch (cause) {
     return badRequest((cause as Error).message)
@@ -211,7 +213,9 @@ const MAX_HTTP_LIMIT = 1000
  */
 const httpResponse = (supervisor: Supervisor, url: URL) => {
   const param = (name: string) => url.searchParams.get(name) ?? undefined
-  const procs = param("procs")?.split(",").filter((id) => id.length > 0)
+  const procs = param("procs")
+    ?.split(",")
+    .filter((id) => id.length > 0)
   const limitRaw = param("limit")
   const limit = limitRaw === undefined ? DEFAULT_HTTP_LIMIT : Number(limitRaw)
   if (!Number.isInteger(limit) || limit < 0) return badRequest(`bad limit: ${limitRaw}`)
@@ -266,8 +270,8 @@ const httpResponse = (supervisor: Supervisor, url: URL) => {
         path: param("path"),
         captureKind: kind,
         bodies: param("bodies") === "1",
-        limit: Math.min(limit, MAX_HTTP_LIMIT),
-      }),
+        limit: Math.min(limit, MAX_HTTP_LIMIT)
+      })
     )
   } catch (cause) {
     return badRequest((cause as Error).message)
@@ -277,7 +281,7 @@ const httpResponse = (supervisor: Supervisor, url: URL) => {
 const routes = (supervisor: Supervisor, deck: DeckInfo, hooks: ServerHooks) =>
   HttpRouter.addAll([
     HttpRouter.route("GET", `${API}/deck`, () =>
-      Effect.sync(() => HttpServerResponse.jsonUnsafe(deck)),
+      Effect.sync(() => HttpServerResponse.jsonUnsafe(deck))
     ),
     HttpRouter.route("GET", `${API}/instances`, () =>
       Effect.sync(() =>
@@ -288,10 +292,10 @@ const routes = (supervisor: Supervisor, deck: DeckInfo, hooks: ServerHooks) =>
             port: instance.port,
             startedAt: instance.startedAt,
             version: instance.version,
-            self: instance.root === deck.root,
-          })),
-        ),
-      ),
+            self: instance.root === deck.root
+          }))
+        )
+      )
     ),
     // Answer first, then go down: the UI needs the 200 to know the click
     // landed; the shutdown itself runs through the same path as SIGTERM.
@@ -299,23 +303,23 @@ const routes = (supervisor: Supervisor, deck: DeckInfo, hooks: ServerHooks) =>
       Effect.sync(() => {
         setTimeout(hooks.shutdown, 50)
         return HttpServerResponse.jsonUnsafe({ ok: true })
-      }),
+      })
     ),
     HttpRouter.route("GET", "/manifest.webmanifest", () =>
       Effect.sync(() =>
         HttpServerResponse.text(JSON.stringify(manifest(deck)), {
-          headers: { "content-type": "application/manifest+json" },
-        }),
-      ),
+          headers: { "content-type": "application/manifest+json" }
+        })
+      )
     ),
     HttpRouter.route("GET", `${API}/procs`, () =>
-      Effect.sync(() => HttpServerResponse.jsonUnsafe(supervisor.list())),
+      Effect.sync(() => HttpServerResponse.jsonUnsafe(supervisor.list()))
     ),
     HttpRouter.route("GET", `${API}/logs`, (request) =>
-      Effect.sync(() => logsResponse(supervisor, new URL(request.url, "http://localhost"))),
+      Effect.sync(() => logsResponse(supervisor, new URL(request.url, "http://localhost")))
     ),
     HttpRouter.route("GET", `${API}/http`, (request) =>
-      Effect.sync(() => httpResponse(supervisor, new URL(request.url, "http://localhost"))),
+      Effect.sync(() => httpResponse(supervisor, new URL(request.url, "http://localhost")))
     ),
     HttpRouter.route("POST", `${API}/marks`, (request) =>
       Effect.gen(function* () {
@@ -327,7 +331,7 @@ const routes = (supervisor: Supervisor, deck: DeckInfo, hooks: ServerHooks) =>
           return badRequest("mark name must be 1–64 characters")
         }
         return HttpServerResponse.jsonUnsafe(supervisor.mark(name))
-      }),
+      })
     ),
     HttpRouter.route("GET", `${API}/events`, () => sse(supervisor)),
     HttpRouter.route("POST", `${API}/procs/:id/:action`, (request) =>
@@ -360,13 +364,13 @@ const routes = (supervisor: Supervisor, deck: DeckInfo, hooks: ServerHooks) =>
             return HttpServerResponse.jsonUnsafe({ error: "unknown action" }, { status: 404 })
         }
         return HttpServerResponse.jsonUnsafe({ ok: true })
-      }),
+      })
     ),
     // Everything else is the built UI.
     HttpRouter.route("GET", "/", () => serveStatic("/")),
     HttpRouter.route("GET", "/*", (request) =>
-      serveStatic(new URL(request.url, "http://localhost").pathname),
-    ),
+      serveStatic(new URL(request.url, "http://localhost").pathname)
+    )
   ])
 
 /**
@@ -396,7 +400,7 @@ const proxyRequest = (
   supervisor: Supervisor,
   id: string,
   req: IncomingMessage,
-  res: ServerResponse,
+  res: ServerResponse
 ): void => {
   const port = supervisor.proxyPort(id)
   if (port === undefined) {
@@ -409,7 +413,7 @@ const proxyRequest = (
     res,
     port,
     record: supervisor.httpRecorder(id),
-    onError: (response) => refuse(response, 502, `"${id}" refused the connection on :${port}`),
+    onError: (response) => refuse(response, 502, `"${id}" refused the connection on :${port}`)
   })
 }
 
@@ -419,7 +423,7 @@ const proxyUpgrade = (
   id: string,
   req: IncomingMessage,
   socket: Duplex,
-  head: Buffer,
+  head: Buffer
 ): void => {
   const port = supervisor.proxyPort(id)
   if (port === undefined) {
@@ -433,7 +437,7 @@ const proxyUpgrade = (
 const handleNode = async (
   handler: (request: Request) => Promise<Response>,
   req: IncomingMessage,
-  res: ServerResponse,
+  res: ServerResponse
 ): Promise<void> => {
   const controller = new AbortController()
   // Fires on client disconnect; aborting after a normal finish is a no-op.
@@ -448,7 +452,7 @@ const handleNode = async (
         ? null
         : (Readable.toWeb(req) as unknown as RequestInit["body"]),
     duplex: "half",
-    signal: controller.signal,
+    signal: controller.signal
   } as RequestInit)
 
   try {
@@ -470,12 +474,12 @@ export const serve = (
   supervisor: Supervisor,
   deck: DeckInfo,
   bind: Bind,
-  hooks: ServerHooks,
+  hooks: ServerHooks
 ): Effect.Effect<number, Error, Scope.Scope> =>
   Effect.acquireRelease(
     Effect.gen(function* () {
       const { handler, dispose } = HttpRouter.toWebHandler(routes(supervisor, deck, hooks), {
-        disableLogger: true,
+        disableLogger: true
       })
 
       // Known pane subdomains are proxied; everything else (plain localhost,
@@ -505,5 +509,5 @@ export const serve = (
         http.closeAllConnections()
         await new Promise<void>((done) => http.close(() => done()))
         await dispose()
-      }),
+      })
   ).pipe(Effect.as(bind.port))

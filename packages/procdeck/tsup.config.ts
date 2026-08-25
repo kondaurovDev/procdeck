@@ -24,5 +24,5 @@ export default defineConfig({
   // (tsup externalises every `dependencies` entry by default, so bundling one
   // has to be requested explicitly.)
   external: ["@lydell/node-pty"],
-  noExternal: ["effect", "@effect/platform-node-shared"],
+  noExternal: ["effect", "@effect/platform-node-shared"]
 })

@@ -21,7 +21,7 @@ const order = async () => {
   const response = await fetch(`${apiUrl}/orders`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(payload)
   })
   const label = sabotage ? "broken-on-purpose order" : `order for ${pick.name}`
   console.log(`${label} → ${response.status} ${await response.text()}`)

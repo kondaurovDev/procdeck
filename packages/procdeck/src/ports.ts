@@ -28,7 +28,7 @@ export const detectPorts = async (pgid: number): Promise<Array<number>> => {
     "-iTCP",
     "-sTCP:LISTEN",
     "-p",
-    pids.join(","),
+    pids.join(",")
   ])
 
   const ports = new Set<number>()
@@ -64,12 +64,12 @@ export const findFreePorts = async (count: number): Promise<Array<number>> => {
           const server = createServer()
           server.once("error", reject)
           server.listen(0, "127.0.0.1", () => resolve(server))
-        }),
-    ),
+        })
+    )
   )
   const ports = servers.map((server) => (server.address() as AddressInfo).port)
   await Promise.all(
-    servers.map((server) => new Promise<void>((done) => server.close(() => done()))),
+    servers.map((server) => new Promise<void>((done) => server.close(() => done())))
   )
   return ports
 }

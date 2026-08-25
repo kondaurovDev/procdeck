@@ -18,7 +18,7 @@ edit-verify cycle:
 2. Agent edits code, `restart api`.
 3. `wait-for api --pattern "listening on"` (or port up) — block until ready.
 4. Agent exercises the endpoint (curl, test, whatever).
-5. `logs --since-mark` — only the output *caused by the agent's action*.
+5. `logs --since-mark` — only the output _caused by the agent's action_.
 
 That turns procdeck from a log viewer into a test bench for agents. Plain
 "tail over MCP" is a commodity; markers + wait-for + error dedup is the
@@ -27,7 +27,7 @@ differentiation.
 ## Order of work: JSON CLI first, MCP as a layer on top
 
 Agents are fluent in bash. A CLI answers 80% of the need with zero setup,
-works with *any* agent (not just MCP clients), and becomes the thin
+works with _any_ agent (not just MCP clients), and becomes the thin
 implementation layer for the MCP tools later. So:
 
 **Phase 1 — CLI (read-only core) — shipped.** Extends the
@@ -42,9 +42,9 @@ grep mode in plan.md want.
   (crashed / blocked / alerting, with reasons). `{"up": false}` + exit 1
   when nothing runs. The agent's first, cheapest question.
 - `procdeck logs [proc] [--lines N] [--since 2m] [--grep RE] [--since-mark
-  NAME] [--json]` (shipped) — tail-oriented (default 200 lines, max 5000),
-  reports what was dropped ("… N earlier matching lines omitted"). *No proc
-  = every proc interleaved* with `[id]` prefixes — the old "procdeck's own
+NAME] [--json]` (shipped) — tail-oriented (default 200 lines, max 5000),
+  reports what was dropped ("… N earlier matching lines omitted"). _No proc
+  = every proc interleaved_ with `[id]` prefixes — the old "procdeck's own
   daemon log" behaviour moved to `logs --self` (with `-f`), since pane
   output is what callers want 99% of the time.
 - `procdeck mark [name]` (shipped) — named (proc → seq) snapshots,
@@ -52,7 +52,7 @@ grep mode in plan.md want.
   capped at 100.
 - `procdeck wait-for <proc> [--pattern RE] [--timeout 30s]` (shipped) —
   default waits for a listening port; `--pattern` matches new output,
-  starting at the current *run's* first line so `restart` + `wait-for`
+  starting at the current _run's_ first line so `restart` + `wait-for`
   cannot lose a line that lands between the two commands. Fails fast on
   crash/blocked (exit 1, last lines on stderr), exit 2 on timeout.
 - `procdeck errors [proc] [--since-mark] [--json]` (shipped) — heuristic
@@ -64,13 +64,13 @@ grep mode in plan.md want.
 **Phase 2 — MCP server — shipped.** `procdeck mcp` (stdio, `src/mcp.ts` on
 effect's `McpServer`): the user runs `claude mcp add procdeck -- procdeck
 mcp` once, globally, and it works in every project — the deck is resolved
-*per tool call* via cwd → config-walk → registry, so the server outlives
+_per tool call_ via cwd → config-walk → registry, so the server outlives
 deck restarts and can start before the deck is up. The registry pays for
 itself a second time here. Tools mirror the CLI verbs 1:1: `deck_status`,
 `get_logs` (grep/since/mark — `search_logs` folded into it), `get_errors`,
 `set_mark`, `wait_for`. Tool descriptions carry the workflow ("call
 deck_status first", the mark → act → since_mark loop) — the "skill text"
-lives in the tools themselves. Problems come back as `{error}` *values*,
+lives in the tools themselves. Problems come back as `{error}` _values_,
 not protocol errors, so the agent can read "deck is down — run `procdeck
 up`" and act on it. Bundle cost: +0.3 MB.
 

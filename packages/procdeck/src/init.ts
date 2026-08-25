@@ -43,7 +43,7 @@ const readPackage = (root: string, dir: string): Package | undefined => {
     return {
       dir,
       name: json.name ?? path.basename(path.resolve(root, dir)),
-      scripts: json.scripts ?? {},
+      scripts: json.scripts ?? {}
     }
   } catch {
     return undefined
@@ -135,7 +135,11 @@ const rootCommand = (pm: PackageManager, script: string): string =>
 
 /** A pane id: the package name without scope, unique within the deck. */
 const paneId = (name: string, taken: Set<string>): string => {
-  const base = name.replace(/^@[^/]+\//, "").replace(/[^a-z0-9-]/gi, "-").toLowerCase() || "app"
+  const base =
+    name
+      .replace(/^@[^/]+\//, "")
+      .replace(/[^a-z0-9-]/gi, "-")
+      .toLowerCase() || "app"
   let id = base
   for (let n = 2; taken.has(id); n++) id = `${base}-${n}`
   taken.add(id)
@@ -169,7 +173,7 @@ const NON_JS_MARKERS: Array<{ file: string; shell: string; what: string }> = [
   { file: "docker-compose.yml", shell: "docker compose up", what: "docker compose" },
   { file: "docker-compose.yaml", shell: "docker compose up", what: "docker compose" },
   { file: "compose.yaml", shell: "docker compose up", what: "docker compose" },
-  { file: "compose.yml", shell: "docker compose up", what: "docker compose" },
+  { file: "compose.yml", shell: "docker compose up", what: "docker compose" }
 ]
 
 const nonJsCommand = (dir: string): { shell: string; what: string } | undefined => {
@@ -199,7 +203,7 @@ const SKIP_DIRS = new Set(["node_modules", "dist", "build", "vendor", "target", 
 const subdirectories = (root: string): Array<string> =>
   readdirSync(root, { withFileTypes: true })
     .filter(
-      (entry) => entry.isDirectory() && !entry.name.startsWith(".") && !SKIP_DIRS.has(entry.name),
+      (entry) => entry.isDirectory() && !entry.name.startsWith(".") && !SKIP_DIRS.has(entry.name)
     )
     .map((entry) => entry.name)
     .sort()
@@ -208,7 +212,7 @@ const subdirectories = (root: string): Array<string> =>
 const projectIn = (
   root: string,
   dir: string,
-  fallbackPm: PackageManager,
+  fallbackPm: PackageManager
 ): { name: string; shell: string; what: string } | undefined => {
   const pkg = readPackage(root, dir)
   const script = pkg === undefined ? undefined : devScript(pkg)
@@ -233,11 +237,11 @@ export const planInit = (root: string): InitPlan => {
   const done = (
     procs: Array<InitProc>,
     notes: Array<string>,
-    source: InitPlan["source"],
+    source: InitPlan["source"]
   ): InitPlan => ({
     config: { $schema: "https://unpkg.com/procdeck/schema.json", name, procs },
     notes,
-    source,
+    source
   })
 
   // 1. Procfile: somebody already wrote the list.
@@ -246,13 +250,15 @@ export const planInit = (root: string): InitPlan => {
     return done(
       declared.map((proc) => ({ id: paneId(proc.id, taken), shell: proc.shell })),
       declared.map((proc) => `${proc.id.padEnd(16)} Procfile  (${proc.shell})`),
-      "Procfile",
+      "Procfile"
     )
   }
 
   // 2. Workspaces.
   const globs = workspaceGlobs(root)
-  const dirs = [...new Set(globs.filter((g) => !g.startsWith("!")).flatMap((g) => expandGlob(root, g)))]
+  const dirs = [
+    ...new Set(globs.filter((g) => !g.startsWith("!")).flatMap((g) => expandGlob(root, g)))
+  ]
   const fromWorkspaces: Array<InitProc> = []
   const workspaceNotes: Array<string> = []
   for (const dir of dirs) {
@@ -288,7 +294,9 @@ export const planInit = (root: string): InitPlan => {
   // 5. Nothing to go on — a template that runs, to be edited.
   return done(
     [{ id: "app", shell: "echo 'edit procdeck.config.json'; sleep 1000" }],
-    ["nothing recognisable here (package.json scripts, Procfile, Django/Go/Rust/Rails/compose) — wrote a template to edit"],
-    "template",
+    [
+      "nothing recognisable here (package.json scripts, Procfile, Django/Go/Rust/Rails/compose) — wrote a template to edit"
+    ],
+    "template"
   )
 }

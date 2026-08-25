@@ -17,8 +17,8 @@ seam.
 
 **Problem (as it was).** All log chunks and status events shared one
 `PubSub.sliding` (`EVENT_BUFFER = 5000` events). The guarantee it gave —
-"last 5000 events *in total*" — was the wrong shape; what a fresh tab needs is
-"the last N lines of *each* proc":
+"last 5000 events _in total_" — was the wrong shape; what a fresh tab needs is
+"the last N lines of _each_ proc":
 
 - A chatty proc (a per-second ticker, a verbose build watcher) evicts quiet
   procs' history; after a long run a new tab may open a near-empty pane.
@@ -30,13 +30,13 @@ seam.
 
 **Design.**
 
-- Keep the PubSub, but as *live transport only*: drop (or shrink) `replay`.
+- Keep the PubSub, but as _live transport only_: drop (or shrink) `replay`.
 - Each `Runtime` gets its own ring of chunks, bounded by **bytes** (e.g.
   256 KB per proc), not by event count — chunks vary wildly in size.
 - On SSE connect the handler first sends, per proc: buffered backlog chunks +
   current status, then an explicit end-of-backlog marker (e.g.
   `{type: "synced"}`), then switches to the live subscription.
-- Ordering subtlety: subscribe *first*, then read the buffers, so nothing
+- Ordering subtlety: subscribe _first_, then read the buffers, so nothing
   published in between is lost. Duplicate chunks at the seam are harmless for
   a terminal (or can be cut by tagging chunks with a per-proc counter).
 
@@ -112,7 +112,7 @@ Grafana/Datadog "fit vs scroll"):
   pinned, or everyone when nothing is pinned. Pin toggles live on the pane
   header, the sidebar row (hover-revealed) and the tray chips; ⌥P toggles the
   active pane. Unpinned procs collapse into the **tray** under the grid —
-  dot, id, badges — click the chip to *peek* (single on it), pin to put it
+  dot, id, badges — click the chip to _peek_ (single on it), pin to put it
   back. The active pane may sit in the tray (after a peek + ⌥Z, say); it
   keeps its accent there because hotkeys still act on it. Stale pins are
   dropped on `GotProcs`, same as a stale `active`.
@@ -137,7 +137,7 @@ Small, all expected by anyone coming from a terminal, all cheap:
 
 - **Clickable URLs in output** (shipped) — `@xterm/addon-web-links`.
 - **Readable exit status** (shipped). `exit 1 · 2m ago` / `killed (SIGTERM)`;
-  the server now sends signal *names* and treats node-pty's `signal: 0` as
+  the server now sends signal _names_ and treats node-pty's `signal: 0` as
   none (that was the `exited · signal 0`), plus `exitedAt` and a `restarts`
   counter (`↻3` in the status line). The sidebar shows the same summary in
   the uptime slot.
@@ -149,7 +149,7 @@ Small, all expected by anyone coming from a terminal, all cheap:
   `icon-alert.svg` as favicon (swapped by a Command from the `update`
   wrapper, like the theme). The bell (`Model.notifications`, persisted)
   requests permission on first click; `Notify` is issued by `update` on
-  *transitions* only (fresh crash / block / alert) and only for live events —
+  _transitions_ only (fresh crash / block / alert) and only for live events —
   replayed status history on reconnect carries `live: false` now, same as log
   chunks. The Command itself stays quiet while the tab is visible and
   focused. `tag` per proc collapses repeats; click focuses the window.
@@ -168,11 +168,11 @@ Small, all expected by anyone coming from a terminal, all cheap:
   (`pnpm-workspace.yaml` / `workspaces`), one proc per package with a dev-ish
   script (`dev`, `start:dev`, `serve`, `watch`, `start`) via the lockfile's
   package manager; plain subdirectories (depth 1, each its own package.json
-  + lockfile, or a non-JS marker: manage.py, bin/rails, go.mod, Cargo.toml,
-  mix.exs with :phoenix, compose files) with `cwd`; the root itself; else a
-  template. Validates the file through the real loader before reporting. No
-  `${port}` guessing — printed as a tip. Not detected: Makefile targets,
-  pyproject without a framework, Gradle/Maven — leave to the user.
+  - lockfile, or a non-JS marker: manage.py, bin/rails, go.mod, Cargo.toml,
+    mix.exs with :phoenix, compose files) with `cwd`; the root itself; else a
+    template. Validates the file through the real loader before reporting. No
+    `${port}` guessing — printed as a tip. Not detected: Makefile targets,
+    pyproject without a framework, Gradle/Maven — leave to the user.
 - A "vs mprocs / overmind / concurrently / turbo TUI" table — that is where
   users come from.
 - (shipped) Binds `127.0.0.1` only now (`host` in the config to open up);
@@ -248,7 +248,7 @@ shouldn't have to be memorized:
 
 **Decision: one installed app per project, switcher is navigation.** An
 installed web app is bound to its origin, and origin includes the port — the
-"garage" window *is* `localhost:4820`. Navigating it to `localhost:4830`
+"garage" window _is_ `localhost:4820`. Navigating it to `localhost:4830`
 leaves the app's scope (Chrome keeps the window but shows an out-of-scope
 address bar, and the window stays "garage"). So "one Dock icon with a deck
 switcher inside" cannot exist without a hub that proxies every deck under one

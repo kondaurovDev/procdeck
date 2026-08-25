@@ -147,12 +147,12 @@ const SENSITIVE = new Set([
   "cookie",
   "set-cookie",
   "x-api-key",
-  "x-auth-token",
+  "x-auth-token"
 ])
 
 /** Lowercased headers with sensitive values replaced — applied at capture. */
 export const redactHeaders = (
-  headers: Record<string, string | Array<string> | number | undefined>,
+  headers: Record<string, string | Array<string> | number | undefined>
 ): Record<string, string> => {
   const out: Record<string, string> = {}
   for (const [name, value] of Object.entries(headers)) {
@@ -192,14 +192,14 @@ export class HttpBuffer {
       sinceSeq?: number | undefined
       sinceMs?: number | undefined
       untilMs?: number | undefined
-    } = {},
+    } = {}
   ): Array<Capture & { seq: number }> {
     const { sinceMs, sinceSeq, untilMs } = options
     return this.items.filter(
       (item) =>
         (sinceSeq === undefined || item.seq >= sinceSeq) &&
         (sinceMs === undefined || item.ts >= sinceMs) &&
-        (untilMs === undefined || item.ts <= untilMs),
+        (untilMs === undefined || item.ts <= untilMs)
     )
   }
 }
@@ -261,7 +261,7 @@ export const queryHttp = (buffers: Map<string, HttpBuffer>, query: HttpQuery): H
     for (const item of buffer.slice({
       sinceSeq: query.sinceSeq?.[id],
       sinceMs: query.sinceMs,
-      untilMs: query.untilMs,
+      untilMs: query.untilMs
     })) {
       const itemKind = item.kind === "ws" ? "ws" : "http"
       if (query.captureKind !== undefined && itemKind !== query.captureKind) continue
@@ -278,7 +278,7 @@ export const queryHttp = (buffers: Map<string, HttpBuffer>, query: HttpQuery): H
   return {
     exchanges: query.bodies === true ? tail : tail.map(withoutBodies),
     nextSeq,
-    omitted,
+    omitted
   }
 }
 
@@ -296,7 +296,7 @@ export const normalizePath = (path: string): string => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment) ||
       /^[0-9a-f]{8,}$/i.test(segment)
         ? ":id"
-        : segment,
+        : segment
     )
     .join("/")
 }
@@ -332,7 +332,7 @@ export const digestHttp = (exchanges: Array<DeckCapture>): Array<HttpDigestGroup
         status: exchange.status,
         count: 1,
         firstTs: exchange.ts,
-        lastTs: exchange.ts,
+        lastTs: exchange.ts
       })
     } else {
       group.count += 1

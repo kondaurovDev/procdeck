@@ -5,7 +5,7 @@ import { WsMessageParser } from "../src/ws.ts"
 const frame = (
   opcode: number,
   payload: Buffer | string,
-  options: { fin?: boolean; mask?: boolean } = {},
+  options: { fin?: boolean; mask?: boolean } = {}
 ): Buffer => {
   const data = typeof payload === "string" ? Buffer.from(payload) : payload
   const fin = options.fin ?? true
@@ -61,7 +61,7 @@ describe("WsMessageParser", () => {
     const parts = Buffer.concat([
       frame(0x1, "hel", { fin: false }),
       frame(0x9, "ping"), // control frame between fragments — legal
-      frame(0x0, "lo", { fin: true }),
+      frame(0x0, "lo", { fin: true })
     ])
     expect(texts(parser, parts)).toEqual(["hello"])
   })

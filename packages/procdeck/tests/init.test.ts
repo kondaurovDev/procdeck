@@ -40,7 +40,7 @@ describe("procdeck init", () => {
     expect(plan.config.procs).toEqual([
       { id: "api", shell: "pnpm --filter @acme/api dev" },
       { id: "docs", shell: "pnpm --filter docs start" },
-      { id: "web", shell: "pnpm --filter web dev" },
+      { id: "web", shell: "pnpm --filter web dev" }
     ])
     expect(() => valid(plan.config)).not.toThrow()
     expect(plan.notes.join("\n")).toContain("apps/web")
@@ -50,7 +50,7 @@ describe("procdeck init", () => {
     write("package.json", {
       name: "shop",
       workspaces: ["services/*"],
-      scripts: { dev: "turbo dev" },
+      scripts: { dev: "turbo dev" }
     })
     write("yarn.lock", "")
     write("services/api/package.json", { name: "api", scripts: { dev: "nest start --watch" } })
@@ -96,7 +96,7 @@ describe("procdeck init", () => {
       { id: "backend", shell: "pnpm run dev", cwd: "backend" },
       { id: "frontend", shell: "yarn run dev", cwd: "frontend" },
       { id: "gateway", shell: "go run .", cwd: "gateway" },
-      { id: "ml", shell: "python manage.py runserver", cwd: "ml" },
+      { id: "ml", shell: "python manage.py runserver", cwd: "ml" }
     ])
     expect(() => valid(plan.config)).not.toThrow()
   })
@@ -108,23 +108,28 @@ describe("procdeck init", () => {
   })
 
   test("Procfile wins: it is already the list", () => {
-    write("Procfile", "web: bundle exec puma -C config/puma.rb\n# a comment\nworker: bundle exec sidekiq\n\n")
+    write(
+      "Procfile",
+      "web: bundle exec puma -C config/puma.rb\n# a comment\nworker: bundle exec sidekiq\n\n"
+    )
     write("bin/rails", "#!/usr/bin/env ruby")
     write("package.json", { name: "app", scripts: { dev: "vite" } })
     const plan = planInit(root)
     expect(plan.source).toBe("Procfile")
     expect(plan.config.procs).toEqual([
       { id: "web", shell: "bundle exec puma -C config/puma.rb" },
-      { id: "worker", shell: "bundle exec sidekiq" },
+      { id: "worker", shell: "bundle exec sidekiq" }
     ])
     expect(() => valid(plan.config)).not.toThrow()
   })
 
   test("a non-JS root: the one obvious command", () => {
-    write("Cargo.toml", "[package]\nname = \"svc\"\n")
+    write("Cargo.toml", '[package]\nname = "svc"\n')
     const plan = planInit(root)
     expect(plan.source).toBe("root")
-    expect(plan.config.procs).toEqual([{ id: path.basename(root).toLowerCase(), shell: "cargo run" }])
+    expect(plan.config.procs).toEqual([
+      { id: path.basename(root).toLowerCase(), shell: "cargo run" }
+    ])
     // docker compose at the root, no code of our own → compose it is.
     rmSync(path.join(root, "Cargo.toml"))
     write("compose.yaml", "services: {}")

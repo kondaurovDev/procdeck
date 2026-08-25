@@ -4,7 +4,7 @@ import type {
   Alert as SchemaAlert,
   Preflight as SchemaPreflight,
   ProcdeckConfig as SchemaConfig,
-  ProcSpec as SchemaProcSpec,
+  ProcSpec as SchemaProcSpec
 } from "../src/config.ts"
 
 /**

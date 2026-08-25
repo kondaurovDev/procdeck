@@ -30,7 +30,7 @@ export const MountTerminal = Mount.defineStream(
   "MountTerminal",
   { id: S.String },
   MountedTerminal,
-  TypedInput,
+  TypedInput
 )(
   ({ id }) =>
     (element) =>
@@ -43,7 +43,7 @@ export const MountTerminal = Mount.defineStream(
               scrollback: 10_000,
               // Born in the scheme the document is painted in; ApplyTheme
               // recolours it on later switches.
-              theme: xtermTheme(currentScheme()),
+              theme: xtermTheme(currentScheme())
             })
             const fit = new FitAddon()
             term.loadAddon(fit)
@@ -78,7 +78,7 @@ export const MountTerminal = Mount.defineStream(
             Effect.sync(() => {
               registry.delete(id)
               term.dispose()
-            }),
-        ),
-      ),
+            })
+        )
+      )
 )

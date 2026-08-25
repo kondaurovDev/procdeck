@@ -16,7 +16,7 @@ import {
   StreamDropped,
   StreamOpened,
   Ticked,
-  ToggledZoom,
+  ToggledZoom
 } from "./message.ts"
 import type { Message } from "./message.ts"
 import type { Model } from "./model.ts"
@@ -39,7 +39,7 @@ const sseStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
       const RETRY_MS = 2000
       const handle: { source: EventSource | undefined; retry: number | undefined } = {
         source: undefined,
-        retry: undefined,
+        retry: undefined
       }
       const connect = () => {
         const source = new EventSource(`${API}/events`)
@@ -69,7 +69,7 @@ const sseStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
               queue,
               event.type === "log"
                 ? ReceivedLog({ id: event.id, data: event.data, live: synced })
-                : ReceivedStatus({ status: event.status, live: synced }),
+                : ReceivedStatus({ status: event.status, live: synced })
             )
           } catch {
             // Malformed frame — drop it.
@@ -83,8 +83,8 @@ const sseStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
       Effect.sync(() => {
         window.clearTimeout(handle.retry)
         handle.source?.close()
-      }),
-  ),
+      })
+  )
 )
 
 const resizeStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
@@ -96,8 +96,8 @@ const resizeStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
       window.addEventListener("resize", onResize)
       return onResize
     }),
-    (onResize) => Effect.sync(() => window.removeEventListener("resize", onResize)),
-  ),
+    (onResize) => Effect.sync(() => window.removeEventListener("resize", onResize))
+  )
 ).pipe(Stream.debounce("150 millis"))
 
 const isMac = /Mac|iP/.test(navigator.platform)
@@ -151,8 +151,8 @@ const hotkeyStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
       window.addEventListener("keydown", onKeyDown, true)
       return onKeyDown
     }),
-    (onKeyDown) => Effect.sync(() => window.removeEventListener("keydown", onKeyDown, true)),
-  ),
+    (onKeyDown) => Effect.sync(() => window.removeEventListener("keydown", onKeyDown, true))
+  )
 )
 
 const tickStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
@@ -160,10 +160,10 @@ const tickStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
     Effect.sync(() =>
       setInterval(() => {
         Queue.offerUnsafe(queue, Ticked({ now: Date.now() }))
-      }, 1000),
+      }, 1000)
     ),
-    (id) => Effect.sync(() => clearInterval(id)),
-  ),
+    (id) => Effect.sync(() => clearInterval(id))
+  )
 )
 
 /** Traffic-view poll: fires immediately on subscribe, then every second. */
@@ -175,8 +175,8 @@ const trafficStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =
         Queue.offerUnsafe(queue, PolledTraffic())
       }, 1000)
     }),
-    (id) => Effect.sync(() => clearInterval(id)),
-  ),
+    (id) => Effect.sync(() => clearInterval(id))
+  )
 )
 
 export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
@@ -189,32 +189,32 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
     { ready: S.Boolean },
     {
       modelToDependencies: (model) => ({
-        ready: model.procs.length > 0 && model.mounted.length >= model.procs.length,
+        ready: model.procs.length > 0 && model.mounted.length >= model.procs.length
       }),
-      dependenciesToStream: ({ ready }) => (ready ? sseStream : Stream.empty),
-    },
+      dependenciesToStream: ({ ready }) => (ready ? sseStream : Stream.empty)
+    }
   ),
   resize: entry(
     { active: S.UndefinedOr(S.String) },
     {
       modelToDependencies: (model) => ({ active: model.active }),
-      dependenciesToStream: ({ active }) => (active === undefined ? Stream.empty : resizeStream),
-    },
+      dependenciesToStream: ({ active }) => (active === undefined ? Stream.empty : resizeStream)
+    }
   ),
   hotkeys: entry(
     { enabled: S.Boolean },
     {
       modelToDependencies: (model) => ({ enabled: model.procs.length > 0 }),
-      dependenciesToStream: ({ enabled }) => (enabled ? hotkeyStream : Stream.empty),
-    },
+      dependenciesToStream: ({ enabled }) => (enabled ? hotkeyStream : Stream.empty)
+    }
   ),
   // Web-app install offer — listens for the whole session.
   install: entry(
     { on: S.Boolean },
     {
       modelToDependencies: () => ({ on: true }),
-      dependenciesToStream: () => installStream,
-    },
+      dependenciesToStream: () => installStream
+    }
   ),
   // OS light/dark flips. Always on, so `systemDark` is current the moment the
   // user switches back to "system" after a spell on an explicit theme.
@@ -222,18 +222,18 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
     { on: S.Boolean },
     {
       modelToDependencies: () => ({ on: true }),
-      dependenciesToStream: () => systemSchemeStream,
-    },
+      dependenciesToStream: () => systemSchemeStream
+    }
   ),
   // The traffic view's poll — alive only while the view is open and running.
   traffic: entry(
     { on: S.Boolean },
     {
       modelToDependencies: (model) => ({
-        on: model.layout === "http" && !model.trafficPaused && model.stream !== "reconnecting",
+        on: model.layout === "http" && !model.trafficPaused && model.stream !== "reconnecting"
       }),
-      dependenciesToStream: ({ on }) => (on ? trafficStream : Stream.empty),
-    },
+      dependenciesToStream: ({ on }) => (on ? trafficStream : Stream.empty)
+    }
   ),
   // Uptime / "exited 2m ago" clock — only ticks while there is something to age.
   clock: entry(
@@ -241,10 +241,10 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
     {
       modelToDependencies: (model) => ({
         anyAging: model.procs.some(
-          (info) => info.status.state === "running" || info.status.exitedAt !== undefined,
-        ),
+          (info) => info.status.state === "running" || info.status.exitedAt !== undefined
+        )
       }),
-      dependenciesToStream: ({ anyAging }) => (anyAging ? tickStream : Stream.empty),
-    },
-  ),
+      dependenciesToStream: ({ anyAging }) => (anyAging ? tickStream : Stream.empty)
+    }
+  )
 }))

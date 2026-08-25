@@ -35,7 +35,7 @@ export const upstreamOptions = (req: IncomingMessage, port: number) => ({
   autoSelectFamily: true,
   method: req.method,
   path: req.url,
-  headers: { ...req.headers, host: `localhost:${port}` },
+  headers: { ...req.headers, host: `localhost:${port}` }
 })
 
 /**
@@ -71,7 +71,7 @@ export const forwardRequest = (options: {
       reqBody: reqTap?.body,
       resBody: resTap?.body,
       reqHeaders: redactHeaders(req.headers),
-      resHeaders,
+      resHeaders
     })
   }
 
@@ -130,7 +130,7 @@ export const forwardUpgrade = (options: {
       resBytes: 0,
       reqHeaders: redactHeaders(req.headers),
       resHeaders,
-      connId,
+      connId
     })
   }
 
@@ -161,7 +161,7 @@ export const forwardUpgrade = (options: {
               opcode: message.opcode,
               path,
               size: message.size,
-              text: message.opcode === "text" ? message.data.toString("utf8") : undefined,
+              text: message.opcode === "text" ? message.data.toString("utf8") : undefined
             })
           }
         }
@@ -193,7 +193,7 @@ export const forwardUpgrade = (options: {
   upstream.on("response", (upRes) => {
     finish(upRes.statusCode ?? 502, redactHeaders(upRes.headers))
     socket.end(
-      `HTTP/1.1 ${upRes.statusCode ?? 502} ${upRes.statusMessage ?? ""}\r\nconnection: close\r\n\r\n`,
+      `HTTP/1.1 ${upRes.statusCode ?? 502} ${upRes.statusMessage ?? ""}\r\nconnection: close\r\n\r\n`
     )
   })
   upstream.on("error", () => {
@@ -215,10 +215,10 @@ export const startObserver = (options: {
   record: RecordExchange
 }): Promise<() => Promise<void>> => {
   const server = createServer((req, res) =>
-    forwardRequest({ req, res, port: options.internalPort, record: options.record }),
+    forwardRequest({ req, res, port: options.internalPort, record: options.record })
   )
   server.on("upgrade", (req, socket, head) =>
-    forwardUpgrade({ req, socket, head, port: options.internalPort, record: options.record }),
+    forwardUpgrade({ req, socket, head, port: options.internalPort, record: options.record })
   )
   return new Promise((resolve, reject) => {
     server.once("error", reject)
@@ -228,8 +228,8 @@ export const startObserver = (options: {
           new Promise<void>((done) => {
             server.closeAllConnections()
             server.close(() => done())
-          }),
-      ),
+          })
+      )
     )
   })
 }

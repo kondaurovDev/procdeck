@@ -6,6 +6,6 @@ export default defineConfig({
     testTimeout: 15_000,
     // node-pty is a native addon; worker threads and native addons are a known
     // bad mix, so run test files in forked processes instead.
-    pool: "forks",
-  },
+    pool: "forks"
+  }
 })

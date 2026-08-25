@@ -17,14 +17,14 @@ import { makeSupervisor } from "../src/supervisor.ts"
 const loaded = (procs: LoadedConfig["config"]["procs"]): LoadedConfig => ({
   config: { procs },
   root: process.cwd(),
-  name: "test",
+  name: "test"
 })
 
 const LONG_RUNNER = ["node", "-e", 'console.log("up"); setInterval(() => {}, 1000)']
 
 const takeUntil = Effect.fn("takeUntil")(function* (
   subscription: Queue.Dequeue<ProcEvent, unknown>,
-  predicate: (event: ProcEvent) => boolean,
+  predicate: (event: ProcEvent) => boolean
 ) {
   while (true) {
     const event = yield* Queue.take(subscription)
@@ -70,16 +70,18 @@ describe("preflight", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const supervisor = yield* makeSupervisor(
-            loaded([{ id: "ok", cmd: LONG_RUNNER, preflight: { shell: "true" } }]),
+            loaded([{ id: "ok", cmd: LONG_RUNNER, preflight: { shell: "true" } }])
           )
           const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
             subscription,
             (event) =>
-              event.type === "status" && event.status.id === "ok" && event.status.state === "running",
+              event.type === "status" &&
+              event.status.id === "ok" &&
+              event.status.state === "running"
           )
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -94,10 +96,10 @@ describe("preflight", () => {
                 cmd: LONG_RUNNER,
                 preflight: {
                   shell: "echo not-logged-in >&2; false",
-                  hint: "run pnpm cloudflare:login",
-                },
-              },
-            ]),
+                  hint: "run pnpm cloudflare:login"
+                }
+              }
+            ])
           )
           const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           // The check's output and the hint both land in the pane log (they
@@ -108,23 +110,23 @@ describe("preflight", () => {
             (event) =>
               event.type === "log" &&
               event.data.includes("not-logged-in") &&
-              event.data.includes("run pnpm cloudflare:login"),
+              event.data.includes("run pnpm cloudflare:login")
           )
           yield* takeUntil(
             subscription,
             (event) =>
               event.type === "status" &&
               event.status.id === "gated" &&
-              event.status.state === "blocked",
+              event.status.state === "blocked"
           )
-          expect(
-            supervisor.list().find((entry) => entry.id === "gated")!.status.hint,
-          ).toBe("run pnpm cloudflare:login")
+          expect(supervisor.list().find((entry) => entry.id === "gated")!.status.hint).toBe(
+            "run pnpm cloudflare:login"
+          )
           // The process was never spawned.
           const info = supervisor.list().find((entry) => entry.id === "gated")!
           expect(info.status.pid).toBeUndefined()
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -135,8 +137,8 @@ describe("preflight", () => {
           const supervisor = yield* makeSupervisor(
             loaded([
               { id: "gated", cmd: LONG_RUNNER, preflight: { shell: "false" } },
-              { id: "web", cmd: LONG_RUNNER, needs: ["gated"] },
-            ]),
+              { id: "web", cmd: LONG_RUNNER, needs: ["gated"] }
+            ])
           )
           const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
@@ -144,13 +146,13 @@ describe("preflight", () => {
             (event) =>
               event.type === "status" &&
               event.status.id === "gated" &&
-              event.status.state === "blocked",
+              event.status.state === "blocked"
           )
           expect(supervisor.list().find((entry) => entry.id === "web")!.status.state).toBe(
-            "waiting",
+            "waiting"
           )
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -165,14 +167,14 @@ describe("preflight", () => {
               {
                 id: "gated",
                 cmd: LONG_RUNNER,
-                preflight: { shell: "echo you are NOT logged in", expect: "You are logged in" },
+                preflight: { shell: "echo you are NOT logged in", expect: "You are logged in" }
               },
               {
                 id: "ok",
                 cmd: LONG_RUNNER,
-                preflight: { shell: "echo You are logged in as x", expect: "You are logged in" },
-              },
-            ]),
+                preflight: { shell: "echo You are logged in as x", expect: "You are logged in" }
+              }
+            ])
           )
           const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           // The two procs race: `ok` can reach running before `gated` is
@@ -184,10 +186,12 @@ describe("preflight", () => {
               event.status.id === "gated" &&
               event.status.state === "blocked",
             (event) =>
-              event.type === "status" && event.status.id === "ok" && event.status.state === "running",
+              event.type === "status" &&
+              event.status.id === "ok" &&
+              event.status.state === "running"
           )
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -197,9 +201,7 @@ describe("preflight", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const supervisor = yield* makeSupervisor(
-            loaded([
-              { id: "gated", cmd: LONG_RUNNER, preflight: { shell: `test -f ${flag}` } },
-            ]),
+            loaded([{ id: "gated", cmd: LONG_RUNNER, preflight: { shell: `test -f ${flag}` } }])
           )
           const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
@@ -207,7 +209,7 @@ describe("preflight", () => {
             (event) =>
               event.type === "status" &&
               event.status.id === "gated" &&
-              event.status.state === "blocked",
+              event.status.state === "blocked"
           )
 
           writeFileSync(flag, "")
@@ -217,10 +219,10 @@ describe("preflight", () => {
             (event) =>
               event.type === "status" &&
               event.status.id === "gated" &&
-              event.status.state === "running",
+              event.status.state === "running"
           )
-        }),
-      ),
+        })
+      )
     )
   })
 })
@@ -240,12 +242,12 @@ describe("url-pinned readiness", () => {
                 cmd: [
                   "node",
                   "-e",
-                  'require("net").createServer().listen(0, () => console.log("stray-up")); setInterval(() => {}, 1000)',
+                  'require("net").createServer().listen(0, () => console.log("stray-up")); setInterval(() => {}, 1000)'
                 ],
-                url: `http://localhost:${urlPort}`,
+                url: `http://localhost:${urlPort}`
               },
-              { id: "web", cmd: LONG_RUNNER, needs: ["api"] },
-            ]),
+              { id: "web", cmd: LONG_RUNNER, needs: ["api"] }
+            ])
           )
           const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           // Wait until the poll loop has seen the stray port…
@@ -254,14 +256,14 @@ describe("url-pinned readiness", () => {
             (event) =>
               event.type === "status" &&
               event.status.id === "api" &&
-              (event.status.ports ?? []).length > 0,
+              (event.status.ports ?? []).length > 0
           )
           // …and the dependent must still be waiting.
           expect(supervisor.list().find((entry) => entry.id === "web")!.status.state).toBe(
-            "waiting",
+            "waiting"
           )
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -277,12 +279,12 @@ describe("url-pinned readiness", () => {
                 cmd: [
                   "node",
                   "-e",
-                  `require("net").createServer().listen(${urlPort}, () => console.log("api-up")); setInterval(() => {}, 1000)`,
+                  `require("net").createServer().listen(${urlPort}, () => console.log("api-up")); setInterval(() => {}, 1000)`
                 ],
-                url: `http://localhost:${urlPort}`,
+                url: `http://localhost:${urlPort}`
               },
-              { id: "web", cmd: LONG_RUNNER, needs: ["api"] },
-            ]),
+              { id: "web", cmd: LONG_RUNNER, needs: ["api"] }
+            ])
           )
           const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
@@ -290,10 +292,10 @@ describe("url-pinned readiness", () => {
             (event) =>
               event.type === "status" &&
               event.status.id === "web" &&
-              event.status.state === "running",
+              event.status.state === "running"
           )
-        }),
-      ),
+        })
+      )
     )
   })
 })
@@ -310,19 +312,19 @@ describe("log alerts", () => {
                 cmd: [
                   "node",
                   "-e",
-                  'console.log("Opening a link in your default browser"); setInterval(() => {}, 1000)',
+                  'console.log("Opening a link in your default browser"); setInterval(() => {}, 1000)'
                 ],
-                alerts: [{ pattern: "Opening a link", label: "needs login" }],
-              },
-            ]),
+                alerts: [{ pattern: "Opening a link", label: "needs login" }]
+              }
+            ])
           )
           const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
             subscription,
-            (event) => event.type === "status" && event.status.alert === "needs login",
+            (event) => event.type === "status" && event.status.alert === "needs login"
           )
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -335,21 +337,21 @@ describe("log alerts", () => {
               {
                 id: "chatty",
                 cmd: ["node", "-e", 'console.log("ALERT-ME"); setInterval(() => {}, 1000)'],
-                alerts: [{ pattern: "ALERT-ME", label: "attention" }],
-              },
-            ]),
+                alerts: [{ pattern: "ALERT-ME", label: "attention" }]
+              }
+            ])
           )
           const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
             subscription,
-            (event) => event.type === "status" && event.status.alert === "attention",
+            (event) => event.type === "status" && event.status.alert === "attention"
           )
           yield* supervisor.stop("chatty")
           expect(
-            supervisor.list().find((entry) => entry.id === "chatty")!.status.alert,
+            supervisor.list().find((entry) => entry.id === "chatty")!.status.alert
           ).toBeUndefined()
-        }),
-      ),
+        })
+      )
     )
   })
 })

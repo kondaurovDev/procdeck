@@ -8,7 +8,7 @@ import { makeSupervisor } from "../src/supervisor.ts"
 const loaded = (procs: LoadedConfig["config"]["procs"]): LoadedConfig => ({
   config: { procs },
   root: process.cwd(),
-  name: "test",
+  name: "test"
 })
 
 const LONG_RUNNER = ["node", "-e", 'console.log("up"); setInterval(() => {}, 1000)']
@@ -16,7 +16,7 @@ const LONG_RUNNER = ["node", "-e", 'console.log("up"); setInterval(() => {}, 100
 /** Pull events from a subscription until one satisfies the predicate. */
 const takeUntil = Effect.fn("takeUntil")(function* (
   subscription: Queue.Dequeue<ProcEvent, unknown>,
-  predicate: (event: ProcEvent) => boolean,
+  predicate: (event: ProcEvent) => boolean
 ) {
   while (true) {
     const event = yield* Queue.take(subscription)
@@ -30,23 +30,23 @@ describe("supervisor", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const supervisor = yield* makeSupervisor(
-            loaded([{ id: "hello", cmd: ["node", "-e", 'console.log("hello-from-child")'] }]),
+            loaded([{ id: "hello", cmd: ["node", "-e", 'console.log("hello-from-child")'] }])
           )
           // Subscribing after the fact still sees the backlog: per-proc buffers.
           const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
             subscription,
-            (event) => event.type === "log" && event.data.includes("hello-from-child"),
+            (event) => event.type === "log" && event.data.includes("hello-from-child")
           )
           yield* takeUntil(
             subscription,
             (event) =>
               event.type === "status" &&
               event.status.state === "exited" &&
-              event.status.exitCode === 0,
+              event.status.exitCode === 0
           )
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -65,8 +65,8 @@ describe("supervisor", () => {
           expect(after.pid).not.toBe(before)
           expect(isGroupAlive(before)).toBe(false)
           expect(isGroupAlive(after.pid!)).toBe(true)
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -81,8 +81,8 @@ describe("supervisor", () => {
 
           expect(isGroupAlive(pid)).toBe(false)
           expect(supervisor.list()[0]!.status.state).toBe("stopped")
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -91,14 +91,14 @@ describe("supervisor", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const supervisor = yield* makeSupervisor(
-            loaded([{ id: "lazy", cmd: LONG_RUNNER, autostart: false }]),
+            loaded([{ id: "lazy", cmd: LONG_RUNNER, autostart: false }])
           )
           expect(supervisor.list()[0]!.status.state).toBe("stopped")
 
           yield* supervisor.start("lazy")
           expect(supervisor.list()[0]!.status.state).toBe("running")
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -112,8 +112,8 @@ describe("supervisor", () => {
           const supervisor = yield* makeSupervisor(
             loaded([
               { id: "broken", cmd: ["definitely-not-a-real-binary-xyz"] },
-              { id: "fine", cmd: LONG_RUNNER },
-            ]),
+              { id: "fine", cmd: LONG_RUNNER }
+            ])
           )
           const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           const exited = yield* takeUntil(
@@ -121,14 +121,14 @@ describe("supervisor", () => {
             (event) =>
               event.type === "status" &&
               event.status.id === "broken" &&
-              event.status.state === "exited",
+              event.status.state === "exited"
           )
           expect(exited.type === "status" && exited.status.exitCode).not.toBe(0)
 
           const fine = supervisor.list().find((info) => info.id === "fine")!
           expect(fine.status.state).toBe("running")
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -143,27 +143,27 @@ describe("supervisor", () => {
                 cmd: [
                   "node",
                   "-e",
-                  'const s = require("net").createServer(); s.listen(0, () => console.log("PORT:" + s.address().port));',
-                ],
-              },
-            ]),
+                  'const s = require("net").createServer(); s.listen(0, () => console.log("PORT:" + s.address().port));'
+                ]
+              }
+            ])
           )
           const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
 
           // Learn the actual port from the child's own output…
           const logged = yield* takeUntil(
             subscription,
-            (event) => event.type === "log" && event.data.includes("PORT:"),
+            (event) => event.type === "log" && event.data.includes("PORT:")
           )
           const port = Number(/PORT:(\d+)/.exec(logged.type === "log" ? logged.data : "")![1])
 
           // …and wait for the poll loop to discover the same port from the OS.
           yield* takeUntil(
             subscription,
-            (event) => event.type === "status" && (event.status.ports ?? []).includes(port),
+            (event) => event.type === "status" && (event.status.ports ?? []).includes(port)
           )
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -179,11 +179,11 @@ describe("supervisor", () => {
                 cmd: [
                   "node",
                   "-e",
-                  'setTimeout(() => require("net").createServer().listen(0, () => console.log("listening")), 400); setInterval(() => {}, 1000)',
-                ],
+                  'setTimeout(() => require("net").createServer().listen(0, () => console.log("listening")), 400); setInterval(() => {}, 1000)'
+                ]
               },
-              { id: "web", cmd: LONG_RUNNER, needs: ["api"] },
-            ]),
+              { id: "web", cmd: LONG_RUNNER, needs: ["api"] }
+            ])
           )
           expect(supervisor.list().find((info) => info.id === "web")!.status.state).toBe("waiting")
 
@@ -193,13 +193,13 @@ describe("supervisor", () => {
             (event) =>
               event.type === "status" &&
               event.status.id === "web" &&
-              event.status.state === "running",
+              event.status.state === "running"
           )
           // The dep must have been listening by then.
           const api = supervisor.list().find((info) => info.id === "api")!
           expect(api.status.ports?.length).toBeGreaterThan(0)
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -210,8 +210,8 @@ describe("supervisor", () => {
           const supervisor = yield* makeSupervisor(
             loaded([
               { id: "watcher", cmd: LONG_RUNNER, readyWhen: "started" },
-              { id: "web", cmd: LONG_RUNNER, needs: ["watcher"] },
-            ]),
+              { id: "web", cmd: LONG_RUNNER, needs: ["watcher"] }
+            ])
           )
           const subscription = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
@@ -219,10 +219,10 @@ describe("supervisor", () => {
             (event) =>
               event.type === "status" &&
               event.status.id === "web" &&
-              event.status.state === "running",
+              event.status.state === "running"
           )
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -234,14 +234,14 @@ describe("supervisor", () => {
             loaded([
               // Never listens → dependent waits forever unless stopped.
               { id: "silent", cmd: LONG_RUNNER },
-              { id: "web", cmd: LONG_RUNNER, needs: ["silent"] },
-            ]),
+              { id: "web", cmd: LONG_RUNNER, needs: ["silent"] }
+            ])
           )
           expect(supervisor.list().find((info) => info.id === "web")!.status.state).toBe("waiting")
           yield* supervisor.stop("web")
           expect(supervisor.list().find((info) => info.id === "web")!.status.state).toBe("stopped")
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -253,14 +253,14 @@ describe("supervisor", () => {
             loaded([
               { id: "one", cmd: LONG_RUNNER },
               // A tree with a grandchild, to prove the group kill on shutdown.
-              { id: "two", shell: `node -e 'setInterval(() => {}, 1000)' & sleep 60` },
-            ]),
+              { id: "two", shell: `node -e 'setInterval(() => {}, 1000)' & sleep 60` }
+            ])
           )
           const pids = supervisor.list().map((info) => info.status.pid!)
           for (const pid of pids) expect(isGroupAlive(pid)).toBe(true)
           return pids
-        }),
-      ),
+        })
+      )
     )
     // The scope is closed — nothing may survive it.
     for (const pid of pids) expect(isGroupAlive(pid)).toBe(false)
@@ -272,20 +272,29 @@ describe("supervisor", () => {
         Effect.gen(function* () {
           const supervisor = yield* makeSupervisor(
             loaded([
-              { id: "quiet", cmd: ["node", "-e", 'console.log("quiet-hello"); setInterval(() => {}, 1000)'] },
+              {
+                id: "quiet",
+                cmd: ["node", "-e", 'console.log("quiet-hello"); setInterval(() => {}, 1000)']
+              },
               {
                 id: "chatty",
                 // ~1 MB of output, far past the 256 KB per-proc budget.
-                cmd: ["node", "-e", 'for (let i = 0; i < 8192; i++) console.log("x".repeat(127) + i)'],
-              },
-            ]),
+                cmd: [
+                  "node",
+                  "-e",
+                  'for (let i = 0; i < 8192; i++) console.log("x".repeat(127) + i)'
+                ]
+              }
+            ])
           )
           // Wait for chatty to finish writing, then subscribe late.
           const first = yield* Stream.toQueue(supervisor.events, { capacity: "unbounded" })
           yield* takeUntil(
             first,
             (event) =>
-              event.type === "status" && event.status.id === "chatty" && event.status.state === "exited",
+              event.type === "status" &&
+              event.status.id === "chatty" &&
+              event.status.state === "exited"
           )
           yield* Effect.sleep("300 millis")
 
@@ -310,14 +319,13 @@ describe("supervisor", () => {
           expect(bytes).toBeLessThanOrEqual(256 * 1024 + 64 * 1024)
           expect(chatty.at(-1)!.data).toContain("8191")
           // Every proc's current status closes its backlog, and seqs are monotonic.
-          expect(backlog.filter((event) => event.type === "status").map((e) => e.status.id)).toEqual([
-            "quiet",
-            "chatty",
-          ])
+          expect(
+            backlog.filter((event) => event.type === "status").map((e) => e.status.id)
+          ).toEqual(["quiet", "chatty"])
           const seqs = chatty.map((event) => event.seq)
           expect(seqs).toEqual([...seqs].sort((a, b) => a - b))
-        }),
-      ),
+        })
+      )
     )
   })
 
@@ -329,9 +337,9 @@ describe("supervisor", () => {
             loaded([
               {
                 id: "ticker",
-                cmd: ["node", "-e", "let i = 0; setInterval(() => console.log('tick ' + i++), 5)"],
-              },
-            ]),
+                cmd: ["node", "-e", "let i = 0; setInterval(() => console.log('tick ' + i++), 5)"]
+              }
+            ])
           )
           yield* Effect.sleep("200 millis")
           // Subscribe while it is talking, read for a while, check every seq once.
@@ -348,8 +356,8 @@ describe("supervisor", () => {
           expect(seen.length).toBeGreaterThan(10)
           expect(new Set(seen).size).toBe(seen.length)
           for (let i = 1; i < seen.length; i++) expect(seen[i]).toBe(seen[i - 1]! + 1)
-        }),
-      ),
+        })
+      )
     )
   })
 })

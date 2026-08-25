@@ -73,7 +73,7 @@ describe("queryLogs", () => {
     web.push("vite ready\n", 200)
     return new Map([
       ["api", api],
-      ["web", web],
+      ["web", web]
     ])
   }
 
@@ -82,7 +82,7 @@ describe("queryLogs", () => {
     expect(result.lines.map((line) => `${line.proc}:${line.text}`)).toEqual([
       "api:listening on :3000",
       "web:vite ready",
-      "api:GET /users 200",
+      "api:GET /users 200"
     ])
     expect(result.nextSeq).toEqual({ api: 2, web: 1 })
     expect(result.omitted).toBe(0)
@@ -103,8 +103,8 @@ describe("queryLogs", () => {
     expect(queryLogs(deck(), { limit: 10, grep: "LISTENING" }).lines).toHaveLength(1)
     expect(
       queryLogs(deck(), { limit: 10, procs: ["api"], sinceSeq: { api: 1 } }).lines.map(
-        (line) => line.text,
-      ),
+        (line) => line.text
+      )
     ).toEqual(["GET /users 200"])
   })
 

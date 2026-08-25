@@ -40,8 +40,8 @@ export const installStream: Stream.Stream<Message> = Stream.callback<Message>((q
       Effect.sync(() => {
         window.removeEventListener("beforeinstallprompt", onPrompt)
         window.removeEventListener("appinstalled", onInstalled)
-      }),
-  ),
+      })
+  )
 )
 
 /**
@@ -59,5 +59,5 @@ export const PromptInstall = Command.define("PromptInstall", {
       await event.userChoice.catch(() => undefined)
     }
     return PromptedInstall()
-  }),
+  })
 })

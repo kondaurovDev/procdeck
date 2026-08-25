@@ -21,8 +21,8 @@ describe("extractErrors", () => {
         "TypeError: Cannot read properties of undefined (reading 'id')",
         "    at handler (src/routes.ts:42:11)",
         "    at process.processTicksAndRejections (node:internal:95:5)",
-        "GET /users 500",
-      ]),
+        "GET /users 500"
+      ])
     )
     expect(groups).toHaveLength(1)
     expect(groups[0]!.sample[0]).toContain("TypeError")
@@ -35,8 +35,8 @@ describe("extractErrors", () => {
         "Traceback (most recent call last):",
         '  File "app.py", line 10, in <module>',
         "    main()",
-        "ValueError: bad input 42",
-      ]),
+        "ValueError: bad input 42"
+      ])
     )
     expect(groups).toHaveLength(1)
     expect(groups[0]!.signature).toContain("valueerror")
@@ -55,14 +55,14 @@ describe("extractErrors", () => {
   test("same message in different procs stays separate", () => {
     const groups = extractErrors([
       ...lines("api", ["Error: boom"], 1),
-      ...lines("web", ["Error: boom"], 2),
+      ...lines("web", ["Error: boom"], 2)
     ])
     expect(groups).toHaveLength(2)
   })
 
   test("good news is not an error", () => {
     const groups = extractErrors(
-      lines("web", ["✓ built in 1.2s", "0 errors, 0 warnings", "test suite passed"]),
+      lines("web", ["✓ built in 1.2s", "0 errors, 0 warnings", "test suite passed"])
     )
     expect(groups).toHaveLength(0)
   })
@@ -70,11 +70,11 @@ describe("extractErrors", () => {
   test("most recent errors come first", () => {
     const groups = extractErrors([
       ...lines("api", ["Error: old problem"], 10),
-      ...lines("api", ["Error: new problem"], 500),
+      ...lines("api", ["Error: new problem"], 500)
     ])
     expect(groups.map((group) => group.signature)).toEqual([
       "error: new problem",
-      "error: old problem",
+      "error: old problem"
     ])
   })
 })

@@ -99,7 +99,7 @@ export const Model = S.Struct({
   /** Expanded row (`proc#seq`), showing bodies and headers. */
   trafficOpen: S.UndefinedOr(S.String),
   /** Paused: keep what is on screen, stop appending. */
-  trafficPaused: S.Boolean,
+  trafficPaused: S.Boolean
 })
 export type Model = typeof Model.Type
 
@@ -117,7 +117,7 @@ export const attentionCount = (model: Model): number =>
       isCrash(info.status) ||
       info.status.state === "blocked" ||
       info.status.alert !== undefined ||
-      (model.unread[info.id] ?? 0) > 0,
+      (model.unread[info.id] ?? 0) > 0
   ).length
 
 /** Procs tiled in grid layout: the pinned ones, or everyone when nothing is pinned. */

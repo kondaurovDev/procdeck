@@ -33,24 +33,24 @@ const regexSource = (annotations: { description: string; examples: Array<string>
 export const PreflightSchema = Schema.Struct({
   shell: Schema.String.annotate({
     description: "Shell command; exit 0 lets the proc spawn.",
-    examples: ["wrangler whoami"],
+    examples: ["wrangler whoami"]
   }).pipe(Schema.check(Schema.isMinLength(1))),
   expect: Schema.optionalKey(
     regexSource({
       description:
-        "Regex the check's output must also match. For checks that exit 0 either way — `wrangler whoami` reports \"not authenticated\" with exit 0 — so the config needs no `| grep` pipelines.",
-      examples: ["You are logged in"],
-    }),
+        'Regex the check\'s output must also match. For checks that exit 0 either way — `wrangler whoami` reports "not authenticated" with exit 0 — so the config needs no `| grep` pipelines.',
+      examples: ["You are logged in"]
+    })
   ),
   hint: Schema.optionalKey(
     Schema.String.annotate({
       description: "What the human should do when the check fails; shown on the blocked pane.",
-      examples: ["run `wrangler login`, then Start"],
-    }),
-  ),
+      examples: ["run `wrangler login`, then Start"]
+    })
+  )
 }).annotate({
   description:
-    "A gate that must pass before the process spawns — e.g. `wrangler whoami` before a proc whose tree needs a Cloudflare token. Keeps interactive auth flows out of supervised panes, where a restart would kill their callback servers mid-handshake.",
+    "A gate that must pass before the process spawns — e.g. `wrangler whoami` before a proc whose tree needs a Cloudflare token. Keeps interactive auth flows out of supervised panes, where a restart would kill their callback servers mid-handshake."
 })
 
 export type Preflight = typeof PreflightSchema.Type
@@ -58,14 +58,14 @@ export type Preflight = typeof PreflightSchema.Type
 export const AlertSchema = Schema.Struct({
   pattern: regexSource({
     description: "Regex matched against a rolling tail of the pane's output.",
-    examples: ["ERROR", "not authenticated"],
+    examples: ["ERROR", "not authenticated"]
   }),
   label: Schema.String.annotate({
     description: "Badge text shown in the UI when the pattern matches.",
-    examples: ["needs login"],
-  }).pipe(Schema.check(Schema.isMinLength(1))),
+    examples: ["needs login"]
+  }).pipe(Schema.check(Schema.isMinLength(1)))
 }).annotate({
-  description: "A regex watched in the pane output; a match raises a badge in the UI.",
+  description: "A regex watched in the pane output; a match raises a badge in the UI."
 })
 
 export type Alert = typeof AlertSchema.Type
@@ -74,86 +74,88 @@ export const ProcSpecSchema = Schema.Struct({
   id: Schema.String.annotate({
     description:
       "Stable identifier: the pane label, and the proxy subdomain (`api` → http://api.localhost:4820).",
-    examples: ["api", "web"],
+    examples: ["api", "web"]
   }).pipe(Schema.check(Schema.isMinLength(1))),
   shell: Schema.optionalKey(
     Schema.String.annotate({
       description:
         "Command line handed to `$SHELL -c` — pipes, `&&` and globs work. Exactly one of `shell` or `cmd` must be set.",
-      examples: ["pnpm --filter api dev"],
-    }),
+      examples: ["pnpm --filter api dev"]
+    })
   ),
   cmd: Schema.optionalKey(
     Schema.Array(Schema.String)
       .annotate({
         description:
           "argv, executed directly without a shell. Exactly one of `shell` or `cmd` must be set.",
-        examples: [["node", "server.js"]],
+        examples: [["node", "server.js"]]
       })
-      .pipe(Schema.check(Schema.isMinLength(1))),
+      .pipe(Schema.check(Schema.isMinLength(1)))
   ),
   cwd: Schema.optionalKey(
     Schema.String.annotate({
       description: "Working directory; defaults to the config file's directory.",
-      examples: ["packages/api"],
-    }),
+      examples: ["packages/api"]
+    })
   ),
   env: Schema.optionalKey(
     Schema.Record(Schema.String, Schema.String).annotate({
       description:
         "Extra environment on top of the inherited one. Values may use `${port}` / `${port:other}` templates.",
-      examples: [{ PORT: "${port}", API_URL: "http://localhost:${port:api}" }],
-    }),
+      examples: [{ PORT: "${port}", API_URL: "http://localhost:${port:api}" }]
+    })
   ),
   autostart: Schema.optionalKey(
     Schema.Boolean.annotate({
-      description: "Spawn on startup. Defaults to true; false leaves the pane idle until Start.",
-    }),
+      description: "Spawn on startup. Defaults to true; false leaves the pane idle until Start."
+    })
   ),
   url: Schema.optionalKey(
     Schema.String.annotate({
       description:
         "URL this process serves, shown in the UI as a link. Also pins readiness to that URL's port.",
-      examples: ["http://localhost:${port}"],
-    }),
+      examples: ["http://localhost:${port}"]
+    })
   ),
   needs: Schema.optionalKey(
     Schema.Array(Schema.String).annotate({
       description:
         "Ids of procs that must be ready before this one spawns. Declarative: readiness is auto-detected, no port numbers in the config.",
-      examples: [["api"]],
-    }),
+      examples: [["api"]]
+    })
   ),
   readyWhen: Schema.optionalKey(
     Schema.Literals(["listening", "started"]).annotate({
       description:
-        'What "ready" means for dependents: "listening" (default) — the process tree opened a TCP port; "started" — it merely spawned, for procs that never listen.',
-    }),
+        'What "ready" means for dependents: "listening" (default) — the process tree opened a TCP port; "started" — it merely spawned, for procs that never listen.'
+    })
   ),
   observe: Schema.optionalKey(
     Schema.Boolean.annotate({
       description:
-        "Route this proc's assigned `${port}` through procdeck's HTTP observer, capturing requests and responses for `procdeck http`. Defaults to true for procs that use `${port}`; false hands the proc the public port directly (no traffic capture).",
-    }),
+        "Route this proc's assigned `${port}` through procdeck's HTTP observer, capturing requests and responses for `procdeck http`. Defaults to true for procs that use `${port}`; false hands the proc the public port directly (no traffic capture)."
+    })
   ),
   preflight: Schema.optionalKey(PreflightSchema),
   alerts: Schema.optionalKey(
     Schema.Array(AlertSchema).annotate({
-      description: "Output patterns that raise a badge when they appear in the pane.",
-    }),
-  ),
-}).pipe(
-  Schema.check(
-    Schema.makeFilter((spec: { shell?: string; cmd?: ReadonlyArray<string> }) =>
-      (spec.shell === undefined) === (spec.cmd === undefined)
-        ? "expected exactly one of `shell` or `cmd`"
-        : undefined,
-    ),
-  ),
-).annotate({
-  description:
-    "A single supervised process. Exactly one of `shell` / `cmd` is used: `shell` goes through `sh -c` (pipes, `&&`, globs work, at the cost of one extra process in the tree), `cmd` is an argv array executed directly.",
+      description: "Output patterns that raise a badge when they appear in the pane."
+    })
+  )
 })
+  .pipe(
+    Schema.check(
+      Schema.makeFilter((spec: { shell?: string; cmd?: ReadonlyArray<string> }) =>
+        (spec.shell === undefined) === (spec.cmd === undefined)
+          ? "expected exactly one of `shell` or `cmd`"
+          : undefined
+      )
+    )
+  )
+  .annotate({
+    description:
+      "A single supervised process. Exactly one of `shell` / `cmd` is used: `shell` goes through `sh -c` (pipes, `&&`, globs work, at the cost of one extra process in the tree), `cmd` is an argv array executed directly."
+  })
 
 export type ProcSpec = typeof ProcSpecSchema.Type
 
@@ -173,18 +175,18 @@ const PORT_TEMPLATE = /\$\{port(?::([^}]+))?\}/g
 
 const templatedStrings = (spec: ProcSpec): Array<string> =>
   [spec.shell, ...(spec.cmd ?? []), ...Object.values(spec.env ?? {}), spec.url].filter(
-    (text): text is string => text !== undefined,
+    (text): text is string => text !== undefined
   )
 
 /** Whether the spec asks procdeck to assign it a port (`${port}` anywhere). */
 export const usesOwnPort = (spec: ProcSpec): boolean =>
   templatedStrings(spec).some((text) =>
-    [...text.matchAll(PORT_TEMPLATE)].some((match) => match[1] === undefined),
+    [...text.matchAll(PORT_TEMPLATE)].some((match) => match[1] === undefined)
   )
 
 const portRefs = (spec: ProcSpec): Array<string> =>
   templatedStrings(spec).flatMap((text) =>
-    [...text.matchAll(PORT_TEMPLATE)].flatMap((match) => (match[1] === undefined ? [] : [match[1]])),
+    [...text.matchAll(PORT_TEMPLATE)].flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
   )
 
 /**
@@ -199,14 +201,12 @@ const portRefs = (spec: ProcSpec): Array<string> =>
 export const resolveSpec = (
   spec: ProcSpec,
   assigned: Map<string, number>,
-  internal?: Map<string, number>,
+  internal?: Map<string, number>
 ): ProcSpec => {
   const sub = (text: string, own: number | undefined): string =>
     text.replace(PORT_TEMPLATE, (whole, ref: string | undefined) => {
       const port =
-        ref === undefined || ref === spec.id
-          ? (own ?? assigned.get(spec.id))
-          : assigned.get(ref)
+        ref === undefined || ref === spec.id ? (own ?? assigned.get(spec.id)) : assigned.get(ref)
       return port === undefined ? whole : String(port)
     })
   const own = internal?.get(spec.id)
@@ -218,14 +218,18 @@ export const resolveSpec = (
     ...(spec.cmd === undefined ? {} : { cmd: spec.cmd.map(bind) }),
     ...(spec.env === undefined
       ? {}
-      : { env: Object.fromEntries(Object.entries(spec.env).map(([key, value]) => [key, bind(value)])) }),
-    ...(spec.url === undefined ? {} : { url: publicOnly(spec.url) }),
+      : {
+          env: Object.fromEntries(
+            Object.entries(spec.env).map(([key, value]) => [key, bind(value)])
+          )
+        }),
+    ...(spec.url === undefined ? {} : { url: publicOnly(spec.url) })
   }
 }
 
 /** Duplicate ids, unknown `needs` targets and dependency cycles, as one message. */
 const validateGraph = (
-  procs: ReadonlyArray<{ id: string; needs?: ReadonlyArray<string> }>,
+  procs: ReadonlyArray<{ id: string; needs?: ReadonlyArray<string> }>
 ): string | undefined => {
   const ids = new Set(procs.map((proc) => proc.id))
   if (ids.size !== procs.length) return "duplicate proc ids"
@@ -282,42 +286,44 @@ export const ProcdeckConfigSchema = Schema.Struct({
   $schema: Schema.optionalKey(
     Schema.String.annotate({
       description: "URL of the procdeck JSON schema, for editor completion and validation.",
-      examples: ["https://unpkg.com/procdeck/schema.json"],
-    }),
+      examples: ["https://unpkg.com/procdeck/schema.json"]
+    })
   ),
   name: Schema.optionalKey(
     Schema.String.annotate({
       description:
         "Deck name — the tab title and the name of the installed web app. Defaults to the config directory's basename.",
-      examples: ["my-app"],
-    }),
+      examples: ["my-app"]
+    })
   ),
   port: Schema.optionalKey(
     Schema.Number.annotate({
       description: "Port for the web UI and the `*.localhost` proxy. Defaults to 4820.",
-      examples: [4820],
-    }).pipe(Schema.check(Schema.isInt(), Schema.isBetween({ minimum: 1, maximum: 65535 }))),
+      examples: [4820]
+    }).pipe(Schema.check(Schema.isInt(), Schema.isBetween({ minimum: 1, maximum: 65535 })))
   ),
   host: Schema.optionalKey(
     Schema.String.annotate({
       description:
         'Interface the UI and proxy bind to. Defaults to "127.0.0.1" — loopback only, because the UI types into real terminals. Set "0.0.0.0" to reach the deck from another machine or from a container\'s host.',
-      examples: ["127.0.0.1", "0.0.0.0"],
-    }).pipe(Schema.check(Schema.isMinLength(1))),
+      examples: ["127.0.0.1", "0.0.0.0"]
+    }).pipe(Schema.check(Schema.isMinLength(1)))
   ),
   procs: Schema.Array(ProcSpecSchema).annotate({
-    description: "The processes this deck supervises.",
-  }),
-}).pipe(
-  Schema.check(
-    Schema.makeFilter(
-      (config: { procs: ReadonlyArray<ProcSpec> }) =>
-        validateGraph(config.procs) ?? validatePortTemplates(config.procs),
-    ),
-  ),
-).annotate({
-  description: "A procdeck deck: the web UI's settings and the processes it supervises.",
+    description: "The processes this deck supervises."
+  })
 })
+  .pipe(
+    Schema.check(
+      Schema.makeFilter(
+        (config: { procs: ReadonlyArray<ProcSpec> }) =>
+          validateGraph(config.procs) ?? validatePortTemplates(config.procs)
+      )
+    )
+  )
+  .annotate({
+    description: "A procdeck deck: the web UI's settings and the processes it supervises."
+  })
 
 export type ProcdeckConfig = typeof ProcdeckConfigSchema.Type
 
@@ -334,7 +340,7 @@ export type LoadedConfig = {
 
 export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError", {
   file: Schema.String,
-  message: Schema.String,
+  message: Schema.String
 }) {}
 
 /**
@@ -346,7 +352,7 @@ export const CONFIG_FILENAMES = [
   "procdeck.config.json",
   "procdeck.config.ts",
   "procdeck.config.js",
-  "procdeck.config.mjs",
+  "procdeck.config.mjs"
 ] as const
 
 /** The first config file present in `dir`, if any. */
@@ -390,11 +396,11 @@ export const loadConfig = Effect.fn("procdeck.loadConfig")(function* (file: stri
   const absolute = realpathSync(path.resolve(file))
   const source = yield* Effect.tryPromise({
     try: () => readSource(absolute),
-    catch: (cause) => new ConfigError({ file: absolute, message: String(cause) }),
+    catch: (cause) => new ConfigError({ file: absolute, message: String(cause) })
   })
   const config = yield* Effect.try({
     try: () => Schema.decodeUnknownSync(ProcdeckConfigSchema)(source),
-    catch: (cause) => new ConfigError({ file: absolute, message: String(cause) }),
+    catch: (cause) => new ConfigError({ file: absolute, message: String(cause) })
   })
   const root = path.dirname(absolute)
   const loaded: LoadedConfig = { config, root, name: config.name ?? path.basename(root) }

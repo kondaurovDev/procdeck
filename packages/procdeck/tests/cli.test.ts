@@ -45,9 +45,9 @@ beforeAll(() => {
       port: PORT,
       procs: [
         { id: "sleeper", cmd: ["node", "-e", "setInterval(() => {}, 1000)"] },
-        { id: "done", cmd: ["node", "-e", "process.exit(0)"] },
-      ],
-    }),
+        { id: "done", cmd: ["node", "-e", "process.exit(0)"] }
+      ]
+    })
   )
 })
 
@@ -78,13 +78,22 @@ describe("cli", () => {
 
     // The deck answers over HTTP and knows who it is.
     const deck = (await fetch(`http://localhost:${PORT}/__procdeck/api/deck`).then((response) =>
-      response.json(),
+      response.json()
     )) as { name: string; root: string; port: number }
     expect(deck).toMatchObject({ name: "clitest", root: project, port: PORT })
     const instances = (await fetch(`http://localhost:${PORT}/__procdeck/api/instances`).then(
-      (response) => response.json(),
+      (response) => response.json()
     )) as Array<{ name: string; self: boolean }>
-    expect(instances).toEqual([{ name: "clitest", self: true, root: project, port: PORT, startedAt: expect.any(Number), version: expect.any(String) }])
+    expect(instances).toEqual([
+      {
+        name: "clitest",
+        self: true,
+        root: project,
+        port: PORT,
+        startedAt: expect.any(Number),
+        version: expect.any(String)
+      }
+    ])
 
     const status = await procdeck("status")
     expect(status.code, status.out).toBe(0)
@@ -104,7 +113,7 @@ describe("cli", () => {
     const other = mkdtempSync(path.join(tmpdir(), "procdeck-cli-other-"))
     writeFileSync(
       path.join(other, "procdeck.config.json"),
-      JSON.stringify({ port: PORT, procs: [{ id: "x", shell: "sleep 100" }] }),
+      JSON.stringify({ port: PORT, procs: [{ id: "x", shell: "sleep 100" }] })
     )
     const clash = await procdeck("up", "--no-open", path.join(other, "procdeck.config.json"))
     expect(clash.code).toBe(1)
@@ -162,7 +171,7 @@ describe("cli", () => {
       try {
         const { stdout, stderr } = await run(process.execPath, [CLI, ...args], {
           env,
-          cwd: agentProject,
+          cwd: agentProject
         })
         return { code: 0, out: stdout, err: stderr }
       } catch (cause) {
@@ -181,20 +190,20 @@ describe("cli", () => {
             cmd: [
               "node",
               "-e",
-              'console.log("hello-from-ticker"); console.log("TypeError: boom is not a function"); console.log("    at main (index.js:1:1)"); setInterval(() => console.log("tick"), 150)',
-            ],
+              'console.log("hello-from-ticker"); console.log("TypeError: boom is not a function"); console.log("    at main (index.js:1:1)"); setInterval(() => console.log("tick"), 150)'
+            ]
           },
           {
             id: "server",
             cmd: [
               "node",
               "-e",
-              'setTimeout(() => require("net").createServer().listen(0, () => console.log("server-ready")), 300); setInterval(() => {}, 1000)',
-            ],
+              'setTimeout(() => require("net").createServer().listen(0, () => console.log("server-ready")), 300); setInterval(() => {}, 1000)'
+            ]
           },
-          { id: "boom", cmd: ["node", "-e", 'console.error("Error: kaboom"); process.exit(1)'] },
-        ],
-      }),
+          { id: "boom", cmd: ["node", "-e", 'console.error("Error: kaboom"); process.exit(1)'] }
+        ]
+      })
     )
 
     try {
@@ -221,7 +230,7 @@ describe("cli", () => {
       expect(port.out).toMatch(/"server" is listening on :\d+/)
       const pattern = await inAgent("wait-for", "ticker", "--pattern", "tick", "--timeout", "15s")
       expect(pattern.code, pattern.out + pattern.err).toBe(0)
-      expect(pattern.out).toContain('matched /tick/')
+      expect(pattern.out).toContain("matched /tick/")
 
       // wait-for a crashed proc fails fast (exit 1), tail on stderr.
       const crashed = await inAgent("wait-for", "boom", "--timeout", "15s")
@@ -262,7 +271,14 @@ describe("cli", () => {
       const restart = await inAgent("restart", "ticker")
       expect(restart.code, restart.out + restart.err).toBe(0)
       expect(restart.out).toContain('"ticker" restarted')
-      const fresh = await inAgent("wait-for", "ticker", "--pattern", "hello-from-ticker", "--timeout", "15s")
+      const fresh = await inAgent(
+        "wait-for",
+        "ticker",
+        "--pattern",
+        "hello-from-ticker",
+        "--timeout",
+        "15s"
+      )
       expect(fresh.code, fresh.out + fresh.err).toBe(0)
       const unknownProc = await inAgent("restart", "definitely-not-here")
       expect(unknownProc.code).toBe(1)
@@ -285,7 +301,7 @@ describe("cli", () => {
     const nested = path.join(project, "packages", "web")
     mkdirSync(nested, { recursive: true })
     const status = await run(process.execPath, [CLI, "status"], { env, cwd: nested }).catch(
-      (cause: { stdout: string; stderr: string }) => cause,
+      (cause: { stdout: string; stderr: string }) => cause
     )
     expect(status.stderr ?? "").toContain(`nothing is up for ${project}`)
 

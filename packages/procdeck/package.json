@@ -24,18 +24,15 @@
     "url": "https://github.com/kondaurovDev/procdeck",
     "directory": "packages/procdeck"
   },
-  "type": "module",
-  "engines": {
-    "node": ">=22"
+  "bin": {
+    "procdeck": "./dist/cli.js"
   },
   "files": [
     "dist",
     "schema.json",
     "ui/dist"
   ],
-  "bin": {
-    "procdeck": "./dist/cli.js"
-  },
+  "type": "module",
   "exports": {
     ".": {
       "types": "./dist/public.d.ts",
@@ -74,5 +71,8 @@
     "typescript": "^7.0.2",
     "vite": "^6.2.0",
     "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

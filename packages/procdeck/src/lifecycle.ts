@@ -12,11 +12,7 @@ import type { Instance } from "./registry.ts"
  * parent learns the deck came up — so "up" returns only when the UI is
  * reachable, and a bad config or a busy port surfaces here, in the terminal.
  */
-export const detach = (
-  cliPath: string,
-  configPath: string,
-  root: string,
-): Promise<Instance> => {
+export const detach = (cliPath: string, configPath: string, root: string): Promise<Instance> => {
   ensureHome()
   const log = openSync(logPath(root), "a")
   const child = spawn(
@@ -26,8 +22,8 @@ export const detach = (
       detached: true,
       stdio: ["ignore", log, log],
       env: { ...process.env, PROCDECK_DETACHED: "1" },
-      cwd: root,
-    },
+      cwd: root
+    }
   )
   child.unref()
 
@@ -42,7 +38,7 @@ export const detach = (
     }
     const onExit = (code: number | null) =>
       finish(() =>
-        reject(new Error(`procdeck exited with code ${String(code)}${logTail(root, 15)}`)),
+        reject(new Error(`procdeck exited with code ${String(code)}${logTail(root, 15)}`))
       )
     child.once("exit", onExit)
     const timer = setInterval(() => {

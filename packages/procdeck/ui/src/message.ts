@@ -79,7 +79,7 @@ export const ClosedSearch = m("ClosedSearch")
 export const PolledTraffic = m("PolledTraffic")
 export const GotTraffic = m("GotTraffic", {
   entries: S.Array(TrafficEntry),
-  nextSeq: S.Record(S.String, S.Number),
+  nextSeq: S.Record(S.String, S.Number)
 })
 export const ChoseTrafficKind = m("ChoseTrafficKind", { kind: TrafficKind })
 export const ToggledTrafficErrors = m("ToggledTrafficErrors")
@@ -152,6 +152,6 @@ export const Message = S.Union([
   PromptedInstall,
   Installed,
   Ticked,
-  CompletedRequest,
+  CompletedRequest
 ])
 export type Message = typeof Message.Type

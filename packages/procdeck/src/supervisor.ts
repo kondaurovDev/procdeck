@@ -132,11 +132,11 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
   const wantsPort = loaded.config.procs.filter(usesOwnPort)
   const observedSpecs = wantsPort.filter((spec) => spec.observe !== false)
   const freePorts = yield* Effect.promise(() =>
-    findFreePorts(wantsPort.length + observedSpecs.length),
+    findFreePorts(wantsPort.length + observedSpecs.length)
   )
   const assigned = new Map(wantsPort.map((spec, index) => [spec.id, freePorts[index]!]))
   const internal = new Map(
-    observedSpecs.map((spec, index) => [spec.id, freePorts[wantsPort.length + index]!]),
+    observedSpecs.map((spec, index) => [spec.id, freePorts[wantsPort.length + index]!])
   )
 
   const runtimes = new Map<string, Runtime>()
@@ -149,8 +149,8 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       resolved:
         assignedPort === undefined
           ? resolved
-          // The PaaS contract: the port to bind also arrives as `PORT`.
-          : { ...resolved, env: { PORT: String(internalPort ?? assignedPort), ...resolved.env } },
+          : // The PaaS contract: the port to bind also arrives as `PORT`.
+            { ...resolved, env: { PORT: String(internalPort ?? assignedPort), ...resolved.env } },
       assignedPort,
       internalPort,
       status: { id: spec.id, state: "stopped" },
@@ -166,7 +166,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       seq: 0,
       spawns: 0,
       cols: DEFAULT_COLS,
-      rows: DEFAULT_ROWS,
+      rows: DEFAULT_ROWS
     })
   }
 
@@ -179,10 +179,10 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
         startObserver({
           publicPort: assigned.get(id)!,
           internalPort,
-          record: (capture) => runtime.http.record(capture),
-        }),
+          record: (capture) => runtime.http.record(capture)
+        })
       ),
-      (close) => Effect.promise(close),
+      (close) => Effect.promise(close)
     )
   }
 
@@ -223,12 +223,10 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       return Stream.concat(
         Stream.fromIterable(backlog),
         Stream.fromSubscription(subscription).pipe(
-          Stream.filter(
-            (event) => event.type !== "log" || event.seq >= (seen.get(event.id) ?? 0),
-          ),
-        ),
+          Stream.filter((event) => event.type !== "log" || event.seq >= (seen.get(event.id) ?? 0))
+        )
       )
-    }),
+    })
   )
 
   const setStatus = (runtime: Runtime, status: ProcStatus) => {
@@ -284,7 +282,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
         root: loaded.root,
         cols: runtime.cols,
         rows: runtime.rows,
-        onData: (data) => handleData(runtime, data),
+        onData: (data) => handleData(runtime, data)
       })
     } catch (cause) {
       say(runtime, `\r\nprocdeck: spawn failed: ${String(cause)}\r\n`)
@@ -303,7 +301,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       state: "running",
       pid: proc.pid,
       startedAt: Date.now(),
-      ...(restarts === 0 ? {} : { restarts }),
+      ...(restarts === 0 ? {} : { restarts })
     })
 
     void proc.exited.then(({ exitCode, signal }) => {
@@ -317,7 +315,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
         exitCode,
         exitedAt: Date.now(),
         ...(signal === undefined ? {} : { signal }),
-        ...(restarts === 0 ? {} : { restarts }),
+        ...(restarts === 0 ? {} : { restarts })
       })
     })
   }
@@ -329,7 +327,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
     if (preflight === undefined) return true
     setStatus(runtime, { id: runtime.spec.id, state: "starting" })
     const result = yield* Effect.promise(() =>
-      runPreflight(preflight.shell, runtime.spec.cwd ?? loaded.root),
+      runPreflight(preflight.shell, runtime.spec.cwd ?? loaded.root)
     )
     const expected =
       preflight.expect === undefined || new RegExp(preflight.expect).test(result.output)
@@ -339,7 +337,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
     const lines = [
       `procdeck: preflight failed${reason}: ${preflight.shell}`,
       ...result.output.split("\n").filter((line) => line.length > 0),
-      ...(preflight.hint === undefined ? [] : [`procdeck: hint: ${preflight.hint}`]),
+      ...(preflight.hint === undefined ? [] : [`procdeck: hint: ${preflight.hint}`])
     ]
     say(runtime, `\r\n${lines.join("\r\n")}\r\n`)
     // The launch attempt is over the moment "blocked" becomes visible — and an
@@ -349,7 +347,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
     setStatus(runtime, {
       id: runtime.spec.id,
       state: "blocked",
-      ...(preflight.hint === undefined ? {} : { hint: preflight.hint }),
+      ...(preflight.hint === undefined ? {} : { hint: preflight.hint })
     })
     return false
   })
@@ -379,10 +377,10 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
           Effect.sync(() => {
             finished = true
             if (runtime.waiter === self) runtime.waiter = undefined
-          }),
-        ),
+          })
+        )
       ),
-      scope,
+      scope
     )
     self = fiber
     if (!finished) runtime.waiter = fiber
@@ -461,7 +459,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
         ...(runtime.resolved.url === undefined ? {} : { url: runtime.resolved.url }),
         ...(runtime.assignedPort === undefined ? {} : { assignedPort: runtime.assignedPort }),
         proxyUrl: `http://${runtime.spec.id}.localhost:${uiPort}`,
-        status: runtime.status,
+        status: runtime.status
       })),
     start,
     stop,
@@ -515,12 +513,12 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       }
       return mark
     },
-    getMark: (name) => marks.get(name),
+    getMark: (name) => marks.get(name)
   }
 
   const stopAll = Effect.forEach([...runtimes.keys()], stop, {
     concurrency: "unbounded",
-    discard: true,
+    discard: true
   })
 
   for (const runtime of runtimes.values()) {
@@ -535,8 +533,8 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
  * closes — including on Ctrl-C or an unhandled failure upstream.
  */
 export const makeSupervisor = (
-  loaded: LoadedConfig,
+  loaded: LoadedConfig
 ): Effect.Effect<Supervisor, never, Scope.Scope> =>
   Effect.acquireRelease(make(loaded), ({ stopAll }) => stopAll).pipe(
-    Effect.map(({ supervisor }) => supervisor),
+    Effect.map(({ supervisor }) => supervisor)
   )

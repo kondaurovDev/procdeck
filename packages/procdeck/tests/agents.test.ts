@@ -2,7 +2,13 @@ import { describe, expect, test } from "vitest"
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import * as path from "node:path"
-import { appendSnippet, findInstructionsFile, setupAgents, SKILL, SNIPPET } from "../src/agent/discover.ts"
+import {
+  appendSnippet,
+  findInstructionsFile,
+  setupAgents,
+  SKILL,
+  SNIPPET
+} from "../src/agent/discover.ts"
 
 const scratch = (): string => mkdtempSync(path.join(tmpdir(), "procdeck-agents-"))
 

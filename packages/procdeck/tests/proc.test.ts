@@ -25,7 +25,7 @@ const collect = (spec: Parameters<typeof spawnProc>[0]["spec"]) => {
     rows: 24,
     onData: (data) => {
       output += data
-    },
+    }
   })
   return { proc, output: () => output }
 }
@@ -39,7 +39,7 @@ describe("pty", () => {
   test("children see a real TTY", async () => {
     const { proc, output } = collect({
       id: "tty",
-      cmd: ["node", "-p", "Boolean(process.stdout.isTTY)"],
+      cmd: ["node", "-p", "Boolean(process.stdout.isTTY)"]
     })
     await proc.exited
     await until(() => output().includes("true"))
@@ -48,7 +48,7 @@ describe("pty", () => {
   test("shell specs run through the shell", async () => {
     const { proc, output } = collect({
       id: "shell",
-      shell: "echo one && echo two",
+      shell: "echo one && echo two"
     })
     await proc.exited
     await until(() => output().includes("one") && output().includes("two"))
@@ -60,7 +60,7 @@ describe("terminate", () => {
     // Leader shell stays alive; a grandchild node runs under the same group.
     const { proc } = collect({
       id: "tree",
-      shell: `node -e 'setInterval(() => {}, 1000)' & sleep 60`,
+      shell: `node -e 'setInterval(() => {}, 1000)' & sleep 60`
     })
     await until(() => isGroupAlive(proc.pid))
     await terminate(proc, 1000)
@@ -73,8 +73,8 @@ describe("terminate", () => {
       cmd: [
         "node",
         "-e",
-        'process.on("SIGTERM", () => console.log("ignoring")); console.log("up"); setInterval(() => {}, 1000)',
-      ],
+        'process.on("SIGTERM", () => console.log("ignoring")); console.log("up"); setInterval(() => {}, 1000)'
+      ]
     })
     await until(() => output().includes("up"))
     await terminate(proc, 500)
@@ -89,7 +89,7 @@ describe("terminate", () => {
     // its own — no survivor left to test against.
     const { proc, output } = collect({
       id: "orphan",
-      shell: `node -e 'process.on("SIGTERM", () => {}); process.on("SIGHUP", () => {}); console.log("child-up"); setInterval(() => {}, 1000)' & sleep 0.2`,
+      shell: `node -e 'process.on("SIGTERM", () => {}); process.on("SIGHUP", () => {}); console.log("child-up"); setInterval(() => {}, 1000)' & sleep 0.2`
     })
     await until(() => output().includes("child-up"))
     // Leader (the shell) is done; the group lives on through the child.

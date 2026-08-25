@@ -53,13 +53,13 @@ const call = (options: {
         port: options.port,
         method: options.method ?? "GET",
         path: options.path,
-        headers: options.headers ?? {},
+        headers: options.headers ?? {}
       },
       (res) => {
         let body = ""
         res.on("data", (chunk: Buffer) => (body += chunk.toString()))
         res.on("end", () => resolve({ status: res.statusCode ?? 0, body }))
-      },
+      }
     )
     req.on("error", reject)
     req.end(options.body)
@@ -120,18 +120,18 @@ beforeAll(async () => {
       port: PORT,
       procs: [
         { id: "api", cmd: ["node", "-e", SERVER], env: { PORT: "${port}" } },
-        { id: "raw", cmd: ["node", "-e", SERVER], env: { PORT: "${port}" }, observe: false },
-      ],
-    }),
+        { id: "raw", cmd: ["node", "-e", SERVER], env: { PORT: "${port}" }, observe: false }
+      ]
+    })
   )
   await run(process.execPath, [CLI, "up", "--no-open"], { env, cwd: project })
   await run(process.execPath, [CLI, "wait-for", "api", "--pattern", "serving on"], {
     env,
-    cwd: project,
+    cwd: project
   })
   await run(process.execPath, [CLI, "wait-for", "raw", "--pattern", "serving on"], {
     env,
-    cwd: project,
+    cwd: project
   })
   const status = await procdeck("status", "--json")
   const report = JSON.parse(status.out) as {
@@ -172,7 +172,7 @@ describe("http observer", () => {
     const proxied = await call({
       port: PORT,
       path: "/proxied",
-      headers: { host: `raw.localhost:${PORT}` },
+      headers: { host: `raw.localhost:${PORT}` }
     })
     expect(proxied.status).toBe(200)
     await sleep(150)
@@ -187,7 +187,7 @@ describe("http observer", () => {
     const answer = await call({
       port: PORT,
       path: "/via-proxy",
-      headers: { host: `api.localhost:${PORT}` },
+      headers: { host: `api.localhost:${PORT}` }
     })
     expect(answer.status).toBe(200)
     await sleep(150)
@@ -204,9 +204,9 @@ describe("http observer", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: "Bearer very-secret",
+        authorization: "Bearer very-secret"
       },
-      body: JSON.stringify({ secret: "payload-42" }),
+      body: JSON.stringify({ secret: "payload-42" })
     })
     await sleep(150)
 
@@ -279,7 +279,7 @@ describe("http observer", () => {
 
     // The upgrade itself is a normal exchange (101) with the same connId…
     const upgrade = asHttp(
-      (await httpJson("api", "--path", "^/chat")).exchanges.find((e) => e.kind !== "ws"),
+      (await httpJson("api", "--path", "^/chat")).exchanges.find((e) => e.kind !== "ws")
     )
     expect(upgrade.status).toBe(101)
     expect(upgrade.connId).toBe(inbound!.connId)

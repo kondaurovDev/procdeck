@@ -72,7 +72,7 @@ export const spawnProc = (options: SpawnOptions): SpawnedProc => {
     cols,
     rows,
     cwd: spec.cwd === undefined ? root : spec.cwd,
-    env: buildEnv(spec),
+    env: buildEnv(spec)
   })
 
   pty.onData(onData)
@@ -84,8 +84,8 @@ export const spawnProc = (options: SpawnOptions): SpawnedProc => {
       resolve(
         signal === undefined || signal === 0
           ? { exitCode }
-          : { exitCode, signal: signalName(signal) },
-      ),
+          : { exitCode, signal: signalName(signal) }
+      )
     )
   })
 
@@ -100,7 +100,7 @@ export const spawnProc = (options: SpawnOptions): SpawnedProc => {
 export const runPreflight = (
   shell: string,
   cwd: string,
-  timeoutMs = 15_000,
+  timeoutMs = 15_000
 ): Promise<{ ok: boolean; output: string }> =>
   new Promise((resolve) => {
     execFile(
@@ -109,7 +109,7 @@ export const runPreflight = (
       { cwd, timeout: timeoutMs, maxBuffer: 1024 * 1024 },
       (error, stdout, stderr) => {
         resolve({ ok: error === null, output: `${stdout}${stderr}` })
-      },
+      }
     )
   })
 

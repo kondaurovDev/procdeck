@@ -9,7 +9,7 @@ const port = Number(process.env.PORT)
 const products = [
   { id: 1, name: "Keyboard", price: 90 },
   { id: 2, name: "Mouse", price: 35 },
-  { id: 3, name: "Monitor", price: 240 },
+  { id: 3, name: "Monitor", price: 240 }
 ]
 let nextOrder = 1
 
@@ -19,7 +19,7 @@ const json = (res, status, body) => {
     // The web pane calls this api straight from the browser (through the
     // api.localhost proxy address) — hence CORS.
     "access-control-allow-origin": "*",
-    "access-control-allow-headers": "content-type",
+    "access-control-allow-headers": "content-type"
   })
   res.end(JSON.stringify(body))
 }
@@ -64,7 +64,7 @@ createServer((req, res) => {
       return json(res, 201, {
         orderId: nextOrder++,
         product: product.name,
-        total: product.price * order.qty,
+        total: product.price * order.qty
       })
     })
     return

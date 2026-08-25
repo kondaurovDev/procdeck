@@ -34,7 +34,7 @@ export const resolveConfig = (configArg: Option.Option<string>) =>
       : locateConfig(process.cwd())
     if (found === undefined) {
       return yield* fail(
-        `no config file here or above — expected one of ${CONFIG_FILENAMES.join(", ")} (or pass a path)`,
+        `no config file here or above — expected one of ${CONFIG_FILENAMES.join(", ")} (or pass a path)`
       )
     }
     if (!existsSync(found)) return yield* fail(`config file not found: ${found}`)
@@ -45,7 +45,7 @@ export const resolveConfig = (configArg: Option.Option<string>) =>
 
 export const load = (configPath: string) =>
   loadConfig(configPath).pipe(
-    Effect.mapError((error) => fail(`${pretty(error.file)}: ${error.message}`)),
+    Effect.mapError((error) => fail(`${pretty(error.file)}: ${error.message}`))
   )
 
 /** The project root for `down|status|open|logs`: where the config lives. */
@@ -91,14 +91,14 @@ export const countRunning = (procs: Array<ProcInfo> | undefined): string =>
 export const table = (rows: Array<Array<string>>): string => {
   const widths = rows.reduce<Array<number>>(
     (acc, row) => row.map((cell, i) => Math.max(acc[i] ?? 0, cell.length)),
-    [],
+    []
   )
   return rows
     .map((row) =>
       row
         .map((cell, i) => (i === row.length - 1 ? cell : cell.padEnd(widths[i]!)))
         .join("  ")
-        .trimEnd(),
+        .trimEnd()
     )
     .join("\n")
 }
@@ -106,10 +106,10 @@ export const table = (rows: Array<Array<string>>): string => {
 export const configArgument = Argument.string("config").pipe(
   Argument.optional,
   Argument.withDescription(
-    `config file (default: the nearest ${CONFIG_FILENAMES[0]} / .ts / .js / .mjs up from the current directory)`,
-  ),
+    `config file (default: the nearest ${CONFIG_FILENAMES[0]} / .ts / .js / .mjs up from the current directory)`
+  )
 )
 
 export const jsonFlag = Flag.boolean("json").pipe(
-  Flag.withDescription("machine-readable output (for agents and scripts)"),
+  Flag.withDescription("machine-readable output (for agents and scripts)")
 )
