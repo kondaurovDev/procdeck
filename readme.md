@@ -3,20 +3,22 @@
 [![npm](https://img.shields.io/npm/v/procdeck)](https://www.npmjs.com/package/procdeck)
 [![Build](https://github.com/kondaurovDev/procdeck/actions/workflows/build.yml/badge.svg)](https://github.com/kondaurovDev/procdeck/actions/workflows/build.yml)
 
-Run your project's dev processes together — in a browser tab instead of a
-terminal multiplexer. Every pane is a real terminal; every service gets a free
-port and a stable address; and everything the processes say, log or send over
-HTTP is one command away, for you or for a coding agent.
+Run your whole dev stack with one command — and actually see what it's doing.
 
-```
-┌──────────┬───────────────────────────────────────────────┐
-│ ● api    │  Restart  Stop  Start   api.localhost:4820    │
-│ ● web    ├───────────────────────────────────────────────┤
-│ ● clock  │  $ node servers/api.mjs                       │
-│ ● flaky ⚠│  api listening on :52341                      │
-│          │  GET /                                        │
-└──────────┴───────────────────────────────────────────────┘
-```
+![The example stack in procdeck: six processes tiled, every pane a live terminal, every service on its own *.localhost address, the flaky one flagged](https://raw.githubusercontent.com/kondaurovDev/procdeck/main/docs/screenshot.webp)
+
+procdeck is four tools in one ~2 MB package — the process runner, the port
+allocator, the log viewer and the network tab of your dev environment:
+
+- **Runs everything.** Every proc is a real terminal in a browser tab — and
+  your own terminal is free again.
+- **Hands out ports.** `${port}` is a free port, wired to whoever needs it —
+  no hardcoded numbers, no collisions — and `api.localhost:4820` always
+  reaches the right one.
+- **Sees the traffic.** The HTTP and WebSocket requests _between_ your
+  services — the half a browser's DevTools never shows.
+- **Answers from the CLI.** `procdeck logs --since-mark fix`, `http --digest`,
+  `status --json` — for you, or for a coding agent over MCP.
 
 ## Quick start
 
@@ -33,6 +35,13 @@ Prefer it in the project (and you do, if you want the config in TypeScript):
 ```sh
 pnpm add -D procdeck      # npm i -D procdeck · bun add -d procdeck
 ```
+
+> **Install footprint.** ~2 MB, one dependency. The server ships as a bundle,
+> so nothing but the PTY bindings is installed — and those are
+> [`@lydell/node-pty`](https://github.com/lydell/node-pty): the same sources as
+> [node-pty](https://github.com/microsoft/node-pty), as per-platform packages.
+> Nothing compiles and no install script runs, so there is no
+> `pnpm approve-builds` detour and no compiler needed on Linux.
 
 ## What you get
 
@@ -64,12 +73,42 @@ pnpm add -D procdeck      # npm i -D procdeck · bun add -d procdeck
 - **Installable as an app.** The UI ships a web-app manifest named after the
   deck, so "⤓ install" gives each project its own window and Dock icon.
 
-> **Install footprint.** ~2 MB, one dependency. The server ships as a bundle,
-> so nothing but the PTY bindings is installed — and those are
-> [`@lydell/node-pty`](https://github.com/lydell/node-pty): the same sources as
-> [node-pty](https://github.com/microsoft/node-pty), as per-platform packages.
-> Nothing compiles and no install script runs, so there is no
-> `pnpm approve-builds` detour and no compiler needed on Linux.
+## Traffic, not just logs
+
+Procs that use `${port}` get an HTTP observer on their assigned port, so
+procdeck sees the requests _between_ your services — the half a browser's
+DevTools never shows:
+
+```sh
+procdeck http --digest        # 4xx/5xx grouped by route, with counts
+procdeck http api --body      # bodies (text only, auth headers redacted)
+```
+
+WebSocket messages land in the same view, and ⇄ in the UI is the network tab
+for your processes:
+
+![The traffic view: every request between the example's services with method, status, timing and size, filterable by proc](https://raw.githubusercontent.com/kondaurovDev/procdeck/main/docs/screenshot-http.webp)
+
+See [docs/traffic.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/traffic.md).
+
+## For coding agents
+
+An agent edits code, but the consequences land in processes it cannot see.
+procdeck already owns those processes, so it can answer:
+
+```sh
+procdeck mark before-fix              # a marker at "now"
+procdeck restart api && procdeck wait-for api
+procdeck logs --since-mark before-fix # only what the change caused
+procdeck http --since-mark before-fix # only the requests it caused
+```
+
+Everything takes `--json` and is bounded by default. The same verbs are served
+over MCP — `claude mcp add procdeck -- procdeck mcp`, once, globally: the
+instance registry finds the right deck per project. `procdeck agents` writes
+the discovery section into CLAUDE.md / AGENTS.md.
+
+See [docs/agents.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/agents.md).
 
 ## Commands
 
@@ -129,39 +168,6 @@ export default defineConfig({
 
 Both formats validate against the same schema. Full field reference:
 [docs/config.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/config.md).
-
-## For coding agents
-
-An agent edits code, but the consequences land in processes it cannot see.
-procdeck already owns those processes, so it can answer:
-
-```sh
-procdeck mark before-fix              # a marker at "now"
-procdeck restart api && procdeck wait-for api
-procdeck logs --since-mark before-fix # only what the change caused
-procdeck http --since-mark before-fix # only the requests it caused
-```
-
-Everything takes `--json` and is bounded by default. The same verbs are served
-over MCP — `claude mcp add procdeck -- procdeck mcp`, once, globally: the
-instance registry finds the right deck per project. `procdeck agents` writes
-the discovery section into CLAUDE.md / AGENTS.md.
-
-See [docs/agents.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/agents.md).
-
-## Traffic, not just logs
-
-Procs that use `${port}` get an HTTP observer on their assigned port, so
-procdeck sees the requests _between_ your services — the half a browser's
-DevTools never shows:
-
-```sh
-procdeck http --digest        # 4xx/5xx grouped by route, with counts
-procdeck http api --body      # bodies (text only, auth headers redacted)
-```
-
-WebSocket messages land in the same view, and ⇄ in the UI is the network tab
-for your processes. See [docs/traffic.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/traffic.md).
 
 ## Try the example
 
