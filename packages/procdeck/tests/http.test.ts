@@ -15,7 +15,7 @@ const asHttp = (capture: DeckCapture | undefined): HttpExchange => {
 }
 
 /**
- * The HTTP observer end to end (docs/http-observability.md): a real deck with
+ * The HTTP observer end to end (docs/design/http-observability.md): a real deck with
  * one interposed proc (traffic through the observer on the public assigned
  * port) and one opted out (traffic captured by the `*.localhost` proxy tap),
  * queried through the real `procdeck http` CLI.

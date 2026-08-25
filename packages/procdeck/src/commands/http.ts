@@ -1,5 +1,5 @@
 /**
- * `procdeck http` — the captured HTTP traffic (docs/http-observability.md):
+ * `procdeck http` — the captured HTTP traffic (docs/design/http-observability.md):
  * what flowed through the `*.localhost` proxy and each proc's assigned port.
  * A bounded tail like `logs`, plus `--digest` — the `errors` analog for
  * traffic: 4xx/5xx grouped by route.

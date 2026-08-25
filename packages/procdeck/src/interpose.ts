@@ -1,6 +1,6 @@
 /**
  * The capture-aware HTTP forwarding shared by procdeck's two interception
- * points (docs/http-observability.md):
+ * points (docs/design/http-observability.md):
  *
  * 1. The `*.localhost` reverse proxy in server.ts — browser → service.
  * 2. The per-proc observer started here: procdeck listens on the *public*

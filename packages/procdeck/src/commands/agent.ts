@@ -1,6 +1,6 @@
 /**
  * The agent-facing commands — the CLI face of the agent harness (see
- * docs/agent-harness.md): logs, mark, wait-for, errors, agents, mcp.
+ * docs/design/agent-harness.md): logs, mark, wait-for, errors, agents, mcp.
  * Deck lifecycle commands (up/down/restart/status/…) live in cli.ts.
  */
 

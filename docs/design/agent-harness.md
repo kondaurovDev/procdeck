@@ -155,4 +155,4 @@ not remove that work; it removes the need to distribute it per project.
   bodies — the business data), via a tap on the `*.localhost` proxy and an
   observer interposed on each assigned port. Marks span both streams, so the
   verify loop now has its second half. Plan, decisions and the remaining
-  phases (WebSocket frames, UI network tab) in docs/http-observability.md.
+  phases (WebSocket frames, UI network tab) in docs/design/http-observability.md.

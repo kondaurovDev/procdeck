@@ -5,9 +5,9 @@ import type { ProcStatus } from "./schema.ts"
 /**
  * How the main area shows the panes. One switch, not independent toggles —
  * "http" is the traffic view (captured HTTP exchanges and WebSocket
- * messages, docs/http-observability.md); a future "merged" (single
+ * messages, docs/design/http-observability.md); a future "merged" (single
  * chronological log stream) would be the fourth position of the same
- * control. See docs/plan.md, "Layout modes".
+ * control. See docs/design/plan.md, "Layout modes".
  */
 export const Layout = S.Literals(["single", "grid", "http"])
 export type Layout = typeof Layout.Type

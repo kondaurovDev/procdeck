@@ -104,7 +104,7 @@ export type Supervisor = {
    * Throws on an unknown proc or a bad grep pattern — callers answer 400.
    */
   logs: (query: LogsQuery) => LogsResult
-  /** Query the per-proc HTTP exchange rings (docs/http-observability.md). */
+  /** Query the per-proc HTTP exchange rings (docs/design/http-observability.md). */
   http: (query: HttpQuery) => HttpResult
   /**
    * Where the `*.localhost` proxy should record an exchange for this proc —
@@ -128,7 +128,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
   // Observed procs (the default) get a *pair*: the public assigned port,
   // where procdeck's HTTP observer listens, and a hidden internal one the
   // proc actually binds — so `${port:api}` traffic flows through the
-  // observer and gets captured (docs/http-observability.md).
+  // observer and gets captured (docs/design/http-observability.md).
   const wantsPort = loaded.config.procs.filter(usesOwnPort)
   const observedSpecs = wantsPort.filter((spec) => spec.observe !== false)
   const freePorts = yield* Effect.promise(() =>

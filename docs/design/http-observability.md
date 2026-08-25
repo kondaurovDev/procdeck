@@ -5,7 +5,7 @@ their logs — but the _business data_ flows as requests and responses between
 them, and today that is invisible unless someone printed it. The goal: see
 the traffic itself — "POST /orders returned 422 with this body" — for the
 agent (via the harness verbs) and for the human (a network view per pane).
-Companion to docs/agent-harness.md; reuses its machinery (byte-bounded ring
+Companion to docs/design/agent-harness.md; reuses its machinery (byte-bounded ring
 buffers, marks, the CLI/MCP twin surfaces).
 
 ## Why not CDP (Chrome DevTools Protocol)

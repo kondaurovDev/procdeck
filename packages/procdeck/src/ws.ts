@@ -1,6 +1,6 @@
 /**
  * WebSocket frame parsing (RFC 6455) for the HTTP observer — phase 4 of
- * docs/http-observability.md. Fed the raw socket bytes of one direction
+ * docs/design/http-observability.md. Fed the raw socket bytes of one direction
  * *after* the 101 handshake, it emits complete, reassembled messages.
  *
  * The observer strips `Sec-WebSocket-Extensions` from the handshake, so no

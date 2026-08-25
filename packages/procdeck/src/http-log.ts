@@ -1,6 +1,6 @@
 /**
  * HTTP exchange log — the traffic twin of the line buffers (see
- * docs/http-observability.md). One ring per proc, byte-bounded and
+ * docs/design/http-observability.md). One ring per proc, byte-bounded and
  * seq-cursored like `lines.ts`, holding what flowed through procdeck's two
  * interception points: the `*.localhost` reverse proxy and the per-proc
  * observer that fronts each assigned port. Pure data structures and queries
@@ -322,7 +322,7 @@ export const digestHttp = (exchanges: Array<DeckCapture>): Array<HttpDigestGroup
     if (exchange.kind === "ws") continue // messages have no failure status
     if (exchange.status < 400 && exchange.status !== 0) continue
     const route = normalizePath(exchange.path)
-    const key = `${exchange.proc} ${exchange.method} ${route} ${exchange.status}`
+    const key = `${exchange.proc}\u0000${exchange.method}\u0000${route}\u0000${exchange.status}`
     const group = groups.get(key)
     if (group === undefined) {
       groups.set(key, {

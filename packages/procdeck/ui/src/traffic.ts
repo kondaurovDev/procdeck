@@ -13,7 +13,7 @@ import type { TrafficEntry } from "./schema.ts"
 
 /**
  * The traffic view — the layout's "http" position: what the deck's HTTP
- * observer captured (docs/http-observability.md), newest first, polled while
+ * observer captured (docs/design/http-observability.md), newest first, polled while
  * the view is open. The UI face of `procdeck http`.
  */
 
