@@ -9,6 +9,22 @@
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,
     "noEmit": true,
-    "module": "esnext"
+    "module": "esnext",
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "diagnosticSeverity": {
+          "leakingRequirements": "error",
+          "globalErrorInEffectFailure": "error",
+          "schemaSyncInEffect": "off",
+          "schemaNumber": "off",
+          "lazyEffect": "off",
+          "catchToIgnore": "off",
+          "catchToOrElseSucceed": "off",
+          "unnecessaryTypeofType": "off",
+          "effectSucceedWithVoid": "off"
+        }
+      }
+    ]
   }
 }

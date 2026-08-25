@@ -19,9 +19,17 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format
+        run: pnpm format:check
+
       - name: Build
         run: pnpm build
 
+      # The Effect language service is patched into tsc by the root `prepare`
+      # script, so this also reports Effect diagnostics.
       - name: Typecheck
         run: pnpm check:types
 

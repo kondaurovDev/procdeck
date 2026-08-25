@@ -11,12 +11,14 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
-    "changeset": "changeset"
+    "changeset": "changeset",
+    "prepare": "effect-tsgo patch"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
-    "oxfmt": "^0.56.0",
-    "oxlint": "^1.67.0"
+    "@effect/tsgo": "^0.37.0",
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.80.0"
   },
   "packageManager": "pnpm@11.17.0"
 }

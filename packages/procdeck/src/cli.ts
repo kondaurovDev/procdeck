@@ -25,7 +25,7 @@ import {
   requireInstance,
   resolveConfig,
   resolveRoot,
-  table,
+  table
 } from "./commands/shared.ts"
 import { CONFIG_FILENAMES, DEFAULT_UI_HOST, DEFAULT_UI_PORT, discoverConfig } from "./config.ts"
 import type { LoadedConfig } from "./config.ts"
@@ -39,7 +39,7 @@ import {
   instanceId,
   listInstances,
   logPath,
-  register,
+  register
 } from "./registry.ts"
 import type { Instance } from "./registry.ts"
 import { makeSupervisor } from "./supervisor.ts"
@@ -61,7 +61,7 @@ const explainListenError = (port: number, root: string) => (cause: Error) => {
         ? "another procdeck for this project (stale? try `procdeck down`)"
         : `deck "${holder.name}" (${pretty(holder.root)})`
   return fail(
-    `port ${port} is taken by ${who} — set "port" in the config, or \`procdeck down\` there`,
+    `port ${port} is taken by ${who} — set "port" in the config, or \`procdeck down\` there`
   )
 }
 
@@ -84,8 +84,8 @@ const runServer = (loaded: LoadedConfig, configPath: string) =>
       {
         // Goes through the runtime's signal handling, same as Ctrl-C.
         shutdown: () => process.kill(process.pid, "SIGTERM"),
-        instances: listInstances,
-      },
+        instances: listInstances
+      }
     ).pipe(Effect.mapError(explainListenError(port, loaded.root)))
     const id = instanceId(loaded.root)
     yield* Effect.acquireRelease(
@@ -100,10 +100,10 @@ const runServer = (loaded: LoadedConfig, configPath: string) =>
           log: logPath(loaded.root),
           startedAt: Date.now(),
           version: VERSION,
-          mode,
-        }),
+          mode
+        })
       ),
-      () => Effect.sync(() => deregister(id)),
+      () => Effect.sync(() => deregister(id))
     )
     // Terminating every tree takes up to the SIGTERM grace period — say so,
     // or the pause reads as a hang. A second signal skips the graceful path.
@@ -113,7 +113,7 @@ const runServer = (loaded: LoadedConfig, configPath: string) =>
       Effect.sync(() => {
         const onSignal = () => {
           Effect.runForkWith(services)(
-            Effect.log("shutting down, terminating processes… (Ctrl-C again to force)"),
+            Effect.log("shutting down, terminating processes… (Ctrl-C again to force)")
           )
           process.once("SIGINT", () => process.exit(1))
           process.once("SIGTERM", () => process.exit(1))
@@ -126,12 +126,12 @@ const runServer = (loaded: LoadedConfig, configPath: string) =>
         Effect.sync(() => {
           process.removeListener("SIGINT", onSignal)
           process.removeListener("SIGTERM", onSignal)
-        }),
+        })
     )
     yield* Effect.log(
-      `procdeck ${VERSION} "${loaded.name}" listening on http://localhost:${port}${host === DEFAULT_UI_HOST ? "" : ` (bound to ${host})`} (pid ${process.pid}, ${mode})`,
+      `procdeck ${VERSION} "${loaded.name}" listening on http://localhost:${port}${host === DEFAULT_UI_HOST ? "" : ` (bound to ${host})`} (pid ${process.pid}, ${mode})`
     )
-    yield* Effect.never
+    return yield* Effect.never
   }).pipe(Effect.scoped)
 
 // ---------------------------------------------------------------------------
@@ -140,17 +140,17 @@ const runServer = (loaded: LoadedConfig, configPath: string) =>
 // ---------------------------------------------------------------------------
 
 const fgFlag = Flag.boolean("fg").pipe(
-  Flag.withDescription("run in the foreground — Ctrl-C stops the deck"),
+  Flag.withDescription("run in the foreground — Ctrl-C stops the deck")
 )
 const openFlag = Flag.boolean("open").pipe(
   Flag.withDefault(true),
-  Flag.withDescription("open the UI in the browser (--no-open to skip)"),
+  Flag.withDescription("open the UI in the browser (--no-open to skip)")
 )
 
 const upHandler = ({
   config,
   fg,
-  open,
+  open
 }: {
   config: Option.Option<string>
   fg: boolean
@@ -164,7 +164,7 @@ const upHandler = ({
     const running = findInstance(loaded.root)
     if (running !== undefined) {
       yield* Console.log(
-        `procdeck: "${running.name}" is already up → ${url(running)} (pid ${running.pid})`,
+        `procdeck: "${running.name}" is already up → ${url(running)} (pid ${running.pid})`
       )
       yield* versionNotice(running)
       if (open) openBrowser(url(running))
@@ -174,7 +174,7 @@ const upHandler = ({
     const holder = findByPort(port)
     if (holder !== undefined) {
       return yield* fail(
-        `port ${port} is taken by deck "${holder.name}" (${pretty(holder.root)}) — set "port" in the config, or \`procdeck down\` there`,
+        `port ${port} is taken by deck "${holder.name}" (${pretty(holder.root)}) — set "port" in the config, or \`procdeck down\` there`
       )
     }
     // Probe the port here, in the terminal, rather than let the child find
@@ -185,7 +185,7 @@ const upHandler = ({
 
     const instance = yield* Effect.tryPromise({
       try: () => detach(process.argv[1]!, configPath, loaded.root),
-      catch: (cause) => fail((cause as Error).message),
+      catch: (cause) => fail((cause as Error).message)
     })
     yield* Console.log(`procdeck: "${instance.name}" is up → ${url(instance)}`)
     yield* Console.log(`  pid ${instance.pid} · log ${pretty(instance.log)}`)
@@ -198,7 +198,7 @@ const versionNotice = (instance: Instance) =>
   instance.version === VERSION
     ? Effect.void
     : Console.log(
-        `procdeck: deck runs v${instance.version}, CLI is v${VERSION} — \`procdeck restart\` picks up the new version`,
+        `procdeck: deck runs v${instance.version}, CLI is v${VERSION} — \`procdeck restart\` picks up the new version`
       )
 
 const downHandler = ({ config }: { config: Option.Option<string> }) =>
@@ -214,14 +214,18 @@ const downHandler = ({ config }: { config: Option.Option<string> }) =>
     yield* Console.log(outcome === "stopped" ? "down" : "did not stop in time, killed")
   })
 
-const up = Command.make("up", { config: configArgument, fg: fgFlag, open: openFlag }, upHandler).pipe(
+const up = Command.make(
+  "up",
+  { config: configArgument, fg: fgFlag, open: openFlag },
+  upHandler
+).pipe(
   Command.withDescription(
-    "Start the deck and open its UI. Detaches by default: the deck keeps running after the terminal closes (`procdeck down` stops it). Idempotent — an already-running deck is just opened.",
-  ),
+    "Start the deck and open its UI. Detaches by default: the deck keeps running after the terminal closes (`procdeck down` stops it). Idempotent — an already-running deck is just opened."
+  )
 )
 
 const down = Command.make("down", { config: configArgument }, downHandler).pipe(
-  Command.withDescription("Stop the deck: every process tree is terminated, then procdeck exits."),
+  Command.withDescription("Stop the deck: every process tree is terminated, then procdeck exits.")
 )
 
 /**
@@ -238,7 +242,7 @@ const restartAllHandler = Effect.gen(function* () {
   for (const instance of instances) {
     if (instance.mode === "foreground") {
       yield* Console.log(
-        `procdeck: skipping "${instance.name}" (${pretty(instance.root)}) — foreground deck, restart it in its own terminal`,
+        `procdeck: skipping "${instance.name}" (${pretty(instance.root)}) — foreground deck, restart it in its own terminal`
       )
       continue
     }
@@ -256,9 +260,7 @@ const restartAllHandler = Effect.gen(function* () {
     yield* Console.log(outcome)
   }
   if (failures > 0) {
-    return yield* fail(
-      `${failures} deck${failures === 1 ? "" : "s"} did not come back — see above`,
-    )
+    return yield* fail(`${failures} deck${failures === 1 ? "" : "s"} did not come back — see above`)
   }
 })
 
@@ -267,13 +269,13 @@ const restart = Command.make(
   {
     proc: Argument.string("proc").pipe(
       Argument.optional,
-      Argument.withDescription("proc id — restart just this process (default: the whole deck)"),
+      Argument.withDescription("proc id — restart just this process (default: the whole deck)")
     ),
     all: Flag.boolean("all").pipe(
-      Flag.withDescription("restart every deck on this machine (e.g. after updating procdeck)"),
+      Flag.withDescription("restart every deck on this machine (e.g. after updating procdeck)")
     ),
     fg: fgFlag,
-    open: openFlag,
+    open: openFlag
   },
   ({ all, fg, open, proc }) =>
     all
@@ -281,28 +283,28 @@ const restart = Command.make(
         ? fail(`--all restarts every deck — drop "${proc.value}"`)
         : restartAllHandler
       : Option.isSome(proc)
-      ? Effect.gen(function* () {
-          const instance = yield* requireInstance(Option.none())
-          const procs = yield* callApi(() => apiGet<Array<ProcInfo>>(instance, "/procs"))
-          if (!procs.some((info) => info.id === proc.value)) {
-            return yield* fail(
-              `unknown proc "${proc.value}" — one of: ${procs.map((info) => info.id).join(", ")}`,
+        ? Effect.gen(function* () {
+            const instance = yield* requireInstance(Option.none())
+            const procs = yield* callApi(() => apiGet<Array<ProcInfo>>(instance, "/procs"))
+            if (!procs.some((info) => info.id === proc.value)) {
+              return yield* fail(
+                `unknown proc "${proc.value}" — one of: ${procs.map((info) => info.id).join(", ")}`
+              )
+            }
+            yield* callApi(() =>
+              apiPost(instance, `/procs/${encodeURIComponent(proc.value)}/restart`, {})
             )
-          }
-          yield* callApi(() =>
-            apiPost(instance, `/procs/${encodeURIComponent(proc.value)}/restart`, {}),
+            yield* Console.log(
+              `procdeck: "${proc.value}" restarted — \`procdeck wait-for ${proc.value}\` to await readiness`
+            )
+          })
+        : downHandler({ config: Option.none() }).pipe(
+            Effect.andThen(upHandler({ config: Option.none(), fg, open }))
           )
-          yield* Console.log(
-            `procdeck: "${proc.value}" restarted — \`procdeck wait-for ${proc.value}\` to await readiness`,
-          )
-        })
-      : downHandler({ config: Option.none() }).pipe(
-          Effect.andThen(upHandler({ config: Option.none(), fg, open })),
-        ),
 ).pipe(
   Command.withDescription(
-    "Restart one proc (`restart api`), the whole deck (`restart`), or every deck on this machine (`restart --all`) — the deck-wide forms after updating procdeck or editing the config.",
-  ),
+    "Restart one proc (`restart api`), the whole deck (`restart`), or every deck on this machine (`restart --all`) — the deck-wide forms after updating procdeck or editing the config."
+  )
 )
 
 const status = Command.make(
@@ -325,7 +327,7 @@ const status = Command.make(
       }
       const procs = yield* fetchProcs(instance)
       yield* Console.log(
-        `${instance.name} · ${url(instance)} · up ${describeUptime(instance.startedAt)} · pid ${instance.pid} · ${countRunning(procs)} · v${instance.version}${instance.mode === "foreground" ? " · foreground" : ""}`,
+        `${instance.name} · ${url(instance)} · up ${describeUptime(instance.startedAt)} · pid ${instance.pid} · ${countRunning(procs)} · v${instance.version}${instance.mode === "foreground" ? " · foreground" : ""}`
       )
       yield* versionNotice(instance)
       if (procs === undefined || procs.length === 0) return
@@ -335,15 +337,15 @@ const status = Command.make(
             `  ${info.id}`,
             describeProc(info),
             info.proxyUrl ?? "",
-            info.status.alert === undefined ? "" : `⚠ ${info.status.alert}`,
-          ]),
-        ),
+            info.status.alert === undefined ? "" : `⚠ ${info.status.alert}`
+          ])
+        )
       )
-    }),
+    })
 ).pipe(
   Command.withDescription(
-    "This project's deck: address, uptime, and every proc's state. `--json` adds an `attention` list (crashed / blocked / alerting procs) — the cheapest first question for an agent.",
-  ),
+    "This project's deck: address, uptime, and every proc's state. `--json` adds an `attention` list (crashed / blocked / alerting procs) — the cheapest first question for an agent."
+  )
 )
 
 const ls = Command.make("ls", {}, () =>
@@ -359,16 +361,16 @@ const ls = Command.make("ls", {}, () =>
           `up ${describeUptime(instance.startedAt)}`,
           countRunning(procs[i]),
           `v${instance.version}`,
-          pretty(instance.root),
-        ]),
-      ),
+          pretty(instance.root)
+        ])
+      )
     )
     if (instances.some((instance) => instance.version !== VERSION)) {
       yield* Console.log(
-        `procdeck: some decks run a different procdeck than the CLI (v${VERSION}) — \`procdeck restart --all\` brings them over`,
+        `procdeck: some decks run a different procdeck than the CLI (v${VERSION}) — \`procdeck restart --all\` brings them over`
       )
     }
-  }),
+  })
 ).pipe(Command.withDescription("Every running deck on this machine."))
 
 const open = Command.make("open", { config: configArgument }, ({ config }) =>
@@ -380,13 +382,13 @@ const open = Command.make("open", { config: configArgument }, ({ config }) =>
     }
     yield* Console.log(`procdeck: opening ${url(instance)}`)
     openBrowser(url(instance))
-  }),
+  })
 ).pipe(Command.withDescription("Open the deck's UI in the browser — no port to remember."))
 
 const init = Command.make(
   "init",
   {
-    force: Flag.boolean("force").pipe(Flag.withDescription("overwrite an existing config")),
+    force: Flag.boolean("force").pipe(Flag.withDescription("overwrite an existing config"))
   },
   ({ force }) =>
     Effect.gen(function* () {
@@ -401,7 +403,7 @@ const init = Command.make(
       // Round-trip through the real loader: what we wrote must be a valid deck.
       yield* load(file)
       yield* Console.log(
-        `procdeck: wrote ${CONFIG_FILENAMES[0]} — ${plan.config.procs.length} proc${plan.config.procs.length === 1 ? "" : "s"} from ${plan.source}`,
+        `procdeck: wrote ${CONFIG_FILENAMES[0]} — ${plan.config.procs.length} proc${plan.config.procs.length === 1 ? "" : "s"} from ${plan.source}`
       )
       yield* Console.log(plan.notes.map((note) => `  ${note}`).join("\n"))
       // A project that already instructs agents gets the procdeck section
@@ -409,7 +411,7 @@ const init = Command.make(
       const instructions = findInstructionsFile(root)
       if (instructions !== undefined && appendSnippet(instructions) === "appended") {
         yield* Console.log(
-          `  ${path.basename(instructions)} — added a "## procdeck" section for coding agents`,
+          `  ${path.basename(instructions)} — added a "## procdeck" section for coding agents`
         )
       }
       yield* Console.log(
@@ -420,14 +422,14 @@ const init = Command.make(
           '      "needs": ["api"] makes a proc wait for another — see https://github.com/kondaurovDev/procdeck#config',
           ...(instructions === undefined
             ? ["tip:  `procdeck agents` introduces the deck to coding agents (CLAUDE.md + a skill)"]
-            : []),
-        ].join("\n"),
+            : [])
+        ].join("\n")
       )
-    }),
+    })
 ).pipe(
   Command.withDescription(
-    "Write a procdeck.config.json for this project from what is already there: a Procfile, workspace packages with dev scripts, plain subdirectories (each its own package.json / Django / Go / Rust / Rails / compose project), or the root itself.",
-  ),
+    "Write a procdeck.config.json for this project from what is already there: a Procfile, workspace packages with dev scripts, plain subdirectories (each its own package.json / Django / Go / Rust / Rails / compose project), or the root itself."
+  )
 )
 
 // `procdeck [config]` with no subcommand is `up`, so the one-liner from the
@@ -435,10 +437,10 @@ const init = Command.make(
 const procdeck = Command.make(
   "procdeck",
   { config: configArgument, fg: fgFlag, open: openFlag },
-  upHandler,
+  upHandler
 ).pipe(
   Command.withDescription(
-    "Dev-process multiplexer with a web UI. Without a subcommand, `procdeck` is `procdeck up`.",
+    "Dev-process multiplexer with a web UI. Without a subcommand, `procdeck` is `procdeck up`."
   ),
   Command.withSubcommands([
     init,
@@ -454,8 +456,8 @@ const procdeck = Command.make(
     waitFor,
     errors,
     agents,
-    mcp,
-  ]),
+    mcp
+  ])
 )
 
 // The services the cli runtime expects (help rendering, args, completions),
@@ -470,26 +472,23 @@ const NodeLayer = NodeChildProcessSpawner.layer.pipe(
       NodeStdio.layer,
       NodeTerminal.layer,
       CliConfig.layer({
-        builtIns: [
-          GlobalFlag.Help,
-          GlobalFlag.Version,
-          GlobalFlag.Completions,
-          GlobalFlag.LogLevel,
-        ],
-      }),
-    ),
-  ),
+        builtIns: [GlobalFlag.Help, GlobalFlag.Version, GlobalFlag.Completions, GlobalFlag.LogLevel]
+      })
+    )
+  )
 )
 
 procdeck.pipe(
   Command.run({ version: VERSION }),
   Effect.catchTag("CliFailure", (failure) =>
     Console.error(`procdeck: ${failure.message}`).pipe(
-      Effect.andThen(Effect.sync(() => {
-        process.exitCode = failure.code ?? 1
-      })),
-    ),
+      Effect.andThen(
+        Effect.sync(() => {
+          process.exitCode = failure.code ?? 1
+        })
+      )
+    )
   ),
   Effect.provide(NodeLayer),
-  NodeRuntime.runMain,
+  NodeRuntime.runMain
 )
