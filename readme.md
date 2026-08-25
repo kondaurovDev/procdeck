@@ -189,8 +189,19 @@ templates. See [`example/`](https://github.com/kondaurovDev/procdeck/tree/main/e
 
 ## Status
 
-macOS and Linux (PTYs, `pgrep`, `lsof`). Deliberately not done: a dependency
-dying does _not_ cascade to its dependents, and there is no injected overlay
-inside the apps you develop.
+**macOS and Linux.** Port discovery asks the OS through `pgrep` + `lsof`, and
+a whole-tree restart signals the process group (`kill(-pid)`) — both POSIX.
+Windows works through WSL, not natively.
+
+**Missing on purpose.** A dependency dying does _not_ cascade to its
+dependents: procdeck tells you and leaves the decision to you. And nothing is
+injected into the apps you develop — no overlay, no script tag, no agent in
+your page.
+
+Patches welcome — see
+[contributing.md](https://github.com/kondaurovDev/procdeck/blob/main/contributing.md).
+The UI types into real terminals, so it is worth knowing what that implies and
+what the traffic observer keeps:
+[security.md](https://github.com/kondaurovDev/procdeck/blob/main/security.md).
 
 MIT.
