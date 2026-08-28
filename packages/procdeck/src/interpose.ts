@@ -27,16 +27,36 @@ export type RecordExchange = (capture: Capture) => void
  * `127.0.0.1`: dev servers bound with `listen(port, "localhost")` on modern
  * Node often end up on `[::1]` only, and a v4-only dial gets ECONNREFUSED
  * while the browser (which tries both families) works fine. The Host header
- * is rewritten to `localhost:<port>` so host allowlists (vite) stay happy.
+ * is rewritten to `localhost:<port>` so host allowlists (vite) stay happy —
+ * but the original host must survive in `x-forwarded-host`, or frameworks
+ * that CSRF-check Origin against the forwarded host (Next.js Server Actions)
+ * reject every mutating request with the public port in Origin.
  */
-export const upstreamOptions = (req: IncomingMessage, port: number) => ({
-  host: "localhost",
-  port,
-  autoSelectFamily: true,
-  method: req.method,
-  path: req.url,
-  headers: { ...req.headers, host: `localhost:${port}` }
-})
+export const upstreamOptions = (req: IncomingMessage, port: number) => {
+  const headers: Record<string, string | Array<string> | undefined> = {
+    ...req.headers,
+    host: `localhost:${port}`
+  }
+  if (headers["x-forwarded-host"] === undefined && req.headers.host !== undefined) {
+    headers["x-forwarded-host"] = req.headers.host
+  }
+  // The observer itself only ever speaks plain http; an outer proxy that
+  // terminated TLS already said so and wins.
+  if (headers["x-forwarded-proto"] === undefined) headers["x-forwarded-proto"] = "http"
+  const client = req.socket.remoteAddress
+  if (client !== undefined) {
+    const prior = headers["x-forwarded-for"]
+    headers["x-forwarded-for"] = prior === undefined ? client : `${String(prior)}, ${client}`
+  }
+  return {
+    host: "localhost",
+    port,
+    autoSelectFamily: true,
+    method: req.method,
+    path: req.url,
+    headers
+  }
+}
 
 /**
  * Forward one request to `localhost:<port>`, recording the exchange.
@@ -80,15 +100,32 @@ export const forwardRequest = (options: {
       record === undefined ? undefined : new BodyTap(isTextType(upRes.headers["content-type"]))
     if (resTap !== undefined) upRes.on("data", (chunk: Buffer) => resTap.push(chunk))
     upRes.on("end", () => finish(upRes.statusCode ?? 502, resTap, redactHeaders(upRes.headers)))
-    upRes.on("close", () => finish(upRes.statusCode ?? 502, resTap, redactHeaders(upRes.headers)))
+    upRes.on("close", () => {
+      finish(upRes.statusCode ?? 502, resTap, redactHeaders(upRes.headers))
+      // An upstream dying mid-body never reaches "end" and the request emits
+      // no "error" — cut the client too, or it hangs on a truncated body.
+      if (!res.writableEnded) res.destroy()
+    })
     res.writeHead(upRes.statusCode ?? 502, upRes.headers)
     upRes.pipe(res)
   })
   upstream.on("error", () => {
     finish(0)
+    if (res.destroyed) return
+    // Headers already relayed: the client is mid-body, and appending an error
+    // note would corrupt the payload — cut the connection so the truncation
+    // is unmistakable.
+    if (res.headersSent) return res.destroy()
     if (options.onError !== undefined) return options.onError(res)
-    if (!res.headersSent) res.writeHead(502, { "content-type": "text/plain; charset=utf-8" })
+    res.writeHead(502, { "content-type": "text/plain; charset=utf-8" })
     res.end(`procdeck: upstream refused the connection on :${port}\n`)
+  })
+  // Propagate a client abort (closed tab, cancelled fetch): without this the
+  // upstream keeps producing — streamed responses run to completion unseen.
+  res.on("close", () => {
+    if (res.writableEnded) return
+    upstream.destroy()
+    finish(0)
   })
   req.pipe(upstream)
 }

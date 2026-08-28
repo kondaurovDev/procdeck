@@ -2,6 +2,10 @@ packages:
   - packages/*
   - example
 
+# Don't try to re-sync node_modules before every script run — it aborts in
+# non-interactive shells (no TTY) and slows local runs.
+verifyDepsBeforeRun: false
+
 allowBuilds:
   # The PTY bindings need no entry here: @lydell/node-pty ships its binaries as
   # per-platform packages, so there is no install script to approve.

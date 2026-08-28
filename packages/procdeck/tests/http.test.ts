@@ -81,7 +81,7 @@ const srv = http.createServer((req, res) => {
     const fail = /^\\/(missing|boom)/.exec(req.url);
     const status = fail === null ? 200 : fail[1] === "missing" ? 404 : 500;
     res.writeHead(status, { "content-type": "application/json" });
-    res.end(JSON.stringify({ url: req.url, method: req.method, body }));
+    res.end(JSON.stringify({ url: req.url, method: req.method, body, headers: req.headers }));
   });
 });
 srv.on("upgrade", (req, socket) => {
@@ -195,6 +195,29 @@ describe("http observer", () => {
     const captured = result.exchanges.filter((e) => e.path === "/via-proxy")
     expect(captured).toHaveLength(1)
     expect(result.nextSeq["api"]).toBe(before + 1)
+  })
+
+  test("the original Host survives in x-forwarded-host through the observer", async () => {
+    // Next.js Server Actions CSRF-check Origin against x-forwarded-host (or
+    // Host); the observer rewrites Host to the internal port, so the public
+    // host must be preserved in x-forwarded-host.
+    const answer = await call({
+      port: apiPort,
+      path: "/origin-check",
+      headers: { host: "localhost:3002" }
+    })
+    const seen = JSON.parse(answer.body) as { headers: Record<string, string> }
+    expect(seen.headers["x-forwarded-host"]).toBe("localhost:3002")
+    expect(seen.headers["host"]).not.toBe("localhost:3002")
+
+    // An x-forwarded-host set by an outer proxy wins over ours.
+    const outer = await call({
+      port: apiPort,
+      path: "/origin-check",
+      headers: { host: "localhost:3002", "x-forwarded-host": "outer.example" }
+    })
+    const kept = JSON.parse(outer.body) as { headers: Record<string, string> }
+    expect(kept.headers["x-forwarded-host"]).toBe("outer.example")
   })
 
   test("bodies on request: text captured and truncatable, auth headers redacted", async () => {

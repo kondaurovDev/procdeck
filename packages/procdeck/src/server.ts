@@ -392,7 +392,9 @@ const hostProcId = (host: string | undefined): string | undefined => {
 }
 
 const refuse = (res: ServerResponse, status: number, message: string) => {
-  if (!res.headersSent) res.writeHead(status, { "content-type": "text/plain; charset=utf-8" })
+  // Mid-body there is no clean way to report — cut instead of corrupting.
+  if (res.headersSent) return void res.destroy()
+  res.writeHead(status, { "content-type": "text/plain; charset=utf-8" })
   res.end(`procdeck: ${message}\n`)
 }
 

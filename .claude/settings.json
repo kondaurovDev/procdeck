@@ -1,0 +1,9 @@
+{
+  "sandbox": {
+    "network": {
+      "allowLocalBinding": true,
+      "allowAllUnixSockets": true
+    },
+    "excludedCommands": ["git push", "git fetch", "git pull"]
+  }
+}
