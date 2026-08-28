@@ -117,9 +117,9 @@ describe("config schema", () => {
   })
 
   test("rejects a pinned port on a proc that does not use ${port}", () => {
-    expect(() => decode({ procs: [{ id: "api", shell: "serve --port 8787", port: 8787 }] })).toThrow(
-      /does not use \$\{port\}/
-    )
+    expect(() =>
+      decode({ procs: [{ id: "api", shell: "serve --port 8787", port: 8787 }] })
+    ).toThrow(/does not use \$\{port\}/)
   })
 
   test("rejects two procs pinning the same port", () => {

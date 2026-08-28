@@ -121,7 +121,7 @@ The public side stays exactly `8787` — dotenv files, mobile simulators and
 teammates' scripts keep their hardcoded `localhost:8787` — while the proc
 itself still binds a hidden internal port behind the HTTP observer, so the
 traffic is captured with no wiring changes anywhere. And a colleague who runs
-the dev script *without* procdeck lands on the same address: the process
+the dev script _without_ procdeck lands on the same address: the process
 simply binds its own default port directly.
 
 A pin on a proc that never uses `${port}`, two procs pinning the same number,

@@ -247,9 +247,7 @@ describe("supervisor", () => {
           expect(status("api").state).toBe("blocked")
 
           // …and once the holder lets go, Start binds the observer and spawns.
-          yield* Effect.promise(
-            () => new Promise<void>((resolve) => holder.close(() => resolve()))
-          )
+          yield* Effect.promise(() => new Promise<void>((resolve) => holder.close(() => resolve())))
           yield* supervisor.start("api")
           expect(status("api").state).toBe("running")
           const body = yield* Effect.promise(async () => {
