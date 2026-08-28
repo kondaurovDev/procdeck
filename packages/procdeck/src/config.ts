@@ -117,6 +117,13 @@ export const ProcSpecSchema = Schema.Struct({
       examples: ["http://localhost:${port}"]
     })
   ),
+  port: Schema.optionalKey(
+    Schema.Number.annotate({
+      description:
+        "Pin this proc's assigned `${port}` to a fixed public number instead of a random free one — dependents outside the deck (dotenv files, mobile simulators, teammates' scripts) keep their hardcoded addresses, and an observed proc still binds a hidden internal port behind the HTTP observer. Requires `${port}` somewhere in the spec.",
+      examples: [8787]
+    }).pipe(Schema.check(Schema.isInt(), Schema.isBetween({ minimum: 1, maximum: 65535 })))
+  ),
   needs: Schema.optionalKey(
     Schema.Array(Schema.String).annotate({
       description:
@@ -169,7 +176,8 @@ export const DEFAULT_UI_HOST = "127.0.0.1"
  * before spawning; `${port:api}` is the port assigned to another proc — for
  * wiring dependents (`API_URL=http://localhost:${port:api}`). Allowed in
  * `shell`, `cmd`, `env` values and `url`. A proc that uses `${port}` also gets
- * `PORT` in its environment.
+ * `PORT` in its environment. A spec-level `port` pins the assignment to that
+ * exact public number instead of a random free one.
  */
 const PORT_TEMPLATE = /\$\{port(?::([^}]+))?\}/g
 
@@ -280,6 +288,35 @@ const validatePortTemplates = (procs: ReadonlyArray<ProcSpec>): string | undefin
   return undefined
 }
 
+/**
+ * A pinned `port` only makes sense on a proc procdeck assigns a port to: with
+ * no `${port}` in the spec the process binds whatever its own script says, and
+ * nothing procdeck does could put the pin in front of it. Pins must also not
+ * collide — with each other, or with the UI's port.
+ */
+const validatePinnedPorts = (config: {
+  port?: number
+  procs: ReadonlyArray<ProcSpec>
+}): string | undefined => {
+  const uiPort = config.port ?? DEFAULT_UI_PORT
+  const holders = new Map<number, string>()
+  for (const proc of config.procs) {
+    if (proc.port === undefined) continue
+    if (!usesOwnPort(proc)) {
+      return `proc "${proc.id}" pins port ${proc.port} but does not use \${port} — the pin is the public side of an assigned port`
+    }
+    if (proc.port === uiPort) {
+      return `proc "${proc.id}" pins port ${proc.port}, which is the deck UI's own port`
+    }
+    const holder = holders.get(proc.port)
+    if (holder !== undefined) {
+      return `procs "${holder}" and "${proc.id}" pin the same port ${proc.port}`
+    }
+    holders.set(proc.port, proc.id)
+  }
+  return undefined
+}
+
 export const ProcdeckConfigSchema = Schema.Struct({
   // JSON configs point at the published schema for editor completion; the key
   // is meaningless at runtime but must be accepted, because Struct is exact.
@@ -316,8 +353,10 @@ export const ProcdeckConfigSchema = Schema.Struct({
   .pipe(
     Schema.check(
       Schema.makeFilter(
-        (config: { procs: ReadonlyArray<ProcSpec> }) =>
-          validateGraph(config.procs) ?? validatePortTemplates(config.procs)
+        (config: { port?: number; procs: ReadonlyArray<ProcSpec> }) =>
+          validateGraph(config.procs) ??
+          validatePortTemplates(config.procs) ??
+          validatePinnedPorts(config)
       )
     )
   )

@@ -1,7 +1,9 @@
+import { createServer as createNetServer } from "node:net"
 import { describe, expect, test } from "vitest"
 import { Effect, Queue, Stream } from "effect"
 import type { LoadedConfig } from "../src/config.ts"
 import type { ProcEvent } from "../src/events.ts"
+import { findFreePorts } from "../src/ports.ts"
 import { isGroupAlive } from "../src/proc.ts"
 import { makeSupervisor } from "../src/supervisor.ts"
 
@@ -162,6 +164,105 @@ describe("supervisor", () => {
             subscription,
             (event) => event.type === "status" && (event.status.ports ?? []).includes(port)
           )
+        })
+      )
+    )
+  })
+
+  test("a pinned port is the public assigned port, with the observer in front", async () => {
+    const [pin] = await findFreePorts(1)
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const supervisor = yield* makeSupervisor(
+            loaded([
+              {
+                id: "api",
+                cmd: [
+                  "node",
+                  "-e",
+                  'require("http").createServer((req, res) => res.end("pinned-ok")).listen(process.env.PORT)'
+                ],
+                env: { PORT: "${port}" },
+                port: pin
+              }
+            ])
+          )
+          expect(supervisor.list()[0]!.assignedPort).toBe(pin)
+          // No `url` in the spec — the UI link is derived from the pin.
+          expect(supervisor.list()[0]!.url).toBe(`http://localhost:${pin}`)
+
+          // The pin answers through the observer while the proc itself binds a
+          // hidden internal port — so the exchange must also get captured.
+          const body = yield* Effect.promise(async () => {
+            for (let attempt = 0; attempt < 50; attempt++) {
+              const answer = await fetch(`http://127.0.0.1:${pin!}/hello`)
+                .then((res) => (res.ok ? res.text() : undefined))
+                .catch(() => undefined)
+              if (answer !== undefined) return answer
+              await new Promise((resolve) => setTimeout(resolve, 100))
+            }
+            return undefined
+          })
+          expect(body).toBe("pinned-ok")
+          const captured = supervisor.http({ procs: ["api"], limit: 10 })
+          expect(captured.exchanges.map((e) => e.path)).toContain("/hello")
+        })
+      )
+    )
+  })
+
+  test("a taken pin parks its proc in blocked; Start retries once the port is free", async () => {
+    const [pin] = await findFreePorts(1)
+    // Somebody else holds the pinned port — the same service started outside
+    // procdeck, as far as the deck can tell.
+    const holder = createNetServer()
+    await new Promise<void>((resolve) => holder.listen(pin!, "127.0.0.1", resolve))
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const supervisor = yield* makeSupervisor(
+            loaded([
+              {
+                id: "api",
+                cmd: [
+                  "node",
+                  "-e",
+                  'require("http").createServer((req, res) => res.end("pinned-ok")).listen(process.env.PORT); setInterval(() => {}, 1000)'
+                ],
+                env: { PORT: "${port}" },
+                port: pin
+              },
+              { id: "fine", cmd: LONG_RUNNER }
+            ])
+          )
+          // Only the pinned proc is parked; the deck itself is up.
+          const status = (id: string) => supervisor.list().find((info) => info.id === id)!.status
+          expect(status("api").state).toBe("blocked")
+          expect(status("api").hint).toContain(`:${pin}`)
+          expect(status("fine").state).toBe("running")
+
+          // Starting while the port is still taken parks it again…
+          yield* supervisor.start("api")
+          expect(status("api").state).toBe("blocked")
+
+          // …and once the holder lets go, Start binds the observer and spawns.
+          yield* Effect.promise(
+            () => new Promise<void>((resolve) => holder.close(() => resolve()))
+          )
+          yield* supervisor.start("api")
+          expect(status("api").state).toBe("running")
+          const body = yield* Effect.promise(async () => {
+            for (let attempt = 0; attempt < 50; attempt++) {
+              const answer = await fetch(`http://127.0.0.1:${pin!}/retry`)
+                .then((res) => (res.ok ? res.text() : undefined))
+                .catch(() => undefined)
+              if (answer !== undefined) return answer
+              await new Promise((resolve) => setTimeout(resolve, 100))
+            }
+            return undefined
+          })
+          expect(body).toBe("pinned-ok")
         })
       )
     )

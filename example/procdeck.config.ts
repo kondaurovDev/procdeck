@@ -3,8 +3,9 @@ import { defineConfig } from "procdeck"
 /**
  * A self-contained demo of every procdeck feature, using only Node:
  *
- * - `api` gets a free port assigned by procdeck (`${port}` — arrives as
- *   $PORT) and serves a small shop API with routes that succeed and fail.
+ * - `api` pins its `${port}` to a fixed public number (`port: 4831`) — scripts
+ *   and dotenv files can hardcode `localhost:4831`, yet the traffic is still
+ *   captured — and serves a small shop API with routes that succeed and fail.
  * - `worker` waits for `api` (`needs`), passes a `preflight` gate first, and
  *   buys things on a timer through `${port:api}` — server-to-server HTTP
  *   that the observer captures (every third order is broken on purpose).
@@ -16,7 +17,7 @@ import { defineConfig } from "procdeck"
  * - `flaky` shows alerts: when its output matches a pattern, the pane gets a
  *   badge in the UI.
  *
- * Run `pnpm dev`, open http://localhost:4830 — then http://web.localhost:4830
+ * Run `pnpm dev`, open http://localhost:4840 — then http://web.localhost:4840
  * (every pane is also reachable at a stable subdomain of the UI port,
  * whatever port it actually got). Click around, then watch the traffic:
  *
@@ -32,11 +33,14 @@ import { defineConfig } from "procdeck"
 export default defineConfig({
   // `name` is the tab title and the installed app's name; it defaults to the
   // config directory's basename ("example" here), so it is left out.
-  port: 4830,
+  port: 4840,
   procs: [
     {
       id: "api",
       cmd: ["node", "servers/api.mjs"],
+      // The public side of `${port}` stays exactly 4831; the observer still
+      // captures the traffic behind it.
+      port: 4831,
       env: { PORT: "${port}" }
     },
     {

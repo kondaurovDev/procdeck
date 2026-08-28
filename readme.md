@@ -52,7 +52,9 @@ pnpm add -D procdeck      # npm i -D procdeck · bun add -d procdeck
 - **Ports that never collide.** Write `${port}` in a command, env value or url
   and procdeck assigns a free port before spawning. `${port:api}` is another
   proc's port, so dependents get wired — `API_URL=http://localhost:${port:api}`
-  — with no hardcoded numbers anywhere.
+  — with no hardcoded numbers anywhere. And when the world already knows the
+  address, `port: 8787` pins the public side to that exact number — dotenv
+  files and simulators keep working, the observer stays in front.
 - **A memorable address for each service.** `api.localhost:4820`,
   `web.localhost:4820` — whatever port the process actually got. Browsers
   resolve `*.localhost` themselves, so there is zero system setup, and

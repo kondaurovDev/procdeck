@@ -36,9 +36,9 @@ const page = (api) => `<!doctype html>
 <input id="say" placeholder="type and hit Enter">
 
 <script>
-  // web.localhost:4830 → api.localhost:4830 / chat.localhost:4830 — every
+  // web.localhost:4840 → api.localhost:4840 / chat.localhost:4840 — every
   // pane is a sibling subdomain on the UI port. Open this page through
-  // http://web.localhost:4830 for the buttons and the chat to work.
+  // http://web.localhost:4840 for the buttons and the chat to work.
   const sibling = (id) =>
     location.hostname.endsWith(".localhost")
       ? id + "." + location.hostname.split(".").slice(1).join(".") + ":" + location.port
@@ -47,7 +47,7 @@ const page = (api) => `<!doctype html>
   const out = document.getElementById("out")
   const call = async (method, path, body) => {
     const host = sibling("api")
-    if (host === null) return (out.textContent = "open me via http://web.localhost:4830 first")
+    if (host === null) return (out.textContent = "open me via http://web.localhost:4840 first")
     const response = await fetch("http://" + host + path, {
       method,
       headers: body === undefined ? {} : { "content-type": "application/json" },
@@ -76,7 +76,7 @@ const page = (api) => `<!doctype html>
       say.value = ""
     }
   } else {
-    chat.textContent = "open me via http://web.localhost:4830 to join the chat"
+    chat.textContent = "open me via http://web.localhost:4840 to join the chat"
   }
 </script>`
 

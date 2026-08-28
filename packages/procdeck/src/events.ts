@@ -15,7 +15,10 @@ export type ProcStatus = {
   restarts?: number
   /** TCP ports the process tree is listening on (auto-detected). */
   ports?: Array<number>
-  /** Why the proc is blocked — the preflight's hint (state "blocked" only). */
+  /**
+   * Why the proc is blocked — the preflight's hint, or a pinned public port
+   * that something else holds (state "blocked" only).
+   */
   hint?: string
   /** Label of a matched output alert, cleared on respawn. */
   alert?: string

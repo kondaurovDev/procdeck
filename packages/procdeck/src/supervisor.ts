@@ -38,6 +38,13 @@ type Runtime = {
    * listens on `assignedPort` and forwards here. undefined = not interposed.
    */
   internalPort: number | undefined
+  /**
+   * Close for this proc's bound observer; undefined while unbound. Interposed
+   * procs bind at startup and keep the observer for the supervisor's
+   * lifetime, but a *pinned* public port can be taken by something outside
+   * the deck — then the proc parks in "blocked" and Start retries the bind.
+   */
+  observerClose: (() => Promise<void>) | undefined
   status: ProcStatus
   proc: SpawnedProc | undefined
   /** Open once the proc is "ready" for dependents (see `readyWhen`). */
@@ -122,21 +129,28 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
   const scope = yield* Effect.scope
   const live = yield* PubSub.sliding<ProcEvent>({ capacity: LIVE_BUFFER })
 
-  // Assign a free port to every spec that asks for one (`${port}`) before
-  // anything spawns — the assignments stay stable for the supervisor's
-  // lifetime, so `${port:other}` references and the proxy table never move.
+  // Assign a port to every spec that asks for one (`${port}`) before anything
+  // spawns — the assignments stay stable for the supervisor's lifetime, so
+  // `${port:other}` references and the proxy table never move. A spec-level
+  // `port` pins the assignment to that exact number; the rest get free ports.
   // Observed procs (the default) get a *pair*: the public assigned port,
   // where procdeck's HTTP observer listens, and a hidden internal one the
   // proc actually binds — so `${port:api}` traffic flows through the
   // observer and gets captured (docs/design/http-observability.md).
   const wantsPort = loaded.config.procs.filter(usesOwnPort)
   const observedSpecs = wantsPort.filter((spec) => spec.observe !== false)
+  const unpinned = wantsPort.filter((spec) => spec.port === undefined)
   const freePorts = yield* Effect.promise(() =>
-    findFreePorts(wantsPort.length + observedSpecs.length)
+    findFreePorts(unpinned.length + observedSpecs.length)
   )
-  const assigned = new Map(wantsPort.map((spec, index) => [spec.id, freePorts[index]!]))
+  const assigned = new Map([
+    ...wantsPort.flatMap((spec) =>
+      spec.port === undefined ? [] : [[spec.id, spec.port] as const]
+    ),
+    ...unpinned.map((spec, index) => [spec.id, freePorts[index]!] as const)
+  ])
   const internal = new Map(
-    observedSpecs.map((spec, index) => [spec.id, freePorts[wantsPort.length + index]!])
+    observedSpecs.map((spec, index) => [spec.id, freePorts[unpinned.length + index]!])
   )
 
   const runtimes = new Map<string, Runtime>()
@@ -153,6 +167,7 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
             { ...resolved, env: { PORT: String(internalPort ?? assignedPort), ...resolved.env } },
       assignedPort,
       internalPort,
+      observerClose: undefined,
       status: { id: spec.id, state: "stopped" },
       proc: undefined,
       ready: Latch.makeUnsafe(false),
@@ -170,21 +185,15 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
     })
   }
 
-  // One observer per interposed proc, for the supervisor's whole lifetime —
-  // the public port answers (502) even while the proc restarts.
-  for (const [id, internalPort] of internal) {
-    const runtime = runtimes.get(id)!
-    yield* Effect.acquireRelease(
-      Effect.promise(() =>
-        startObserver({
-          publicPort: assigned.get(id)!,
-          internalPort,
-          record: (capture) => runtime.http.record(capture)
-        })
-      ),
-      (close) => Effect.promise(close)
+  // Observers close with the supervisor's scope, whichever ones are bound by
+  // then — binding itself happens below (startup) and in start() (retries).
+  yield* Effect.acquireRelease(Effect.void, () =>
+    Effect.promise(() =>
+      Promise.all(
+        [...runtimes.values()].map((runtime) => runtime.observerClose?.() ?? Promise.resolve())
+      ).then(() => undefined)
     )
-  }
+  )
 
   // Published from PTY callbacks, so it has to work outside of an Effect.
   const emit = (event: ProcEvent) => {
@@ -265,6 +274,35 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
         return
       }
     }
+  }
+
+  // One observer per interposed proc, bound at startup and kept for the
+  // supervisor's whole lifetime — the public port answers (502) even while
+  // the proc restarts. A free port cannot realistically fail to bind, but a
+  // *pinned* one can: the number is chosen by a human, and the likeliest
+  // holder is the same service started outside procdeck. That parks the one
+  // proc in "blocked" — Start retries the bind — instead of taking the whole
+  // deck down.
+  const bindObserver = (runtime: Runtime): Promise<boolean> =>
+    startObserver({
+      publicPort: runtime.assignedPort!,
+      internalPort: runtime.internalPort!,
+      record: (capture) => runtime.http.record(capture)
+    }).then(
+      (close) => {
+        runtime.observerClose = close
+        return true
+      },
+      () => false
+    )
+
+  const parkOnTakenPort = (runtime: Runtime) => {
+    const hint = `free :${runtime.assignedPort} (is "${runtime.spec.id}" already running outside procdeck?), then Start`
+    say(
+      runtime,
+      `\r\nprocdeck: pinned port :${runtime.assignedPort} is taken — cannot observe "${runtime.spec.id}"\r\nprocdeck: hint: ${hint}\r\n`
+    )
+    setStatus(runtime, { id: runtime.spec.id, state: "blocked", hint })
   }
 
   const startSync = (runtime: Runtime) => {
@@ -355,6 +393,16 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
   const start = Effect.fn("procdeck.start")(function* (id: string) {
     const runtime = require_(id)
     if (runtime.proc !== undefined || runtime.waiter !== undefined) return
+
+    // An interposed proc without its observer is unreachable on its public
+    // port — (re)try the bind first; a still-taken pin parks it again.
+    if (runtime.internalPort !== undefined && runtime.observerClose === undefined) {
+      const bound = yield* Effect.promise(() => bindObserver(runtime))
+      if (!bound) {
+        parkOnTakenPort(runtime)
+        return
+      }
+    }
 
     const needs = runtime.spec.needs ?? []
     if (needs.length === 0 && runtime.spec.preflight === undefined) {
@@ -456,7 +504,13 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
       [...runtimes.values()].map((runtime) => ({
         id: runtime.spec.id,
         command: describeCommand(runtime.resolved),
-        ...(runtime.resolved.url === undefined ? {} : { url: runtime.resolved.url }),
+        // A pinned proc has a stable public address even with no `url` in
+        // the config — derive the link instead of making the user repeat it.
+        ...(runtime.resolved.url !== undefined
+          ? { url: runtime.resolved.url }
+          : runtime.spec.port === undefined
+            ? {}
+            : { url: `http://localhost:${runtime.spec.port}` }),
         ...(runtime.assignedPort === undefined ? {} : { assignedPort: runtime.assignedPort }),
         proxyUrl: `http://${runtime.spec.id}.localhost:${uiPort}`,
         status: runtime.status
@@ -521,8 +575,19 @@ const make = Effect.fn("procdeck.supervisor")(function* (loaded: LoadedConfig) {
     discard: true
   })
 
+  // Bind every observer up front, so a stopped proc's public port answers
+  // 502 rather than refusing. A taken pin parks its proc before autostart
+  // gets to it — no point spawning what start() would immediately re-park.
   for (const runtime of runtimes.values()) {
-    if (runtime.spec.autostart !== false) yield* start(runtime.spec.id)
+    if (runtime.internalPort === undefined) continue
+    const bound = yield* Effect.promise(() => bindObserver(runtime))
+    if (!bound) parkOnTakenPort(runtime)
+  }
+
+  for (const runtime of runtimes.values()) {
+    if (runtime.spec.autostart !== false && runtime.status.state !== "blocked") {
+      yield* start(runtime.spec.id)
+    }
   }
 
   return { supervisor, stopAll }

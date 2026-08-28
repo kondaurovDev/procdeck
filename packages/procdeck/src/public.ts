@@ -43,6 +43,13 @@ export type ProcSpec = {
   readonly autostart?: boolean
   /** URL this process serves, shown in the UI as a link. */
   readonly url?: string
+  /**
+   * Pin this proc's assigned `${port}` to a fixed public number instead of a
+   * random free one — dependents outside the deck keep their hardcoded
+   * addresses, and an observed proc still binds a hidden internal port.
+   * Requires `${port}` somewhere in the spec.
+   */
+  readonly port?: number
   /** Ids of procs that must be ready before this one spawns. */
   readonly needs?: ReadonlyArray<string>
   /** What "ready" means for dependents. Defaults to "listening". */

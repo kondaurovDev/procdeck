@@ -78,6 +78,7 @@ export default defineConfig({
 | `env`       | `Record<string, string>`    | —                     | Extra environment on top of the inherited one. Values may use `${port}` templates.                                   |
 | `autostart` | `boolean`                   | `true`                | `false` leaves the pane idle until someone presses Start.                                                            |
 | `url`       | `string`                    | —                     | URL this process serves, shown as a link in the UI. Also pins readiness to that URL's port.                          |
+| `port`      | `number`                    | random free           | Pin the assigned `${port}` to this exact public number. See [Assigned ports](#assigned-ports).                       |
 | `needs`     | `string[]`                  | —                     | Ids that must be ready before this proc spawns.                                                                      |
 | `readyWhen` | `"listening" \| "started"`  | `"listening"`         | What "ready" means for dependents: a listening TCP port, or merely spawned (for procs that never listen).            |
 | `observe`   | `boolean`                   | `true` with `${port}` | Route the assigned port through the HTTP observer so `procdeck http` sees the traffic. See [traffic.md](traffic.md). |
@@ -108,6 +109,26 @@ wired without a single hardcoded number:
 
 Ports are assigned once per run, so nothing can collide. A `${port:x}` that
 names a proc which does not use `${port}` itself is a config error.
+
+A spec-level `port` pins the assignment to a fixed number instead of a random
+free one:
+
+```jsonc
+{ "id": "api", "shell": "pnpm --filter api dev --port ${port}", "port": 8787 }
+```
+
+The public side stays exactly `8787` — dotenv files, mobile simulators and
+teammates' scripts keep their hardcoded `localhost:8787` — while the proc
+itself still binds a hidden internal port behind the HTTP observer, so the
+traffic is captured with no wiring changes anywhere. And a colleague who runs
+the dev script *without* procdeck lands on the same address: the process
+simply binds its own default port directly.
+
+A pin on a proc that never uses `${port}`, two procs pinning the same number,
+and a pin on the UI's own port are config errors. A pin whose port is already
+taken — usually the same service still running outside procdeck — parks just
+that proc in `blocked`, naming the port and the likely holder, while the rest
+of the deck runs; free the port and press Start, and the bind is retried.
 
 ## Readiness and dependencies
 

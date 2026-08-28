@@ -109,6 +109,45 @@ describe("config schema", () => {
     )
   })
 
+  test("accepts a pinned port on a proc that uses ${port}", () => {
+    const config = decode({
+      procs: [{ id: "api", shell: "serve --port ${port}", port: 8787 }]
+    })
+    expect(config.procs[0]!.port).toBe(8787)
+  })
+
+  test("rejects a pinned port on a proc that does not use ${port}", () => {
+    expect(() => decode({ procs: [{ id: "api", shell: "serve --port 8787", port: 8787 }] })).toThrow(
+      /does not use \$\{port\}/
+    )
+  })
+
+  test("rejects two procs pinning the same port", () => {
+    expect(() =>
+      decode({
+        procs: [
+          { id: "a", shell: "a ${port}", port: 8787 },
+          { id: "b", shell: "b ${port}", port: 8787 }
+        ]
+      })
+    ).toThrow(/same port 8787/)
+  })
+
+  test("rejects a pin on the deck UI's port, default included", () => {
+    expect(() =>
+      decode({ port: 5000, procs: [{ id: "a", shell: "a ${port}", port: 5000 }] })
+    ).toThrow(/UI's own port/)
+    expect(() => decode({ procs: [{ id: "a", shell: "a ${port}", port: 4820 }] })).toThrow(
+      /UI's own port/
+    )
+  })
+
+  test("rejects a fractional or out-of-range pin", () => {
+    expect(() => decode({ procs: [{ id: "a", shell: "a ${port}", port: 80.5 }] })).toThrow()
+    expect(() => decode({ procs: [{ id: "a", shell: "a ${port}", port: 0 }] })).toThrow()
+    expect(() => decode({ procs: [{ id: "a", shell: "a ${port}", port: 65536 }] })).toThrow()
+  })
+
   test("rejects ${port:x} pointing at a proc that does not use ${port}", () => {
     expect(() =>
       decode({
