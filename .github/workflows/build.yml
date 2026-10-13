@@ -8,9 +8,45 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build and Test
-    runs-on: ubuntu-latest
+  go:
+    name: Go (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      # Port detection reads `ps` and `lsof`; slim Linux images may lack lsof.
+      - name: Ensure lsof
+        if: runner.os == 'Linux'
+        run: command -v lsof || sudo apt-get install -y lsof
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Format
+        run: test -z "$(gofmt -l cmd internal)"
+
+      # Real processes behind real PTYs — the risks live at the OS boundary.
+      - name: Test
+        run: go test -race ./...
+
+  web:
+    name: UI and end-to-end (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
@@ -19,19 +55,31 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Ensure lsof
+        if: runner.os == 'Linux'
+        run: command -v lsof || sudo apt-get install -y lsof
+
       - name: Lint
         run: pnpm lint
 
       - name: Format
         run: pnpm format:check
 
-      - name: Build
-        run: pnpm build
-
       # The Effect language service is patched into tsc by the root `prepare`
       # script, so this also reports Effect diagnostics.
       - name: Typecheck
         run: pnpm check:types
 
-      - name: Test
-        run: pnpm test
+      - name: Build
+        run: pnpm build
+
+      # The binary just built, UI embedded, against the black-box suites.
+      - name: End-to-end
+        run: pnpm --filter @procdeck/e2e test
+        env:
+          PROCDECK_BIN: ${{ github.workspace }}/bin/procdeck

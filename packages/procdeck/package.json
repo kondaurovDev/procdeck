@@ -1,6 +1,7 @@
 {
   "name": "procdeck",
   "version": "1.1.0",
+  "private": true,
   "description": "Interactive dev-process multiplexer with a web UI: terminal panes in a browser tab, declarative dependencies, assigned ports and a *.localhost reverse proxy.",
   "keywords": [
     "cli",
@@ -23,56 +24,5 @@
     "type": "git",
     "url": "https://github.com/kondaurovDev/procdeck",
     "directory": "packages/procdeck"
-  },
-  "bin": {
-    "procdeck": "./dist/cli.js"
-  },
-  "files": [
-    "dist",
-    "schema.json",
-    "ui/dist"
-  ],
-  "type": "module",
-  "exports": {
-    ".": {
-      "types": "./dist/public.d.ts",
-      "import": "./dist/public.js"
-    }
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "scripts": {
-    "ui:dev": "vite ui",
-    "prepublishOnly": "pnpm run build",
-    "build": "pnpm run build:meta && pnpm run build:schema && pnpm run build:ui && pnpm run build:js && pnpm run build:types",
-    "build:meta": "cp ../../readme.md ../../license .",
-    "build:schema": "node scripts/gen-schema.ts",
-    "build:ui": "vite build ui",
-    "build:js": "tsup",
-    "build:types": "tsc -p tsconfig.build.json",
-    "check:types": "tsc --noEmit && tsc -p ui --noEmit",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@lydell/node-pty": "1.2.0-beta.15"
-  },
-  "devDependencies": {
-    "@effect/platform-browser": "4.0.0-beta.106",
-    "@effect/platform-node-shared": "4.0.0-beta.106",
-    "@types/node": "^22.10.1",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/addon-search": "^0.16.0",
-    "@xterm/addon-web-links": "^0.12.0",
-    "@xterm/xterm": "^6.0.0",
-    "effect": "4.0.0-beta.106",
-    "foldkit": "^0.141.2",
-    "tsup": "^8.5.1",
-    "typescript": "^7.0.2",
-    "vite": "^6.2.0",
-    "vitest": "^3.2.4"
-  },
-  "engines": {
-    "node": ">=22"
   }
 }

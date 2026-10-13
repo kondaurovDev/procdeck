@@ -173,15 +173,15 @@ Both formats validate against the same schema. Full field reference:
 
 ## Try the example
 
-In a clone of this repo:
+In a clone of this repo, with Go ≥ 1.26 and pnpm:
 
 ```sh
 pnpm install
-pnpm dev          # builds the UI, starts the example stack in the foreground
+pnpm dev          # builds the UI, embeds it, runs the example stack on the Go procdeck
 ```
 
-Then open <http://localhost:4820> for the panes, and
-<http://web.localhost:4820> / <http://api.localhost:4820> — the example's
+Then open <http://localhost:4840> for the panes, and
+<http://web.localhost:4840> / <http://api.localhost:4840> — the example's
 servers found each other, and their own ports, entirely through `${port}`
 templates. See [`example/`](https://github.com/kondaurovDev/procdeck/tree/main/example).
 

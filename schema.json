@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unpkg.com/procdeck/schema.json",
+  "title": "procdeck config",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URL of the procdeck JSON schema, for editor completion and validation.",
+      "examples": ["https://unpkg.com/procdeck/schema.json"]
+    },
+    "name": {
+      "type": "string",
+      "description": "Deck name — the tab title and the name of the installed web app. Defaults to the config directory's basename.",
+      "examples": ["my-app"]
+    },
+    "port": {
+      "description": "Port for the web UI and the `*.localhost` proxy. Defaults to 4820.",
+      "examples": [4820],
+      "type": "integer",
+      "allOf": [
+        {
+          "minimum": 1,
+          "maximum": 65535
+        }
+      ]
+    },
+    "host": {
+      "type": "string",
+      "description": "Interface the UI and proxy bind to. Defaults to \"127.0.0.1\" — loopback only, because the UI types into real terminals. Set \"0.0.0.0\" to reach the deck from another machine or from a container's host.",
+      "examples": ["127.0.0.1", "0.0.0.0"],
+      "allOf": [
+        {
+          "minLength": 1
+        }
+      ]
+    },
+    "procs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable identifier: the pane label, and the proxy subdomain (`api` → http://api.localhost:4820).",
+            "examples": ["api", "web"],
+            "allOf": [
+              {
+                "minLength": 1
+              }
+            ]
+          },
+          "shell": {
+            "type": "string",
+            "description": "Command line handed to `$SHELL -c` — pipes, `&&` and globs work. Exactly one of `shell` or `cmd` must be set.",
+            "examples": ["pnpm --filter api dev"]
+          },
+          "cmd": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "argv, executed directly without a shell. Exactly one of `shell` or `cmd` must be set.",
+            "examples": [["node", "server.js"]],
+            "allOf": [
+              {
+                "minItems": 1
+              }
+            ]
+          },
+          "cwd": {
+            "type": "string",
+            "description": "Working directory; defaults to the config file's directory.",
+            "examples": ["packages/api"]
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Extra environment on top of the inherited one. Values may use `${port}` / `${port:other}` templates.",
+            "examples": [
+              {
+                "PORT": "${port}",
+                "API_URL": "http://localhost:${port:api}"
+              }
+            ]
+          },
+          "autostart": {
+            "type": "boolean",
+            "description": "Spawn on startup. Defaults to true; false leaves the pane idle until Start."
+          },
+          "url": {
+            "type": "string",
+            "description": "URL this process serves, shown in the UI as a link. Also pins readiness to that URL's port.",
+            "examples": ["http://localhost:${port}"]
+          },
+          "port": {
+            "description": "Pin this proc's assigned `${port}` to a fixed public number instead of a random free one — dependents outside the deck (dotenv files, mobile simulators, teammates' scripts) keep their hardcoded addresses, and an observed proc still binds a hidden internal port behind the HTTP observer. Requires `${port}` somewhere in the spec.",
+            "examples": [8787],
+            "type": "integer",
+            "allOf": [
+              {
+                "minimum": 1,
+                "maximum": 65535
+              }
+            ]
+          },
+          "needs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids of procs that must be ready before this one spawns. Declarative: readiness is auto-detected, no port numbers in the config.",
+            "examples": [["api"]]
+          },
+          "readyWhen": {
+            "type": "string",
+            "enum": ["listening", "started"],
+            "description": "What \"ready\" means for dependents: \"listening\" (default) — the process tree opened a TCP port; \"started\" — it merely spawned, for procs that never listen."
+          },
+          "observe": {
+            "type": "boolean",
+            "description": "Route this proc's assigned `${port}` through procdeck's HTTP observer, capturing requests and responses for `procdeck http`. Defaults to true for procs that use `${port}`; false hands the proc the public port directly (no traffic capture)."
+          },
+          "preflight": {
+            "type": "object",
+            "properties": {
+              "shell": {
+                "type": "string",
+                "description": "Shell command; exit 0 lets the proc spawn.",
+                "examples": ["wrangler whoami"],
+                "allOf": [
+                  {
+                    "minLength": 1
+                  }
+                ]
+              },
+              "expect": {
+                "type": "string",
+                "description": "Regex the check's output must also match. For checks that exit 0 either way — `wrangler whoami` reports \"not authenticated\" with exit 0 — so the config needs no `| grep` pipelines.",
+                "examples": ["You are logged in"]
+              },
+              "hint": {
+                "type": "string",
+                "description": "What the human should do when the check fails; shown on the blocked pane.",
+                "examples": ["run `wrangler login`, then Start"]
+              }
+            },
+            "required": ["shell"],
+            "additionalProperties": false,
+            "description": "A gate that must pass before the process spawns — e.g. `wrangler whoami` before a proc whose tree needs a Cloudflare token. Keeps interactive auth flows out of supervised panes, where a restart would kill their callback servers mid-handshake."
+          },
+          "alerts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "description": "Regex matched against a rolling tail of the pane's output.",
+                  "examples": ["ERROR", "not authenticated"]
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Badge text shown in the UI when the pattern matches.",
+                  "examples": ["needs login"],
+                  "allOf": [
+                    {
+                      "minLength": 1
+                    }
+                  ]
+                }
+              },
+              "required": ["pattern", "label"],
+              "additionalProperties": false,
+              "description": "A regex watched in the pane output; a match raises a badge in the UI."
+            },
+            "description": "Output patterns that raise a badge when they appear in the pane."
+          }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      },
+      "description": "The processes this deck supervises."
+    }
+  },
+  "required": ["procs"],
+  "additionalProperties": false
+}
