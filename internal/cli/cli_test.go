@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -47,5 +49,22 @@ func TestTable(t *testing.T) {
 		"  web  exit 1   http://web.localhost:4820  ⚠ needs login"
 	if got != want {
 		t.Errorf("table:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestRotateLog(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "deck.log")
+	os.WriteFile(file, []byte("small"), 0o644)
+	rotateLog(file)
+	if _, err := os.Stat(file + ".1"); err == nil {
+		t.Fatal("a small log was rotated")
+	}
+	os.WriteFile(file, make([]byte, logLimit+1), 0o644)
+	rotateLog(file)
+	if _, err := os.Stat(file); err == nil {
+		t.Error("the big log is still in place")
+	}
+	if info, err := os.Stat(file + ".1"); err != nil || info.Size() != logLimit+1 {
+		t.Errorf("the previous generation: %v", err)
 	}
 }

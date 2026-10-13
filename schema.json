@@ -35,6 +35,23 @@
         }
       ]
     },
+    "envFile": {
+      "description": "Dotenv file(s), relative to the config file's directory, whose variables every proc and preflight sees — on top of the inherited environment, below each proc's own `env`. Read at every spawn, so a refreshed file reaches a proc on its next restart; a missing file is skipped with a note in the pane.",
+      "examples": [".env", [".env", ".env.local"]],
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ]
+    },
     "procs": {
       "type": "array",
       "items": {

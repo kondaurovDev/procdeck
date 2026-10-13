@@ -57,6 +57,7 @@ func detach(configPath, root string) (registry.Instance, error) {
 	if err := registry.EnsureHome(); err != nil {
 		return registry.Instance{}, err
 	}
+	rotateLog(registry.LogPath(root))
 	log, err := os.OpenFile(registry.LogPath(root), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return registry.Instance{}, err
@@ -94,6 +95,17 @@ func detach(configPath, root string) (registry.Instance, error) {
 				return instance, nil
 			}
 		}
+	}
+}
+
+// logLimit is where a deck's log is set aside — every `up` appends to it.
+const logLimit = 4 << 20
+
+// rotateLog keeps one previous generation: past the limit the log becomes
+// <log>.1 and the deck starts a fresh one.
+func rotateLog(file string) {
+	if info, err := os.Stat(file); err == nil && info.Size() > logLimit {
+		os.Rename(file, file+".1")
 	}
 }
 

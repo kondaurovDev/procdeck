@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,6 +37,9 @@ type Exit struct {
 type Options struct {
 	// Spec is the proc with its templates already resolved.
 	Spec config.Proc
+	// Base sits between the inherited environment and the spec's own env —
+	// the deck's env files.
+	Base map[string]string
 	Dir  string
 	Cols uint16
 	Rows uint16
@@ -77,9 +81,9 @@ func shell() string {
 	return "/bin/sh"
 }
 
-// buildEnv is the inherited environment plus terminal hints and the spec's
-// own variables. PROCDECK_DETACHED is procdeck's business, not the child's.
-func buildEnv(extra map[string]string, dir string) []string {
+// inherited is procdeck's own environment with base on top.
+// PROCDECK_DETACHED is procdeck's business, not the child's.
+func inherited(base map[string]string) map[string]string {
 	env := map[string]string{}
 	for _, kv := range os.Environ() {
 		if key, value, ok := strings.Cut(kv, "="); ok {
@@ -87,19 +91,29 @@ func buildEnv(extra map[string]string, dir string) []string {
 		}
 	}
 	delete(env, "PROCDECK_DETACHED")
-	// A real PTY already implies a TTY, but some tools look at these directly.
-	env["TERM"] = "xterm-256color"
-	env["FORCE_COLOR"] = "1"
-	for key, value := range extra {
-		env[key] = value
-	}
-	env["PWD"] = dir
+	maps.Copy(env, base)
+	return env
+}
+
+func pairs(env map[string]string) []string {
 	out := make([]string, 0, len(env))
 	for key, value := range env {
 		out = append(out, key+"="+value)
 	}
 	slices.Sort(out)
 	return out
+}
+
+// buildEnv layers, lowest first: the inherited environment, the deck's env
+// files, terminal hints, the spec's own variables.
+func buildEnv(base, extra map[string]string, dir string) []string {
+	env := inherited(base)
+	// A real PTY already implies a TTY, but some tools look at these directly.
+	env["TERM"] = "xterm-256color"
+	env["FORCE_COLOR"] = "1"
+	maps.Copy(env, extra)
+	env["PWD"] = dir
+	return pairs(env)
 }
 
 // lookPath resolves argv[0] against the child's PATH, not procdeck's own: a
@@ -133,7 +147,7 @@ func Spawn(o Options) (*Proc, error) {
 	if len(args) == 0 {
 		return nil, fmt.Errorf("proc %q defines neither shell nor cmd", o.Spec.ID)
 	}
-	env := buildEnv(o.Spec.Env, o.Dir)
+	env := buildEnv(o.Base, o.Spec.Env, o.Dir)
 	path, err := lookPath(args[0], env)
 	if err != nil {
 		return nil, err
@@ -246,15 +260,17 @@ const (
 )
 
 // Preflight runs a check: a plain (non-PTY) shell command with its output
-// captured for the pane, stdout then stderr. Exit 0 means "clear to spawn". A
-// timeout counts as a failure — a preflight that hangs is a preflight that
-// failed — and so does output past 1 MB.
-func Preflight(ctx context.Context, command, dir string) (ok bool, output string) {
+// captured for the pane, stdout then stderr. It sees the inherited
+// environment with base on top — not the spec's env. Exit 0 means "clear to
+// spawn". A timeout counts as a failure — a preflight that hangs is a
+// preflight that failed — and so does output past 1 MB.
+func Preflight(ctx context.Context, command, dir string, base map[string]string) (ok bool, output string) {
 	ctx, cancel := context.WithTimeout(ctx, preflightTimeout)
 	defer cancel()
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, shell(), "-c", command)
 	cmd.Dir = dir
+	cmd.Env = pairs(inherited(base))
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	// Its own group, so a timeout takes the whole check down, not just the
 	// shell; WaitDelay stops a lingering grandchild from holding the pipes.

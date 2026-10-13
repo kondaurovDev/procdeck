@@ -18,6 +18,7 @@ import (
 	"github.com/kondaurovDev/procdeck/internal/deckclient"
 	"github.com/kondaurovDev/procdeck/internal/discover"
 	"github.com/kondaurovDev/procdeck/internal/errscan"
+	"github.com/kondaurovDev/procdeck/internal/lines"
 	"github.com/kondaurovDev/procdeck/internal/registry"
 	"github.com/kondaurovDev/procdeck/internal/supervisor"
 )
@@ -53,8 +54,8 @@ func logsCmd() *cobra.Command {
 			if self {
 				return selfLogs(cmd.Context(), follow)
 			}
-			if follow {
-				return fail("--follow works with --self only, for now")
+			if follow && asJSON {
+				return fail("--follow prints lines as they come; --json is for one answer")
 			}
 			instance, err := requireInstance("")
 			if err != nil {
@@ -69,6 +70,9 @@ func logsCmd() *cobra.Command {
 			if err != nil {
 				return fail("%s", err)
 			}
+			if follow {
+				return followLogs(cmd.Context(), instance, params, result)
+			}
 			if asJSON {
 				data, _ := json.Marshal(result)
 				fmt.Println(string(data))
@@ -81,13 +85,7 @@ func logsCmd() *cobra.Command {
 			if result.Omitted > 0 {
 				fmt.Printf("… %d earlier matching lines omitted (raise --lines)\n", result.Omitted)
 			}
-			for _, line := range result.Lines {
-				if proc == "" {
-					fmt.Printf("[%s] %s\n", line.Proc, line.Text)
-				} else {
-					fmt.Println(line.Text)
-				}
-			}
+			printLines(result, proc == "")
 			return nil
 		},
 	}
@@ -98,8 +96,51 @@ func logsCmd() *cobra.Command {
 	flags.StringVar(&sinceMark, "since-mark", "", "only lines after `procdeck mark <name>` was set")
 	flags.BoolVar(&asJSON, "json", false, "machine-readable output (for agents and scripts)")
 	flags.BoolVar(&self, "self", false, "procdeck's own daemon log instead of pane output")
-	flags.BoolVarP(&follow, "follow", "f", false, "keep printing new lines (with --self only, for now)")
+	flags.BoolVarP(&follow, "follow", "f", false, "keep printing new lines as they arrive")
 	return cmd
+}
+
+func printLines(result lines.Result, multi bool) {
+	for _, line := range result.Lines {
+		if multi {
+			fmt.Printf("[%s] %s\n", line.Proc, line.Text)
+		} else {
+			fmt.Println(line.Text)
+		}
+	}
+}
+
+// followLogs prints the tail it was handed, then keeps asking the deck for
+// what came after it. The seq cursors make that exact — no line twice, none
+// lost — and a poll every 300 ms is all a terminal tail needs.
+func followLogs(ctx context.Context, instance registry.Instance, params deckclient.LogsParams, first lines.Result) error {
+	ctx, stop := interruptible(ctx)
+	defer stop()
+	multi := params.Proc == "" || strings.Contains(params.Proc, ",")
+	printLines(first, multi)
+	params.Mark, params.SinceMs, params.Lines = "", 0, 5000
+	params.SinceSeq = first.NextSeq
+	ticker := time.NewTicker(300 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+		result, err := deckclient.Logs(ctx, instance, params)
+		if ctx.Err() != nil {
+			return nil
+		}
+		if err != nil {
+			return fail("the deck stopped answering: %s", err)
+		}
+		if result.Omitted > 0 {
+			fmt.Printf("… %d lines went by faster than this tail\n", result.Omitted)
+		}
+		printLines(result, multi)
+		params.SinceSeq = result.NextSeq
+	}
 }
 
 // selfLogs prints the deck's own daemon log, and with follow keeps printing

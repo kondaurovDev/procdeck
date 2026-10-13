@@ -59,13 +59,14 @@ export default defineConfig({
 
 ## Top level
 
-| Field     | Type         | Default                 | What                                                                                                                      |
-| --------- | ------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `procs`   | `ProcSpec[]` | required                | The processes this deck supervises.                                                                                       |
-| `name`    | `string`     | config directory's name | Deck name: the tab title and the name of the installed web app.                                                           |
-| `port`    | `number`     | `4820`                  | Port for the web UI and the `*.localhost` proxy.                                                                          |
-| `host`    | `string`     | `"127.0.0.1"`           | Interface the UI and proxy bind to. Loopback only by default — the UI types into real terminals. `"0.0.0.0"` opens it up. |
-| `$schema` | `string`     | —                       | URL of the JSON schema, for editor completion. Ignored at runtime.                                                        |
+| Field     | Type                 | Default                 | What                                                                                                                      |
+| --------- | -------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `procs`   | `ProcSpec[]`         | required                | The processes this deck supervises.                                                                                       |
+| `name`    | `string`             | config directory's name | Deck name: the tab title and the name of the installed web app.                                                           |
+| `port`    | `number`             | `4820`                  | Port for the web UI and the `*.localhost` proxy.                                                                          |
+| `host`    | `string`             | `"127.0.0.1"`           | Interface the UI and proxy bind to. Loopback only by default — the UI types into real terminals. `"0.0.0.0"` opens it up. |
+| `envFile` | `string \| string[]` | —                       | Dotenv file(s) every proc and preflight sees. See [Env files](#env-files).                                                |
+| `$schema` | `string`             | —                       | URL of the JSON schema, for editor completion. Ignored at runtime.                                                        |
 
 ## A proc
 
@@ -87,6 +88,30 @@ export default defineConfig({
 
 Duplicate ids, unknown `needs` targets and dependency cycles are rejected when
 the config loads, with the offending name in the message.
+
+## Env files
+
+```jsonc
+{
+  "envFile": ".env", // or [".env", ".env.local"] — later files win
+  "procs": [ ... ]
+}
+```
+
+Paths are relative to the config file's directory. The variables layer as:
+the environment procdeck was started in, then the env files in order, then a
+proc's own `env` — so a file is authoritative over whatever shell happened to
+launch the deck, and a proc can still override a single variable.
+
+Every proc and every preflight sees them (a `wrangler whoami` gate needs the
+token too). The files are read at each spawn, not once at startup: after
+refreshing `.env`, restarting the one proc picks it up — no deck restart.
+
+A missing file is skipped, with a note in the pane; a malformed one keeps the
+proc from spawning and names the line. The format is the one `node
+--env-file` and the dotenv libraries read: `KEY=value`, `export` prefixes, `#`
+comments, single, double and backtick quotes, multi-line double-quoted values
+with `\n` escapes. No `${VAR}` expansion.
 
 ## Assigned ports
 

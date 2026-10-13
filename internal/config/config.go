@@ -37,8 +37,28 @@ type Config struct {
 	// Port serves the web UI and the `*.localhost` proxy; defaults to 4820.
 	Port *int `json:"port,omitempty"`
 	// Host is the interface the UI and proxy bind to; defaults to loopback.
-	Host  string `json:"host,omitempty"`
-	Procs []Proc `json:"procs"`
+	Host string `json:"host,omitempty"`
+	// EnvFile names dotenv files, relative to the config's directory, whose
+	// variables every proc and preflight sees.
+	EnvFile EnvFiles `json:"envFile,omitempty"`
+	Procs   []Proc   `json:"procs"`
+}
+
+// EnvFiles is one path or a list of them; later files override earlier ones.
+type EnvFiles []string
+
+func (f *EnvFiles) UnmarshalJSON(data []byte) error {
+	var one string
+	if json.Unmarshal(data, &one) == nil {
+		*f = EnvFiles{one}
+		return nil
+	}
+	var many []string
+	if err := json.Unmarshal(data, &many); err != nil {
+		return errors.New("envFile: expected a path or a list of paths")
+	}
+	*f = many
+	return nil
 }
 
 // UIPort is the configured UI port or the default.
@@ -151,6 +171,9 @@ func (c *Config) validate() error {
 	}
 	if c.Port != nil && !validPort(*c.Port) {
 		return fmt.Errorf("port %d is out of range 1–65535", *c.Port)
+	}
+	if slices.Contains(c.EnvFile, "") {
+		return errors.New("envFile: a path must not be empty")
 	}
 	for i := range c.Procs {
 		if err := c.Procs[i].validate(i); err != nil {
@@ -474,6 +497,19 @@ func (l *Loaded) Dir(p *Proc) string {
 		return p.Cwd
 	}
 	return filepath.Join(l.Root, p.Cwd)
+}
+
+// EnvFiles are the config's env files as absolute paths.
+func (l *Loaded) EnvFiles() []string {
+	paths := make([]string, len(l.Config.EnvFile))
+	for i, file := range l.Config.EnvFile {
+		if filepath.IsAbs(file) {
+			paths[i] = file
+		} else {
+			paths[i] = filepath.Join(l.Root, file)
+		}
+	}
+	return paths
 }
 
 // Load reads, parses and validates a config file.

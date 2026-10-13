@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -23,6 +24,7 @@ import (
 	"time"
 
 	"github.com/kondaurovDev/procdeck/internal/config"
+	"github.com/kondaurovDev/procdeck/internal/dotenv"
 	"github.com/kondaurovDev/procdeck/internal/httplog"
 	"github.com/kondaurovDev/procdeck/internal/interpose"
 	"github.com/kondaurovDev/procdeck/internal/lines"
@@ -123,6 +125,10 @@ type Mark struct {
 // Supervisor owns a deck's processes.
 type Supervisor struct {
 	uiPort int
+	root   string
+	// envFiles are read at every launch, so a refreshed file reaches a proc
+	// on its next restart without restarting the deck.
+	envFiles []string
 	// ctx ends with the supervisor: launches and the port poll stop.
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -147,12 +153,14 @@ func Start(loaded *config.Loaded) (*Supervisor, error) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Supervisor{
-		uiPort: loaded.Config.UIPort(),
-		ctx:    ctx,
-		cancel: cancel,
-		polled: make(chan struct{}),
-		byID:   map[string]*runtime{},
-		subs:   map[*Subscription]struct{}{},
+		uiPort:   loaded.Config.UIPort(),
+		root:     loaded.Root,
+		envFiles: loaded.EnvFiles(),
+		ctx:      ctx,
+		cancel:   cancel,
+		polled:   make(chan struct{}),
+		byID:     map[string]*runtime{},
+		subs:     map[*Subscription]struct{}{},
 	}
 	for _, spec := range loaded.Config.Procs {
 		s.add(loaded, spec, assigned, internal)
@@ -355,14 +363,45 @@ func (s *Supervisor) onData(r *runtime, data string) {
 	}
 }
 
+// env reads the deck's env files for one launch. Missing files come back as
+// a pane note; a malformed one is an error.
+func (s *Supervisor) env() (vars map[string]string, note string, err error) {
+	vars, missing, err := dotenv.Load(s.envFiles...)
+	if err != nil {
+		return nil, "", fmt.Errorf("env file %s", s.relative(err.Error()))
+	}
+	for _, path := range missing {
+		note += fmt.Sprintf("\r\nprocdeck: env file %s not found — skipped\r\n", s.relative(path))
+	}
+	return vars, note, nil
+}
+
+// relative shortens the deck root out of a path (or a message starting
+// with one).
+func (s *Supervisor) relative(text string) string {
+	return strings.TrimPrefix(text, s.root+string(filepath.Separator))
+}
+
 // spawn starts the proc; the caller holds s.mu. A spawn failure (bad cwd,
-// missing binary) marks this one proc, never the whole deck: the error lands
-// in the pane like any other output.
-func (s *Supervisor) spawn(r *runtime) {
+// missing binary, a malformed env file) marks this one proc, never the whole
+// deck: the error lands in the pane like any other output.
+func (s *Supervisor) spawn(r *runtime, notePreflight bool) {
 	s.setStatus(r, Status{ID: r.spec.ID, State: Starting})
 	s.markUnready(r)
 	r.tail = ""
+	base, note, err := s.env()
+	if err != nil {
+		s.say(r, "\r\nprocdeck: spawn failed: "+err.Error()+"\r\n")
+		code := -1
+		s.setStatus(r, Status{ID: r.spec.ID, State: Exited, ExitCode: &code})
+		return
+	}
+	// A preflight already told the pane about missing files.
+	if note != "" && !notePreflight {
+		s.say(r, note)
+	}
 	p, err := proc.Spawn(proc.Options{
+		Base:   base,
 		Spec:   r.resolved,
 		Dir:    r.dir,
 		Cols:   r.cols,
@@ -429,7 +468,7 @@ func (s *Supervisor) start(r *runtime) {
 		return
 	}
 	if len(r.spec.Needs) == 0 && r.spec.Preflight == nil {
-		s.spawn(r)
+		s.spawn(r, false)
 		return
 	}
 	if len(r.spec.Needs) > 0 {
@@ -463,7 +502,7 @@ func (s *Supervisor) launch(ctx context.Context, r *runtime, w *waiter) {
 		return
 	}
 	r.waiter = nil
-	s.spawn(r)
+	s.spawn(r, r.spec.Preflight != nil)
 }
 
 // gate runs the preflight check and either clears the proc for spawning or
@@ -479,7 +518,21 @@ func (s *Supervisor) gate(ctx context.Context, r *runtime, w *waiter) bool {
 	}
 	s.mu.Unlock()
 
-	passed, output := proc.Preflight(ctx, check.Shell, r.dir)
+	base, note, err := s.env()
+	if note != "" || err != nil {
+		s.mu.Lock()
+		if r.waiter == w && note != "" {
+			s.say(r, note)
+		}
+		s.mu.Unlock()
+	}
+	var passed bool
+	var output string
+	if err == nil {
+		passed, output = proc.Preflight(ctx, check.Shell, r.dir, base)
+	} else {
+		output = err.Error()
+	}
 	if ctx.Err() != nil {
 		return false
 	}

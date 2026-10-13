@@ -260,3 +260,17 @@ func TestProcDir(t *testing.T) {
 		}
 	}
 }
+
+func TestEnvFile(t *testing.T) {
+	one := mustParse(t, `{"envFile": ".env", "procs": []}`)
+	many := mustParse(t, `{"envFile": [".env", "/abs/.env.local"], "procs": []}`)
+	if len(one.EnvFile) != 1 || len(many.EnvFile) != 2 {
+		t.Fatalf("one = %q, many = %q", one.EnvFile, many.EnvFile)
+	}
+	loaded := &Loaded{Root: "/deck", Config: many}
+	if got := loaded.EnvFiles(); got[0] != "/deck/.env" || got[1] != "/abs/.env.local" {
+		t.Errorf("EnvFiles = %q", got)
+	}
+	parseError(t, `{"envFile": 42, "procs": []}`, "envFile: expected a path or a list of paths")
+	parseError(t, `{"envFile": "", "procs": []}`, "must not be empty")
+}

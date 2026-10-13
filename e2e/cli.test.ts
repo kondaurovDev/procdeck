@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, inject, test } from "vitest"
-import { execFile } from "node:child_process"
+import { execFile, spawn } from "node:child_process"
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import * as path from "node:path"
@@ -282,6 +282,22 @@ describe("cli", () => {
       const unknownProc = await inAgent("restart", "definitely-not-here")
       expect(unknownProc.code).toBe(1)
       expect(unknownProc.err).toContain('unknown proc "definitely-not-here" — one of: ticker')
+
+      // logs -f: the tail, then new lines as they arrive, until Ctrl-C.
+      const follow = spawn(BIN, ["logs", "ticker", "-f", "--lines", "1"], {
+        env,
+        cwd: agentProject
+      })
+      let followed = ""
+      follow.stdout.on("data", (chunk: Buffer) => (followed += chunk.toString()))
+      const followExit = new Promise<number | null>((resolve) => follow.on("exit", resolve))
+      const deadline = Date.now() + 10_000
+      while ((followed.match(/tick/g) ?? []).length < 3 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+      follow.kill("SIGINT")
+      expect(await followExit).toBe(0)
+      expect((followed.match(/tick/g) ?? []).length).toBeGreaterThanOrEqual(3)
 
       // errors: the stack trace is grouped, good news is not reported.
       const errors = await inAgent("errors", "ticker")
