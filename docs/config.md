@@ -1,28 +1,25 @@
 # Config reference
 
 A deck is one config file: the UI's settings and the processes it supervises.
-Two formats, one schema — `schema.json` is generated from the same Effect
-`Schema` that validates the config at runtime, so JSON and TypeScript accept
-exactly the same fields and give the same editor tooltips.
+It is JSON — with comments and trailing commas allowed — and
+[`schema.json`](../schema.json) describes it for editors, kept in step with the
+loader by a test.
 
 When no path is given, procdeck takes the first of these it finds, walking up
 from the current directory:
 
 ```
 procdeck.config.json
-procdeck.config.ts
-procdeck.config.js
-procdeck.config.mjs
+procdeck.config.jsonc
 ```
 
 That is why every command works from any subdirectory of the project. Pass a
 path to use another file: `procdeck up decks/backend.json`.
 
-## JSON
+## The file
 
-Needs nothing from your toolchain — no TypeScript, and procdeck does not have
-to be a dependency. Point `$schema` at the published schema and the editor
-completes and validates every field:
+Point `$schema` at the published schema and the editor completes and validates
+every field:
 
 ```jsonc
 {
@@ -43,19 +40,14 @@ completes and validates every field:
 Installed locally, `"./node_modules/procdeck/schema.json"` works too and needs
 no network.
 
-## TypeScript
+Unknown keys are errors — a typo like `"need"` stops the deck with the field's
+name instead of quietly doing nothing. A `procdeck.config.ts` / `.js` from 1.x
+is found and reported with a pointer to move it to JSONC.
 
-Buys comments and computed configs, at the price of Node ≥ 22.18 (native type
-stripping) and procdeck in your dependencies:
-
-```ts
-import { defineConfig } from "procdeck"
-
-export default defineConfig({
-  port: 4820,
-  procs: [{ id: "api", shell: "pnpm --filter api dev", env: { PORT: "${port}" } }]
-})
-```
+Every regex in a config (`alerts[].pattern`, `preflight.expect`) and on the
+command line (`--grep`, `--path`, `--pattern`) is
+[RE2](https://github.com/google/re2/wiki/Syntax), Go's syntax: no lookaround
+or backreferences, linear time on any output.
 
 ## Top level
 
@@ -159,7 +151,7 @@ of the deck runs; free the port and press Start, and the bind is retried.
 
 `needs: ["api"]` parks a proc in `waiting` until every dependency is ready.
 Ready means the process _tree_ opened a TCP port — detected by a 1s
-`pgrep` + `lsof` poll, so the process needs to cooperate in no way at all. A
+`ps` + `lsof` poll, so the process needs to cooperate in no way at all. A
 proc with `url` is pinned to that URL's port: a stray port opened by some
 child does not count as ready.
 

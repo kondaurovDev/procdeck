@@ -8,7 +8,7 @@ ignore (
 	./e2e
 	./example
 	./node_modules
-	./packages
+	./npm
 	./ui
 )
 

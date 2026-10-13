@@ -1,5 +1,62 @@
 # procdeck
 
+## 2.0.0
+
+### Major Changes
+
+- procdeck is one native binary now — rewritten in Go, the web UI embedded.
+  `npx procdeck` and `pnpm add -D procdeck` keep working: the npm package is a
+  small launcher, and the binary for your machine arrives as an optional
+  dependency (`@procdeck/<os>-<arch>`), with no install scripts. Node is no
+  longer needed to run procdeck. A tarball per platform is on every GitHub
+  release, and `go install github.com/kondaurovDev/procdeck@latest` builds it
+  from source.
+
+  Breaking, against what 1.0 promised:
+
+  - **Configs are JSON** — `procdeck.config.json`, or `procdeck.config.jsonc`
+    with comments and trailing commas. A `procdeck.config.ts` / `.js` is
+    reported with a pointer to move it; `defineConfig` is gone with it.
+  - **Unknown config keys are errors**, instead of being silently ignored — a
+    typo like `"need"` no longer quietly does nothing.
+  - **Regexes are RE2** (`alerts`, `preflight.expect`, `--grep`, `--path`,
+    `--pattern`): no lookaround or backreferences, and linear time on any
+    output.
+  - **MCP tool problems** (no deck, unknown proc) come back as tool errors
+    (`isError`) rather than `{error}` values; read-only tools are annotated as
+    such.
+  - The global `--log-level` and `--completions` flags are gone; `procdeck
+completion <shell>` prints completions.
+
+### Minor Changes
+
+- `envFile` (one path or a list) layers dotenv files under every proc's `env`
+  and every preflight. The files are read at each spawn, so a refreshed `.env`
+  reaches a proc on its next restart — no deck restart, no
+  `node --env-file` wrapper.
+- `procdeck logs <proc> -f` follows a proc's output (it used to follow only
+  `--self`).
+- A detached deck's own log rotates past 4 MB instead of growing forever.
+
+### Patch Changes
+
+- The HTTP observer forwards standard proxy headers: `x-forwarded-host` carries
+  the original Host (an outer proxy's value wins), so frameworks that CSRF-check
+  Origin against it — Next.js Server Actions — accept mutating requests;
+  `x-forwarded-proto` and `x-forwarded-for` are set too. A client abort cancels
+  the upstream request, and an upstream dying mid-body cuts the client
+  connection instead of hanging it or appending an error note.
+- A relative `cwd` resolves against the config's directory, also for
+  `up --fg` from a subdirectory.
+- A `\r\n` split across two reads of a process's output no longer loses the
+  line.
+- Start/stop/restart of an unknown proc answers 404 with a message, not 500.
+- A proc's `cmd` is looked up in the proc's own `PATH`, and `PROCDECK_DETACHED`
+  no longer leaks into proc environments.
+- A preflight that times out is killed with its whole process group.
+- Port detection runs one `ps` and one `lsof` per poll for the whole deck,
+  instead of a pair per proc.
+
 ## 1.1.0
 
 ### Minor Changes

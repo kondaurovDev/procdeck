@@ -1,0 +1,34 @@
+# Release builds: `git tag v2.0.0 && git push --tags` runs .github/workflows/
+# release.yml, which builds the UI first (it is embedded) and then this.
+# A pre-release tag (v2.0.0-rc.1) makes a GitHub pre-release; the npm
+# packages go out under the `next` dist-tag then.
+version: 2
+project_name: procdeck
+
+builds:
+  - id: procdeck
+    main: .
+    binary: procdeck
+    env:
+      # Pure Go: static on Linux, no libc to match.
+      - CGO_ENABLED=0
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X github.com/kondaurovDev/procdeck/internal/version.Version={{ .Version }}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [license, readme.md]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+  sort: asc
+
+release:
+  prerelease: auto

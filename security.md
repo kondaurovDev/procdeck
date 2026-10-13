@@ -55,9 +55,10 @@ through each proc's assigned `${port}`. What that means for secrets:
 ## Other notes
 
 - No telemetry, no phoning home, no service worker.
-- procdeck spawns whatever your config says, with your environment. A config
-  file is executable content: treat `procdeck.config.ts` from an untrusted
-  repository exactly like you would treat its `package.json` scripts.
+- procdeck spawns whatever your config says, with your environment and its
+  `envFile`s. A config file is executable content — its `shell` and `cmd`
+  run: treat a procdeck config from an untrusted repository exactly like you
+  would treat its `package.json` scripts.
 - The deck registry under `~/.procdeck/` holds one JSON per running deck (pid,
   port, paths) and detached decks' log files. Anything readable in a pane is
   readable there.

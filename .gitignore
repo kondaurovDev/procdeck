@@ -3,6 +3,9 @@ node_modules/
 .DS_Store
 # `pnpm build` output.
 /bin/
+# Release output: GoReleaser, and the npm packages assembled from it.
+/dist/
+/npm/dist/
 # The UI build embedded into the Go binary — `pnpm --filter @procdeck/ui build`.
 internal/webui/dist/*
 !internal/webui/dist/.keep

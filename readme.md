@@ -7,7 +7,7 @@ Run your whole dev stack with one command — and actually see what it's doing.
 
 ![The example stack in procdeck: six processes tiled, every pane a live terminal, every service on its own *.localhost address, the flaky one flagged](https://raw.githubusercontent.com/kondaurovDev/procdeck/main/docs/screenshot.webp)
 
-procdeck is four tools in one ~2 MB package — the process runner, the port
+procdeck is four tools in one binary — the process runner, the port
 allocator, the log viewer and the network tab of your dev environment:
 
 - **Runs everything.** Every proc is a real terminal in a browser tab — and
@@ -28,20 +28,26 @@ npx procdeck          # starts the deck in the background and opens the UI
 ```
 
 The UI opens at <http://localhost:4820> and your terminal is free again.
-`procdeck down` stops everything. Requires **Node ≥ 22**, macOS or Linux.
+`procdeck down` stops everything. macOS or Linux.
 
-Prefer it in the project (and you do, if you want the config in TypeScript):
+## Install
+
+procdeck is a single native binary with the web UI inside — nothing else to
+install, no runtime to match. Pick the channel that fits:
 
 ```sh
-pnpm add -D procdeck      # npm i -D procdeck · bun add -d procdeck
+pnpm add -D procdeck    # npm i -D procdeck · bun add -d procdeck — pins the version for the whole team
+go install github.com/kondaurovDev/procdeck@latest
 ```
 
-> **Install footprint.** ~2 MB, one dependency. The server ships as a bundle,
-> so nothing but the PTY bindings is installed — and those are
-> [`@lydell/node-pty`](https://github.com/lydell/node-pty): the same sources as
-> [node-pty](https://github.com/microsoft/node-pty), as per-platform packages.
-> Nothing compiles and no install script runs, so there is no
-> `pnpm approve-builds` detour and no compiler needed on Linux.
+or a tarball for your platform from the
+[releases](https://github.com/kondaurovDev/procdeck/releases).
+
+> **What npm installs.** A small launcher, plus exactly one
+> `@procdeck/<os>-<arch>` package with the binary for your machine — picked by
+> the package manager through `optionalDependencies`. No install script runs,
+> so there is no `pnpm approve-builds` detour and nothing compiles. Node runs
+> the launcher; the deck itself does not need it.
 
 ## What you get
 
@@ -157,19 +163,25 @@ for a devcontainer or a VM. No telemetry, no service worker.
 }
 ```
 
-JSON needs nothing from your toolchain — no TypeScript, and procdeck does not
-have to be a dependency. TypeScript configs buy comments and computed values:
-
-```ts
-import { defineConfig } from "procdeck"
-
-export default defineConfig({
-  procs: [{ id: "api", shell: "pnpm dev", env: { PORT: "${port}" } }]
-})
-```
-
-Both formats validate against the same schema. Full field reference:
+Comments and trailing commas are welcome — name the file
+`procdeck.config.jsonc` if your editor wants a hint. Unknown keys are errors,
+so a typo never silently does nothing. `"envFile": ".env"` hands every proc the
+variables of a dotenv file. Full field reference:
 [docs/config.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/config.md).
+
+## Upgrading from 1.x
+
+2.0 is the same tool rewritten in Go — the CLI verbs, their flags and `--json`
+shapes, the MCP tools and the addresses stay. What changes:
+
+- **Configs are JSON.** A `procdeck.config.ts` becomes `procdeck.config.jsonc`:
+  quote the keys, drop the `import` and `defineConfig(…)`, keep the comments.
+- **Regexes are RE2** (Go's): no lookaround or backreferences.
+- **Unknown config keys are errors.**
+- **No `node --env-file` wrapper** needed — use `envFile` in the config.
+
+A 1.x deck and the 2.0 CLI understand each other (same registry, same API), so
+`procdeck restart` moves a running deck over.
 
 ## Try the example
 
@@ -197,7 +209,7 @@ templates. See [`example/`](https://github.com/kondaurovDev/procdeck/tree/main/e
 
 ## Status
 
-**macOS and Linux.** Port discovery asks the OS through `pgrep` + `lsof`, and
+**macOS and Linux.** Port discovery asks the OS through `ps` + `lsof`, and
 a whole-tree restart signals the process group (`kill(-pid)`) — both POSIX.
 Windows works through WSL, not natively.
 

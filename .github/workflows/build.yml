@@ -34,7 +34,7 @@ jobs:
         run: go vet ./...
 
       - name: Format
-        run: test -z "$(gofmt -l cmd internal)"
+        run: test -z "$(gofmt -l main.go internal)"
 
       # Real processes behind real PTYs — the risks live at the OS boundary.
       - name: Test

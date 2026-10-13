@@ -3,19 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm --filter @procdeck/ui build && go run ./cmd/procdeck up --fg example/procdeck.config.jsonc",
-    "build": "pnpm --filter @procdeck/ui build && go build -o bin/procdeck ./cmd/procdeck",
+    "dev": "pnpm --filter @procdeck/ui build && go run . up --fg example/procdeck.config.jsonc",
+    "build": "pnpm --filter @procdeck/ui build && go build -o bin/procdeck .",
     "check:types": "pnpm -r run check:types",
     "test": "go test -race ./... && pnpm --filter @procdeck/e2e test",
     "lint": "oxlint && go vet ./...",
     "lint:fix": "oxlint --fix",
-    "format": "oxfmt --write . && gofmt -w cmd internal",
-    "format:check": "oxfmt --check . && test -z \"$(gofmt -l cmd internal)\"",
-    "changeset": "changeset",
+    "format": "oxfmt --write . && gofmt -w main.go internal",
+    "format:check": "oxfmt --check . && test -z \"$(gofmt -l main.go internal)\"",
     "prepare": "effect-tsgo patch"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.31.0",
     "@effect/tsgo": "^0.37.0",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.80.0"

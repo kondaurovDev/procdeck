@@ -1,8 +1,8 @@
 {
   "name": "procdeck",
-  "version": "1.1.0",
+  "version": "0.0.0-dev",
   "private": true,
-  "description": "Interactive dev-process multiplexer with a web UI: terminal panes in a browser tab, declarative dependencies, assigned ports and a *.localhost reverse proxy.",
+  "description": "Dev-process multiplexer with a web UI: terminal panes in a browser tab, declarative dependencies, assigned ports, a *.localhost proxy and captured HTTP traffic. One native binary.",
   "keywords": [
     "cli",
     "dev-server",
@@ -23,6 +23,17 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/kondaurovDev/procdeck",
-    "directory": "packages/procdeck"
+    "directory": "npm/procdeck"
+  },
+  "bin": {
+    "procdeck": "bin/procdeck.js"
+  },
+  "files": [
+    "bin",
+    "schema.json",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=18"
   }
 }

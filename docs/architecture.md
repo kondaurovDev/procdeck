@@ -2,114 +2,104 @@
 
 How procdeck is put together, for anyone reading or changing the code.
 
-| Path                    | What                                                                                                                          |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `packages/procdeck/src` | The server: a plain-Node PTY layer, an Effect supervisor, an HTTP/SSE server with the reverse proxy and the traffic observer. |
-| `packages/procdeck/ui`  | [Foldkit](https://foldkit.dev) (Elm-on-Effect) app; built by vite, served statically by the server.                           |
-| `example/`              | A self-contained demo stack (Node one-liners) exercising every feature.                                                       |
+| Path          | What                                                                                                                       |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `main.go`     | The `procdeck` command.                                                                                                    |
+| `internal/`   | Everything else in Go — packages the compiler keeps private to this module.                                                |
+| `ui/`         | [Foldkit](https://foldkit.dev) (Elm-on-Effect) app; vite builds it straight into `internal/webui`, embedded in the binary. |
+| `e2e/`        | Black-box suites (vitest) driving the built binary: the CLI, the HTTP observer, an MCP session.                            |
+| `npm/`        | The npm distribution: the launcher package, and `build.mjs` assembling the per-platform packages at release.               |
+| `example/`    | A self-contained demo stack (Node one-liners) exercising every feature.                                                    |
+| `schema.json` | The config's JSON Schema for editors; `TestSchemaMatchesTheStructs` keeps it in step with `internal/config`.               |
 
-## The server
+## The deck
 
-| File            | What                                                                                                                                                          |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `proc.ts`       | Plain Node: PTY spawn, process-group kill, SIGTERM → SIGKILL escalation.                                                                                      |
-| `config.ts`     | Effect `Schema` for the config, `${port}` templating, the loader for both file formats.                                                                       |
-| `supervisor.ts` | Effect layer: scoped lifecycle, port assignment, `PubSub` fan-out, per-proc state and buffers.                                                                |
-| `ports.ts`      | Free-port allocation, and `pgrep` + `lsof` listening-port discovery for a process tree.                                                                       |
-| `server.ts`     | `effect/unstable/http` router behind a small Node↔web-handler bridge: SSE downstream, POST upstream, `Host`-routed reverse proxy with WebSocket pass-through. |
-| `registry.ts`   | `~/.procdeck/instances/<id>.json` per running deck: how `down`/`ls`/the deck switcher find decks.                                                             |
-| `lifecycle.ts`  | Detaching (`up` re-spawns itself as `up --fg` and waits for the registry entry), `down`, port probe.                                                          |
-| `init.ts`       | `procdeck init`: workspace scan → a first config.                                                                                                             |
-| `cli.ts`        | `effect/unstable/cli` command tree; `up --fg` is the server, everything else talks to the registry/API.                                                       |
-| `events.ts`     | The wire types shared by the server and the UI.                                                                                                               |
+| Package               | What                                                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `internal/proc`       | PTY spawn (`creack/pty`), process-group kill, SIGTERM → SIGKILL escalation, preflight checks.                                       |
+| `internal/config`     | The config types, the JSONC loader (`tailscale/hujson`), validation, `${port}` templating.                                          |
+| `internal/dotenv`     | `envFile`: the dotenv format `node --env-file` reads.                                                                               |
+| `internal/supervisor` | Per-proc state behind one mutex: lifecycle, port assignment, readiness, preflight gates, alerts, the backlog and the SSE fan-out.   |
+| `internal/ports`      | Free-port allocation, and one `ps` + `lsof` per poll for every running tree's listening ports.                                      |
+| `internal/server`     | `net/http`: the API under `/__procdeck/api`, SSE downstream, POST upstream, the `Host`-routed `*.localhost` proxy, the embedded UI. |
+| `internal/deck`       | One deck in this process: bind the UI port, start the supervisor, serve, register — and tear it down in reverse.                    |
+| `internal/registry`   | `~/.procdeck/instances/<id>.json` per running deck: how `down`/`ls`/the deck switcher find decks. Byte-compatible with 1.x.         |
+| `internal/initplan`   | `procdeck init`: workspace scan → a first config.                                                                                   |
+| `internal/webui`      | `go:embed` of the UI build.                                                                                                         |
+| `internal/cli`        | The `cobra` command tree; `up --fg` is the deck, everything else talks to the registry and the API. Detaching lives here too.       |
 
 ## The agent harness
 
-| File                 | What                                                                                                                                                                              |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lines.ts`           | Per-proc **line** buffers: ANSI stripped, `\r` progress bars reduced to their final state, byte-bounded, `seq`-cursored. The machine-readable twin of the terminal chunk backlog. |
-| `agent/client.ts`    | Promise-based client for a running deck's HTTP API — one implementation of "ask the deck", used by both front doors.                                                              |
-| `agent/errors.ts`    | Heuristic error extraction over the line buffers: find an error's first line, attach its frames, deduplicate by signature.                                                        |
-| `agent/mcp.ts`       | `procdeck mcp`: the same verbs as MCP tools over stdio. Read-only unless `--mutations`.                                                                                           |
-| `agent/discover.ts`  | `procdeck agents`: the `## procdeck` section in CLAUDE.md / AGENTS.md and the Claude Code skill.                                                                                  |
-| `commands/agent.ts`  | The CLI verbs: `logs`, `mark`, `wait-for`, `errors`, `agents`, `mcp`.                                                                                                             |
-| `commands/shared.ts` | Plumbing shared by every command: failures, config resolution, instance lookup, formatting.                                                                                       |
+| Package               | What                                                                                                                                                                              |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal/lines`      | Per-proc **line** buffers: ANSI stripped, `\r` progress bars reduced to their final state, byte-bounded, `seq`-cursored. The machine-readable twin of the terminal chunk backlog. |
+| `internal/deckclient` | The client for a running deck's HTTP API — one implementation of "ask the deck", used by both front doors.                                                                        |
+| `internal/errscan`    | Heuristic error extraction over the line buffers: find an error's first line, attach its frames, deduplicate by signature.                                                        |
+| `internal/mcpserver`  | `procdeck mcp` on the official Go SDK: the same verbs as MCP tools over stdio. Read-only unless `--mutations`.                                                                    |
+| `internal/discover`   | `procdeck agents`: the `## procdeck` section in CLAUDE.md / AGENTS.md and the Claude Code skill, embedded verbatim.                                                               |
 
 ## The traffic observer
 
-| File               | What                                                                                                                                                                                                |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `http-log.ts`      | One byte-bounded ring of captures per proc — the traffic twin of `lines.ts`. Body tees, header redaction, the query and the digest.                                                                 |
-| `interpose.ts`     | The capture-aware forwarding shared by both interception points: the `*.localhost` proxy, and the per-proc observer that listens on the public assigned port and forwards to a hidden internal one. |
-| `ws.ts`            | RFC 6455 frame parsing over the raw socket bytes after a 101, so WebSocket messages land in the same rings.                                                                                         |
-| `commands/http.ts` | `procdeck http`: the bounded tail, the filters, and `--digest`.                                                                                                                                     |
+| Package              | What                                                                                                                                                                                                |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal/httplog`   | One byte-bounded ring of captures per proc — the traffic twin of `internal/lines`. Body tees, header redaction, the query and the digest.                                                           |
+| `internal/interpose` | The capture-aware forwarding shared by both interception points: the `*.localhost` proxy, and the per-proc observer that listens on the public assigned port and forwards to a hidden internal one. |
+| `internal/wsframe`   | RFC 6455 frame parsing over the raw socket bytes after a 101, so WebSocket messages land in the same rings.                                                                                         |
 
 ## Design notes worth keeping
 
-- **Effect end to end.** The server is Effect; the UI is a Foldkit app — one
-  Model (a Schema), a pure `update`, side effects as Commands. Terminals are
-  imperative islands via `Mount.defineStream`; PTY log chunks bypass the Model
-  (`ReceivedLog` → `WriteTerminal` Command into a module-level terminal
-  registry — the view never renders them); the SSE subscription is gated on a
-  Model condition ("every pane mounted"), so the replayed backlog ordering is
-  declarative rather than sequenced by hand.
-- **The server has no bundler in dev.** It runs as `.ts` via Node type
-  stripping (Node ≥ 22.18). The published package is bundled with tsup.
+- **One binary.** The UI is built by vite and embedded with `go:embed`; the
+  binary carries the UI it was built with, and there is nothing to install
+  next to it. npm ships a launcher plus one `@procdeck/<os>-<arch>` package
+  per platform as optional dependencies — no install scripts.
+- **One mutex, published under it.** The supervisor's state sits behind a
+  single mutex, and events are published while it is held. A new subscriber's
+  snapshot (every proc's backlog and status, then `synced`) and its live feed
+  therefore meet with no gap and no duplicate. Slow work — terminating a tree,
+  a preflight, asking the OS for ports — happens outside it; a per-proc lock
+  keeps start/stop/restart of one proc from interleaving.
 - **SSE, not WebSocket.** Logs only flow towards the browser; commands are
-  ordinary POSTs. No upgrade handshake, no extra dependency, and `EventSource`
-  reconnects by itself.
+  ordinary POSTs. No upgrade handshake, and `EventSource` reconnects by itself.
 - **Two buffers per proc, on purpose.** The chunk backlog is terminal-oriented
   (raw PTY bytes, replayed into xterm); the line buffer is machine-oriented
   (clean text, timestamps, a stable cursor). One would have to lie to the other.
-- **Per-proc backlog, one stream per subscriber.** Each proc keeps its last
-  256 KB of output; a subscriber (an SSE connection) gets every proc's backlog
-  and status, a `synced` marker, then live events from a `PubSub` it subscribed
-  to _before_ the snapshot — no gap, and a per-proc chunk counter cuts the
-  duplicate at the seam. A tab opened on a deck that has run for days still
-  shows every pane's history, and the UI knows exactly which chunks are news
-  (unread tallies, notifications).
-- **The supervisor is `Effect.acquireRelease`.** Shutdown is not a code path
-  anyone has to remember to call: closing the scope terminates every process
-  tree. The SSE response stream lives in the request scope, so a dropped tab
-  cleans up its subscription too. Ctrl-C, `procdeck down` and the UI's ⏻ are
-  all the same SIGTERM into the same scope.
+- **Readiness is a channel.** Open while a proc is not ready, closed when it
+  is — every waiting dependent wakes at once — and replaced when it stops
+  being ready. A launch waiting on `needs` is a goroutine with a context;
+  stopping the proc cancels it, and the same context interrupts its preflight.
+- **Teardown is `defer`.** The deck acquires in order — the UI port, the
+  supervisor, the server, the registry entry — and releases in reverse.
+  Ctrl-C, `procdeck down` and the UI's ⏻ are all the same SIGTERM.
 - **Detached is just `up --fg` in the background.** No daemon, no IPC: `up`
-  spawns itself detached with its output in a log file, and waits for the
-  child's registry entry to appear — written only after `listen` succeeds — so
-  "up" means reachable. The registry is plain files pruned by pid; every deck
-  serves its own UI, and the deck switcher is a list of links.
+  re-runs its own binary in a new session with its output in a log file, and
+  waits for the child's registry entry — written only after the port is bound
+  — so "up" means reachable. The registry is plain files pruned by pid; every
+  deck serves its own UI, and the deck switcher is a list of links.
 - **The observer is the port assignment.** Because procdeck already hands out
   `${port}`, it can stand on the public port and give the proc a hidden one.
   That is what makes server-to-server traffic visible without asking the app
-  for anything.
+  for anything. Not `httputil.ReverseProxy`: its upgrade path cannot be tapped.
 
 ## Tests
 
 ```sh
-pnpm test
+pnpm test    # go test -race ./..., then the e2e suites against a fresh build
 ```
 
-Integration tests with real (tiny) processes — `node -e` one-liners and shells
-with background children — because the risks live at the OS boundary: PTY
-detection, group kills, SIGTERM-ignoring survivors, scope teardown. Mocking any
-of that would test the mock.
+Integration tests with real (tiny) processes — shells with background
+children, the Go test binary re-run as a helper server — because the risks
+live at the OS boundary: PTY detection, group kills, SIGTERM-ignoring
+survivors, teardown. Mocking any of that would test the mock. The e2e suites
+in `e2e/` drive the binary from the outside, the way a user and an agent do.
 
 They need a real PTY (`/dev/ptmx`), so they will not run inside sandboxes that
 block PTY allocation.
 
-**Gotcha.** If every spawn fails with `posix_spawnp failed.`, the usual culprit
-is the node-pty `spawn-helper` prebuild arriving without its execute bit
-(pnpm/Bun skipping its install script). `proc.ts` restores the bit at import
-time, so this should self-heal — if it still fails, PTY allocation itself is
-probably blocked.
-
 ## Conventions
 
-- `oxlint` and `oxfmt` (no semicolons, no trailing commas) — `pnpm lint`,
-  `pnpm format`.
+- Go: `gofmt` and `go vet`. TypeScript (`ui/`, `e2e/`): `oxlint` and `oxfmt`
+  (no semicolons, no trailing commas). `pnpm lint` and `pnpm format` run both.
 - The Effect language service is patched into `tsc` by the root `prepare`
-  script, so `pnpm check:types` reports Effect diagnostics too; severities live
-  in `tsconfig.base.json`.
-- User-facing prose for config fields lives in `Schema` annotations in
-  `config.ts`, never in JSDoc: `schema.json` is generated from them, so JSON
-  configs and editor tooltips cannot drift from the runtime validation.
+  script, so `pnpm check:types` reports Effect diagnostics for the UI too.
+- User-facing prose for config fields lives in `schema.json` — what editors
+  show. A field added to `internal/config` needs its entry there.

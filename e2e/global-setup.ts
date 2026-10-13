@@ -23,7 +23,7 @@ export default function setup(project: TestProject) {
   }
   const dir = mkdtempSync(path.join(tmpdir(), "procdeck-e2e-"))
   const bin = path.join(dir, "procdeck")
-  execFileSync("go", ["build", "-o", bin, "./cmd/procdeck"], {
+  execFileSync("go", ["build", "-o", bin, "."], {
     cwd: path.join(import.meta.dirname, ".."),
     stdio: "inherit"
   })

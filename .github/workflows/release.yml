@@ -1,0 +1,62 @@
+name: Release
+
+# A version tag releases: v2.0.0, or v2.0.0-rc.1 for a pre-release — a GitHub
+# pre-release, and npm packages under the `next` dist-tag instead of `latest`.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # the GitHub release
+  id-token: write # npm provenance
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          # GoReleaser reads the history for the changelog.
+          fetch-depth: 0
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Ensure lsof
+        run: command -v lsof || sudo apt-get install -y lsof
+
+      - name: Test
+        run: go test -race ./...
+
+      # Embedded into every binary GoReleaser builds.
+      - name: Build the UI
+        run: pnpm --filter @procdeck/ui build
+
+      - name: GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The platform packages first, then the launcher that depends on them.
+      - name: Publish to npm
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          tag=latest
+          case "$version" in *-*) tag=next ;; esac
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          for dir in $(node npm/build.mjs "$version" dist); do
+            npm publish "$dir" --access public --tag "$tag" --provenance
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

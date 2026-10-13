@@ -58,20 +58,18 @@ API, an MCP session — and builds it first unless `PROCDECK_BIN` names one.
 [`docs/architecture.md`](docs/architecture.md) maps the codebase — read it
 before a change that crosses files.
 
-## Changesets
+## Releases
 
-Anything a user would notice needs a changeset:
+A version tag releases: `git tag v2.1.0 && git push --tags` runs
+[`release.yml`](.github/workflows/release.yml) — the tests, the UI build,
+GoReleaser (binaries for macOS and Linux on amd64 and arm64, a GitHub release),
+then the npm packages. A pre-release tag (`v2.1.0-rc.1`) makes a GitHub
+pre-release and publishes to npm under `next`, leaving `latest` alone.
 
-```sh
-pnpm changeset
-```
-
-Pick `patch` / `minor` / `major` and describe the change the way a release note
-would — what it does for the person using it, not which functions moved.
-Releases are automatic: merging to `main` opens a release PR, and merging that
-publishes to npm.
-
-Internal-only changes (refactors, tests, tooling) need no changeset.
+Anything a user would notice goes into
+[`npm/procdeck/CHANGELOG.md`](npm/procdeck/CHANGELOG.md) in the same pull
+request — what it does for the person using it, not which functions moved.
+Internal-only changes (refactors, tests, tooling) need no entry.
 
 ## Pull requests
 

@@ -22,7 +22,7 @@ Two interception points exist, one live and one latent:
 
 1. **The `*.localhost` reverse proxy** (live). Every request to
    `<id>.localhost:<ui-port>` already flows through `proxyRequest` /
-   `proxyUpgrade` in src/server.ts. Tapping it is nearly free and covers
+   `proxyUpgrade` in internal/server. Tapping it is nearly free and covers
    browser → service traffic for anyone using the stable pane addresses.
 2. **Assigned ports** (latent, the differentiator). procdeck already hands
    out `${port}` and procs address each other via `${port:api}`. So procdeck
@@ -53,7 +53,7 @@ seq-cursored, marks apply):
 WebSockets carry business data too (chats, live updates, socket.io,
 GraphQL subscriptions) and they pass through the same two interception
 points. After the 101 the stream is framed (RFC 6455); the parser in
-`src/ws.ts` (header, opcode, client→server unmasking, continuation-frame
+`internal/wsframe` (header, opcode, client→server unmasking, continuation-frame
 reassembly until FIN, gives up quietly on anything it cannot parse) turns
 both directions into messages in the same per-proc ring:
 
@@ -109,8 +109,8 @@ than log lines: the actual status and body caused by the change.
 ## Order of work
 
 1. ~~**Tap the existing `*.localhost` proxy**~~ — shipped: the UI proxy
-   records into per-proc rings (`src/http-log.ts`, 512 KB each, seq-cursored)
-   via the shared capture-aware forwarding in `src/interpose.ts`;
+   records into per-proc rings (`internal/httplog`, 512 KB each, seq-cursored)
+   via the shared capture-aware forwarding in `internal/interpose`;
    `GET /http` on the deck API queries them.
 2. ~~**Assigned-port interposition**~~ — shipped: observed procs (the
    default for `${port}` users) get a port _pair_ — the proc binds a hidden
@@ -127,7 +127,7 @@ than log lines: the actual status and body caused by the change.
    Redaction on at capture time (auth/cookie headers never enter the ring);
    digest normalizes routes (`/users/:id`) like error signatures.
 4. ~~**WebSocket frame capture**~~ — shipped: the RFC 6455 parser
-   (`src/ws.ts`) taps both directions at both interception points, deflate
+   (`internal/wsframe`) taps both directions at both interception points, deflate
    is stripped at the handshake; ws messages join the same rings with
    `kind: "ws"` and a `connId` shared with their 101 upgrade exchange.
    `--ws` / `kind` narrow the surfaces to them.

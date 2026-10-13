@@ -33,7 +33,7 @@ implementation layer for the MCP tools later. So:
 **Phase 1 — CLI (read-only core) — shipped.** Extends the
 `effect/unstable/cli` command tree; everything talks to the running deck's
 HTTP API (`GET /logs`, `POST /marks`) via the instance registry. The shared
-prerequisite landed with it: per-proc **line** buffers (`src/lines.ts`,
+prerequisite landed with it: per-proc **line** buffers (`internal/lines`,
 256 KB each, ANSI stripped, `\r` progress bars keep only their final state,
 per-proc `seq` as a stable cursor) — the same buffers the merged view and
 grep mode in plan.md want.
@@ -59,9 +59,9 @@ NAME] [--json]` (shipped) — tail-oriented (default 200 lines, max 5000),
   extraction (JS/Python/Go-ish starts + frame continuations), deduped by a
   normalized signature (numbers/hex/ports collapsed): "same TypeError, 41×,
   last 3 s ago" instead of 41 stack traces. Parsing is a pure function in
-  `src/errors.ts` — the MCP layer will reuse it as-is.
+  `internal/errscan` — the MCP layer will reuse it as-is.
 
-**Phase 2 — MCP server — shipped.** `procdeck mcp` (stdio, `src/mcp.ts` on
+**Phase 2 — MCP server — shipped.** `procdeck mcp` (stdio, `internal/mcpserver` on
 effect's `McpServer`): the user runs `claude mcp add procdeck -- procdeck
 mcp` once, globally, and it works in every project — the deck is resolved
 _per tool call_ via cwd → config-walk → registry, so the server outlives
@@ -90,7 +90,7 @@ The two conveniences on top — shipped as well:
 
 What MCP adds over the CLI: discoverability (the agent sees the tools and
 their descriptions without being told) and typed arguments. What it does not
-add: any capability — every tool is a CLI verb over the same `src/client.ts`
+add: any capability — every tool is a CLI verb over the same `internal/deckclient`
 deck API client.
 
 **Mutating tools** — shipped as designed: `restart_proc` / `stop_proc` /
@@ -110,7 +110,7 @@ after that agents handle a well-`--help`ed CLI fine. Escalation path:
    servers in ad-hoc terminals". `procdeck init` appends it automatically
    when the project already has such a file; `procdeck agents` does it for
    existing projects (creating CLAUDE.md if neither exists). Idempotent —
-   the `## procdeck` heading is the marker (`src/agents.ts`).
+   the `## procdeck` heading is the marker (`internal/discover`).
 2. **A skill** (shipped) — `procdeck agents` also writes
    `.claude/skills/procdeck/SKILL.md` teaching the whole verify loop
    (mark → restart → wait-for → since-mark) and when to trigger. An
@@ -139,10 +139,10 @@ not remove that work; it removes the need to distribute it per project.
 ## Dependencies and open questions
 
 - ~~Per-proc **line** buffers on the server~~ — shipped with Phase 1
-  (`src/lines.ts`); the merged view and grep mode in plan.md can now build
+  (`internal/lines`); the merged view and grep mode in plan.md can now build
   on them.
 - ~~Stack-trace parsing for `errors`~~ — shipped as planned: dumb heuristics
-  (`src/errors.ts`), not language completeness; `logs --grep` is the
+  (`internal/errscan`), not language completeness; `logs --grep` is the
   fallback.
 - ~~Marker storage~~ — shipped: in-memory per deck, named, capped at 100.
 - `--json` shape: stable, versioned-by-addition only; agents will be written

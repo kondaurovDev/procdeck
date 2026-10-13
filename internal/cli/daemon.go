@@ -19,19 +19,28 @@ import (
 	"github.com/kondaurovDev/procdeck/internal/registry"
 )
 
+// forceAfter separates a second Ctrl-C from an echo of the first: the
+// terminal signals the whole foreground group, and a launcher in it (the npm
+// shim) passes the same signal on a moment later.
+const forceAfter = 250 * time.Millisecond
+
 // runForeground serves the deck in this process until a signal. The first
 // SIGINT/SIGTERM tears it down gracefully; a second one skips that.
 func runForeground(loaded *config.Loaded) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	signals := make(chan os.Signal, 2)
+	signals := make(chan os.Signal, 4)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(signals)
 	go func() {
 		<-signals
+		first := time.Now()
 		cancel()
-		<-signals
-		os.Exit(1)
+		for range signals {
+			if time.Since(first) > forceAfter {
+				os.Exit(1)
+			}
+		}
 	}()
 
 	mode := registry.Foreground
