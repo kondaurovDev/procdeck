@@ -50,15 +50,16 @@ jobs:
           # Pushes the formula to kondaurovDev/homebrew-tap.
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
-      # The platform packages first, then the launcher that depends on them.
+      # No npm token: every package trusts this workflow (npm trusted
+      # publishing over OIDC, hence `id-token: write` above), and provenance
+      # comes with it. The platform packages first, then the launcher that
+      # depends on them.
       - name: Publish to npm
         run: |
+          npm install -g npm@latest
           version="${GITHUB_REF_NAME#v}"
           tag=latest
           case "$version" in *-*) tag=next ;; esac
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
           for dir in $(node npm/build.mjs "$version" dist); do
             npm publish "$dir" --access public --tag "$tag" --provenance
           done
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

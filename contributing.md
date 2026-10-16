@@ -69,9 +69,11 @@ then the npm packages. A pre-release tag (`v2.1.0-rc.1`) makes a GitHub
 pre-release and publishes to npm under `next`, leaving `latest` and the tap
 alone.
 
-The workflow needs two repository secrets: `NPM_TOKEN` (publish rights to
-`procdeck` and the `@procdeck` scope) and `HOMEBREW_TAP_TOKEN` (a token with
-contents write access to the tap repository).
+npm needs no secret: `procdeck` and the four `@procdeck/*` packages trust
+this workflow (npm trusted publishing over OIDC, set up per package on
+npmjs.com under Settings → Trusted Publisher; `npm trust list <package>`
+shows it). The one repository secret is `HOMEBREW_TAP_TOKEN`, a token with
+contents write access to the tap repository.
 
 Anything a user would notice goes into
 [`npm/procdeck/CHANGELOG.md`](npm/procdeck/CHANGELOG.md) in the same pull
