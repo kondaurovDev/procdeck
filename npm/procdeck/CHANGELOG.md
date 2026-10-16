@@ -8,9 +8,10 @@
   `npx procdeck` and `pnpm add -D procdeck` keep working: the npm package is a
   small launcher, and the binary for your machine arrives as an optional
   dependency (`@procdeck/<os>-<arch>`), with no install scripts. Node is no
-  longer needed to run procdeck. A tarball per platform is on every GitHub
-  release, and `go install github.com/kondaurovDev/procdeck@latest` builds it
-  from source.
+  longer needed to run procdeck. Outside npm there is a Homebrew tap, an
+  `install.sh`, and a tarball, `.deb` or `.rpm` per platform on every GitHub
+  release; `go install github.com/kondaurovDev/procdeck@latest` builds it from
+  source.
 
   Breaking, against what 1.0 promised:
 

@@ -62,9 +62,16 @@ before a change that crosses files.
 
 A version tag releases: `git tag v2.1.0 && git push --tags` runs
 [`release.yml`](.github/workflows/release.yml) — the tests, the UI build,
-GoReleaser (binaries for macOS and Linux on amd64 and arm64, a GitHub release),
+GoReleaser (binaries for macOS and Linux on amd64 and arm64, `.deb` and `.rpm`,
+a GitHub release, the Homebrew cask pushed to
+[`kondaurovDev/homebrew-tap`](https://github.com/kondaurovDev/homebrew-tap)),
 then the npm packages. A pre-release tag (`v2.1.0-rc.1`) makes a GitHub
-pre-release and publishes to npm under `next`, leaving `latest` alone.
+pre-release and publishes to npm under `next`, leaving `latest` and the tap
+alone.
+
+The workflow needs two repository secrets: `NPM_TOKEN` (publish rights to
+`procdeck` and the `@procdeck` scope) and `HOMEBREW_TAP_TOKEN` (a token with
+contents write access to the tap repository).
 
 Anything a user would notice goes into
 [`npm/procdeck/CHANGELOG.md`](npm/procdeck/CHANGELOG.md) in the same pull

@@ -36,12 +36,15 @@ procdeck is a single native binary with the web UI inside — nothing else to
 install, no runtime to match. Pick the channel that fits:
 
 ```sh
+brew install kondaurovDev/tap/procdeck    # macOS, with shell completions
+curl -fsSL https://raw.githubusercontent.com/kondaurovDev/procdeck/main/install.sh | sh
 pnpm add -D procdeck    # npm i -D procdeck · bun add -d procdeck — pins the version for the whole team
 go install github.com/kondaurovDev/procdeck@latest
 ```
 
-or a tarball for your platform from the
-[releases](https://github.com/kondaurovDev/procdeck/releases).
+or a tarball, `.deb` or `.rpm` for your platform from the
+[releases](https://github.com/kondaurovDev/procdeck/releases). On Windows,
+install inside WSL.
 
 > **What npm installs.** A small launcher, plus exactly one
 > `@procdeck/<os>-<arch>` package with the binary for your machine — picked by

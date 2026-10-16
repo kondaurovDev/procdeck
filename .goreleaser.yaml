@@ -5,6 +5,11 @@
 version: 2
 project_name: procdeck
 
+before:
+  hooks:
+    # Shell completions ship in the archives; the Homebrew cask installs them.
+    - sh -c 'mkdir -p completions && for shell in bash zsh fish; do go run . completion $shell > completions/procdeck.$shell; done'
+
 builds:
   - id: procdeck
     main: .
@@ -21,10 +26,52 @@ builds:
 archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files: [license, readme.md]
+    files: [license, readme.md, completions/*]
 
 checksum:
   name_template: checksums.txt
+
+# `brew install kondaurovDev/tap/procdeck`: a cask (Homebrew's packaging for
+# prebuilt binaries) in the tap repository, rewritten on every stable release.
+# Needs HOMEBREW_TAP_TOKEN — a token that can push to that repository.
+homebrew_casks:
+  - name: procdeck
+    repository:
+      owner: kondaurovDev
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: https://github.com/kondaurovDev/procdeck
+    description: Dev-process multiplexer with a web UI
+    # A pre-release tag makes a GitHub pre-release only; the tap stays on the
+    # last stable version.
+    skip_upload: auto
+    binaries: [procdeck]
+    completions:
+      bash: completions/procdeck.bash
+      zsh: completions/procdeck.zsh
+      fish: completions/procdeck.fish
+    hooks:
+      post:
+        # The binary is not notarized: without this, Gatekeeper calls the
+        # downloaded file damaged. (`install_steps`, the successor of this
+        # key, only exists from GoReleaser 2.19 on.)
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/procdeck"]
+          end
+
+# .deb and .rpm on the GitHub release, next to the tarballs.
+nfpms:
+  - package_name: procdeck
+    vendor: Aleksandr Kondaurov
+    maintainer: Aleksandr Kondaurov <kondaurov.dev@gmail.com>
+    homepage: https://github.com/kondaurovDev/procdeck
+    description: Dev-process multiplexer with a web UI
+    license: MIT
+    formats: [deb, rpm]
+    bindir: /usr/bin
+    # Port discovery shells out to it.
+    dependencies: [lsof]
 
 changelog:
   use: github
