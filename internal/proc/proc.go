@@ -52,8 +52,12 @@ type Options struct {
 type Proc struct {
 	Pid int
 
-	cmd     *exec.Cmd
-	tty     *os.File
+	cmd *exec.Cmd
+	tty *os.File
+	// pts is the terminal's slave side, held open until the output has been
+	// read: on macOS the last close of the slave discards whatever the
+	// master has not read yet — the tail of a process that just exited.
+	pts     *os.File
 	writeMu sync.Mutex
 	done    chan struct{}
 	exit    Exit
@@ -152,12 +156,24 @@ func Spawn(o Options) (*Proc, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := &exec.Cmd{Path: path, Args: args, Env: env, Dir: o.Dir}
-	tty, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: o.Cols, Rows: o.Rows})
+	tty, pts, err := pty.Open()
 	if err != nil {
 		return nil, err
 	}
-	p := &Proc{Pid: cmd.Process.Pid, cmd: cmd, tty: tty, done: make(chan struct{})}
+	if err := pty.Setsize(tty, &pty.Winsize{Cols: o.Cols, Rows: o.Rows}); err != nil {
+		tty.Close()
+		pts.Close()
+		return nil, err
+	}
+	// What pty.Start does, except that the slave stays open here (see pts).
+	cmd := &exec.Cmd{Path: path, Args: args, Env: env, Dir: o.Dir, Stdin: pts, Stdout: pts, Stderr: pts}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true}
+	if err := cmd.Start(); err != nil {
+		tty.Close()
+		pts.Close()
+		return nil, err
+	}
+	p := &Proc{Pid: cmd.Process.Pid, cmd: cmd, tty: tty, pts: pts, done: make(chan struct{})}
 	drained := make(chan struct{})
 	go p.read(o.OnData, drained)
 	go p.wait(drained)
@@ -207,6 +223,13 @@ func completePrefix(b []byte) int {
 func (p *Proc) wait(drained <-chan struct{}) {
 	p.cmd.Wait()
 	exit := exitOf(p.cmd.ProcessState)
+	// The reader takes what is still queued before the slave closes (see
+	// pts), bounded like the drain below.
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for queued(p.pts) && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	p.pts.Close()
 	// Output still in flight gets a moment to drain; a descendant holding the
 	// terminal open must not keep the exit from being reported.
 	select {
@@ -217,6 +240,18 @@ func (p *Proc) wait(drained <-chan struct{}) {
 	p.tty.Close()
 	p.exit = exit
 	close(p.done)
+}
+
+// queued reports whether output written to the slave is still waiting for
+// the master to read it.
+func queued(pts *os.File) bool {
+	conn, err := pts.SyscallConn()
+	if err != nil {
+		return false
+	}
+	n := 0
+	conn.Control(func(fd uintptr) { n, _ = unix.IoctlGetInt(int(fd), unix.TIOCOUTQ) })
+	return n > 0
 }
 
 func exitOf(state *os.ProcessState) Exit {

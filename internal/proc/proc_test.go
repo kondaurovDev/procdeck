@@ -68,6 +68,39 @@ func TestShellAndCmd(t *testing.T) {
 	until(t, "argv kept intact", func() bool { return out.contains("a b-c") })
 }
 
+// A process that writes and exits at once loses its output on macOS when
+// the slave's last close comes before the master has read it — rare per
+// spawn, so many run at once, the load that made CI miss it now and then.
+func TestOutputOfAnInstantExitIsKept(t *testing.T) {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	lost := 0
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 25 {
+				out := &output{}
+				p, err := Spawn(Options{Spec: config.Proc{ID: "instant", Cmd: []string{"printf", "%s", "tail"}}, Dir: t.TempDir(), Cols: 80, Rows: 24, OnData: out.write})
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				<-p.Done()
+				if !out.contains("tail") {
+					mu.Lock()
+					lost++
+					mu.Unlock()
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if lost > 0 {
+		t.Fatalf("%d of 200 instant exits lost their output", lost)
+	}
+}
+
 func TestEnvAndDir(t *testing.T) {
 	dir := t.TempDir()
 	out := &output{}
