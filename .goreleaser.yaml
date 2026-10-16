@@ -23,6 +23,26 @@ builds:
     ldflags:
       - -s -w -X github.com/kondaurovDev/procdeck/internal/version.Version={{ .Version }}
 
+# Signs the darwin binaries with the Developer ID Application certificate
+# and notarizes them with Apple — from Linux, no Mac in CI (GoReleaser's
+# built-in quill). Runs between build and archive, so the tarballs, the cask
+# and the npm packages all carry the signed binary. Skipped when the secrets
+# are not set: a release without them still goes out, unsigned.
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      ids: [procdeck]
+      sign:
+        certificate: "{{ .Env.MACOS_SIGN_P12 }}"
+        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
+      notarize:
+        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
+        key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"
+        key: "{{ .Env.MACOS_NOTARY_KEY }}"
+        # Fail the release on a rejected submission instead of shipping it.
+        wait: true
+        timeout: 20m
+
 archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"

@@ -49,6 +49,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Pushes the cask to kondaurovDev/homebrew-tap.
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          # Signing and notarizing the darwin binaries (.goreleaser.yaml →
+          # notarize): the Developer ID Application .p12 and the App Store
+          # Connect API key .p8, both base64. The key's ids are not secret —
+          # useless without the .p8 — so they are plain repository variables.
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ vars.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER_ID: ${{ vars.MACOS_NOTARY_ISSUER_ID }}
           # The tag that triggered this run, not whichever tag `git describe`
           # picks when several sit on the same commit (v2.0.0-rc.1 and v2.0.0).
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
