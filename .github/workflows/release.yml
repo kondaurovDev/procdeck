@@ -47,8 +47,11 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Pushes the formula to kondaurovDev/homebrew-tap.
+          # Pushes the cask to kondaurovDev/homebrew-tap.
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          # The tag that triggered this run, not whichever tag `git describe`
+          # picks when several sit on the same commit (v2.0.0-rc.1 and v2.0.0).
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
       # No npm token: every package trusts this workflow (npm trusted
       # publishing over OIDC, hence `id-token: write` above), and provenance
