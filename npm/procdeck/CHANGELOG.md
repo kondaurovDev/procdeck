@@ -1,5 +1,17 @@
 # procdeck
 
+## 2.0.1
+
+### Patch Changes
+
+- The macOS binaries are signed with a Developer ID and notarized by Apple,
+  so Gatekeeper lets a downloaded `procdeck` run: from the tarball, through
+  `install.sh`, or through npm. The Homebrew cask no longer strips the
+  quarantine attribute to get past it.
+- On macOS, a process that wrote and exited at once could lose that output —
+  the last lines of a crash, say. The deck now holds the terminal open until
+  everything written has been read.
+
 ## 2.0.0
 
 ### Major Changes

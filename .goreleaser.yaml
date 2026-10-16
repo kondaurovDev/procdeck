@@ -70,15 +70,6 @@ homebrew_casks:
       bash: completions/procdeck.bash
       zsh: completions/procdeck.zsh
       fish: completions/procdeck.fish
-    hooks:
-      post:
-        # The binary is not notarized: without this, Gatekeeper calls the
-        # downloaded file damaged. (`install_steps`, the successor of this
-        # key, only exists from GoReleaser 2.19 on.)
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/procdeck"]
-          end
 
 # .deb and .rpm on the GitHub release, next to the tarballs.
 nfpms:
