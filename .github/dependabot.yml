@@ -1,0 +1,11 @@
+# Actions are pinned to commit SHAs (`pinact run`), the version in a trailing
+# comment; Dependabot bumps both together, one grouped PR a week.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories: ["/", "/.github/actions/*"]
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
