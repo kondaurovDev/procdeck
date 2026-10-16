@@ -1,24 +1,7 @@
 import { Effect, Queue, Schema as S, Stream } from "effect"
 import { Subscription } from "foldkit"
 import { API, ProcEvent } from "./schema.ts"
-import {
-  CycledLayout,
-  OpenedSearch,
-  PressedClear,
-  PressedPin,
-  PolledTraffic,
-  PressedRestart,
-  PressedToggle,
-  ReceivedLog,
-  ReceivedStatus,
-  ResizedWindow,
-  SelectedProcOffset,
-  StreamDropped,
-  StreamOpened,
-  Ticked,
-  ToggledZoom
-} from "./message.ts"
-import type { Message } from "./message.ts"
+import { Message } from "./message.ts"
 import type { Model } from "./model.ts"
 import { installStream } from "./install.ts"
 import { systemSchemeStream } from "./theme.ts"
@@ -50,10 +33,10 @@ const sseStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
         let synced = false
         source.addEventListener("open", () => {
           synced = false
-          Queue.offerUnsafe(queue, StreamOpened())
+          Queue.offerUnsafe(queue, Message.StreamOpened())
         })
         source.addEventListener("error", () => {
-          Queue.offerUnsafe(queue, StreamDropped())
+          Queue.offerUnsafe(queue, Message.StreamDropped())
           if (source.readyState === EventSource.CLOSED) {
             handle.retry = window.setTimeout(connect, RETRY_MS)
           }
@@ -68,8 +51,8 @@ const sseStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
             Queue.offerUnsafe(
               queue,
               event.type === "log"
-                ? ReceivedLog({ id: event.id, data: event.data, live: synced })
-                : ReceivedStatus({ status: event.status, live: synced })
+                ? Message.ReceivedLog({ id: event.id, data: event.data, live: synced })
+                : Message.ReceivedStatus({ status: event.status, live: synced })
             )
           } catch {
             // Malformed frame — drop it.
@@ -91,7 +74,7 @@ const resizeStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
   Effect.acquireRelease(
     Effect.sync(() => {
       const onResize = () => {
-        Queue.offerUnsafe(queue, ResizedWindow())
+        Queue.offerUnsafe(queue, Message.ResizedWindow())
       }
       window.addEventListener("resize", onResize)
       return onResize
@@ -111,26 +94,26 @@ const isMac = /Mac|iP/.test(navigator.platform)
 const hotkeyMessage = (event: KeyboardEvent): Message | undefined => {
   const mod = isMac ? event.metaKey : event.ctrlKey
   if (mod && !event.altKey) {
-    if (event.code === "KeyK") return PressedClear()
-    if (event.code === "KeyF") return OpenedSearch()
+    if (event.code === "KeyK") return Message.PressedClear()
+    if (event.code === "KeyF") return Message.OpenedSearch()
     return undefined
   }
   if (event.altKey && !event.metaKey && !event.ctrlKey) {
     switch (event.code) {
       case "ArrowUp":
-        return SelectedProcOffset({ delta: -1 })
+        return Message.SelectedProcOffset({ delta: -1 })
       case "ArrowDown":
-        return SelectedProcOffset({ delta: 1 })
+        return Message.SelectedProcOffset({ delta: 1 })
       case "KeyR":
-        return PressedRestart()
+        return Message.PressedRestart()
       case "KeyS":
-        return PressedToggle()
+        return Message.PressedToggle()
       case "KeyG":
-        return CycledLayout()
+        return Message.CycledLayout()
       case "KeyP":
-        return PressedPin()
+        return Message.PressedPin()
       case "KeyZ":
-        return ToggledZoom()
+        return Message.ToggledZoom()
     }
   }
   return undefined
@@ -159,7 +142,7 @@ const tickStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
   Effect.acquireRelease(
     Effect.sync(() =>
       setInterval(() => {
-        Queue.offerUnsafe(queue, Ticked({ now: Date.now() }))
+        Queue.offerUnsafe(queue, Message.Ticked({ now: Date.now() }))
       }, 1000)
     ),
     (id) => Effect.sync(() => clearInterval(id))
@@ -170,9 +153,9 @@ const tickStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
 const trafficStream: Stream.Stream<Message> = Stream.callback<Message>((queue) =>
   Effect.acquireRelease(
     Effect.sync(() => {
-      Queue.offerUnsafe(queue, PolledTraffic())
+      Queue.offerUnsafe(queue, Message.PolledTraffic())
       return setInterval(() => {
-        Queue.offerUnsafe(queue, PolledTraffic())
+        Queue.offerUnsafe(queue, Message.PolledTraffic())
       }, 1000)
     }),
     (id) => Effect.sync(() => clearInterval(id))

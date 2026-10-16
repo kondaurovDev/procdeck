@@ -1,6 +1,5 @@
-import { Match as M } from "effect"
-import type { Command } from "foldkit"
-import { evo } from "foldkit/struct"
+import type { Command, Update } from "foldkit"
+import { modifyFields } from "foldkit/struct"
 import {
   ApplyTheme,
   ClearTerminal,
@@ -19,7 +18,7 @@ import {
   WriteTerminal
 } from "./command.ts"
 import { PromptInstall } from "./install.ts"
-import type { Message } from "./message.ts"
+import { Message } from "./message.ts"
 import { attentionCount, gridIds, isCrash } from "./model.ts"
 import type { Layout, Model } from "./model.ts"
 import {
@@ -32,7 +31,8 @@ import type { ProcStatus } from "./schema.ts"
 import { SaveUiState, loadUiState } from "./storage.ts"
 import { resolveScheme, systemPrefersDark } from "./theme.ts"
 
-type Result = readonly [Model, ReadonlyArray<Command.Command<Message>>]
+type Result = Update.Return<Model, Message>
+type Commands = ReadonlyArray<Command.Command<Message>>
 
 /** One pane's control — the header buttons and the hotkeys both end up here. */
 const paneAction = (
@@ -41,10 +41,10 @@ const paneAction = (
   action: "start" | "stop" | "restart" | "clear"
 ): Result =>
   id === undefined
-    ? [model, []]
+    ? { model }
     : action === "clear"
-      ? [model, [ClearTerminal({ id })]]
-      : [model, [PostAction({ id, action })]]
+      ? { model, commands: [ClearTerminal({ id })] }
+      : { model, commands: [PostAction({ id, action })] }
 
 const isIdle = (state: ProcStatus["state"]): boolean =>
   state === "stopped" || state === "exited" || state === "blocked"
@@ -59,7 +59,7 @@ const notifyOnTransition = (
   model: Model,
   before: ProcStatus | undefined,
   after: ProcStatus
-): ReadonlyArray<Command.Command<Message>> => {
+): Commands => {
   if (!model.notifications || model.notifyPermission !== "granted") return []
   const tag = `procdeck:${after.id}`
   if (isCrash(after) && (before === undefined || !isCrash(before))) {
@@ -95,11 +95,11 @@ const refit = (model: Model): Command.Command<Message> =>
  * layout this also swaps which terminal is visible, hence the refit.
  */
 const activate = (model: Model, id: string): Result => {
-  const next = evo(model, {
+  const next = modifyFields(model, {
     active: () => id,
     unread: ({ [id]: _read, ...rest }) => rest
   })
-  return [next, [refit(next)]]
+  return { model: next, commands: [refit(next)] }
 }
 
 const LAYOUTS: ReadonlyArray<Layout> = ["single", "grid", "http"]
@@ -108,219 +108,233 @@ const LAYOUTS: ReadonlyArray<Layout> = ["single", "grid", "http"]
 const TRAFFIC_CAP = 400
 
 const setLayout = (model: Model, layout: Layout): Result => {
-  if (layout === model.layout) return [model, []]
-  const next = evo(model, { layout: () => layout })
-  return [next, [refit(next)]]
+  if (layout === model.layout) return { model }
+  const next = modifyFields(model, { layout: () => layout })
+  return { model: next, commands: [refit(next)] }
 }
 
 /** Single on that pane (its unread errors are read by definition). */
 const zoomTo = (model: Model, id: string): Result => {
-  const next = evo(model, {
+  const next = modifyFields(model, {
     layout: () => "single" as const,
     active: () => id,
     unread: ({ [id]: _read, ...rest }) => rest
   })
-  return [next, [refit(next)]]
+  return { model: next, commands: [refit(next)] }
 }
 
 /** Pinning changes which tiles the grid shows, so the rest need re-measuring. */
 const togglePin = (model: Model, id: string | undefined): Result => {
-  if (id === undefined) return [model, []]
-  const next = evo(model, {
+  if (id === undefined) return { model }
+  const next = modifyFields(model, {
     pinned: (pinned) => (pinned.includes(id) ? pinned.filter((p) => p !== id) : [...pinned, id])
   })
-  return [next, model.layout === "grid" ? [refit(next)] : []]
+  return { model: next, commands: model.layout === "grid" ? [refit(next)] : [] }
 }
 
 const step = (model: Model, message: Message): Result =>
-  M.value(message).pipe(
-    M.withReturnType<Result>(),
-    M.tagsExhaustive({
-      GotDeck: ({ deck }) => [evo(model, { deck: () => deck }), []],
-      GotProcs: ({ procs }) => [
-        evo(model, {
-          procs: () => procs,
-          // Keep the selection (it may come from localStorage) unless the
-          // config no longer has that proc; then the first one. Pins to
-          // procs that are gone are dropped the same way.
-          active: (active) => (procs.some((info) => info.id === active) ? active : procs[0]?.id),
-          pinned: (pinned) => {
-            const kept = pinned.filter((id) => procs.some((info) => info.id === id))
-            // Same array when nothing was dropped, so the persist check stays quiet.
-            return kept.length === pinned.length ? pinned : kept
-          }
-        }),
-        []
-      ],
-      FailedFetchProcs: ({ error }) => [evo(model, { error: () => error }), []],
+  Message.match<Result>(message, {
+    GotDeck: ({ deck }) => ({ model: modifyFields(model, { deck: () => deck }) }),
+    GotProcs: ({ procs }) => ({
+      model: modifyFields(model, {
+        procs: () => procs,
+        // Keep the selection (it may come from localStorage) unless the
+        // config no longer has that proc; then the first one. Pins to
+        // procs that are gone are dropped the same way.
+        active: (active) => (procs.some((info) => info.id === active) ? active : procs[0]?.id),
+        pinned: (pinned) => {
+          const kept = pinned.filter((id) => procs.some((info) => info.id === id))
+          // Same array when nothing was dropped, so the persist check stays quiet.
+          return kept.length === pinned.length ? pinned : kept
+        }
+      })
+    }),
+    FailedFetchProcs: ({ error }) => ({ model: modifyFields(model, { error: () => error }) }),
 
-      // Back after a drop: statuses may have changed while we were deaf, and
-      // the ring replay is not guaranteed to hold them all — take the snapshot.
-      StreamOpened: () => [
-        evo(model, { stream: () => "open" as const, shutdown: () => false }),
-        // Back after a drop: the feed replays every backlog, so the panes
-        // start from blank (Commands run in order, and these are synchronous,
-        // so the resets land before the first replayed chunk). After a
-        // shutdown the server is a fresh process: take the snapshot and the
-        // deck info again (the config may have changed).
+    // Back after a drop: statuses may have changed while we were deaf, and
+    // the ring replay is not guaranteed to hold them all — take the snapshot.
+    StreamOpened: () => ({
+      model: modifyFields(model, { stream: () => "open" as const, shutdown: () => false }),
+      // Back after a drop: the feed replays every backlog, so the panes
+      // start from blank (Commands run in order, and these are synchronous,
+      // so the resets land before the first replayed chunk). After a
+      // shutdown the server is a fresh process: take the snapshot and the
+      // deck info again (the config may have changed).
+      commands:
         model.stream === "reconnecting"
           ? [...model.mounted.map((id) => ResetTerminal({ id })), FetchProcs(), FetchDeck()]
           : []
-      ],
-      StreamDropped: () => [evo(model, { stream: () => "reconnecting" as const }), []],
+    }),
+    StreamDropped: () => ({
+      model: modifyFields(model, { stream: () => "reconnecting" as const })
+    }),
 
-      ReceivedStatus: ({ status, live }) => {
-        const before = model.procs.find((info) => info.id === status.id)?.status
-        const next = evo(model, {
-          procs: (procs) =>
-            procs.map((info) => (info.id === status.id ? { ...info, status } : info))
-        })
-        // Replayed history walks through old transitions — none of them is news.
-        return [next, live ? notifyOnTransition(next, before, status) : []]
-      },
-      // Log chunks do not live in the Model — the view never renders them, the
-      // terminals do. The Message becomes a Command writing into the registry.
-      // The one thing the Model keeps is the unread-error tally for panes the
-      // user is not looking at.
-      ReceivedLog: ({ id, data, live }) => [
+    ReceivedStatus: ({ status, live }) => {
+      const before = model.procs.find((info) => info.id === status.id)?.status
+      const next = modifyFields(model, {
+        procs: (procs) => procs.map((info) => (info.id === status.id ? { ...info, status } : info))
+      })
+      // Replayed history walks through old transitions — none of them is news.
+      return { model: next, commands: live ? notifyOnTransition(next, before, status) : [] }
+    },
+    // Log chunks do not live in the Model — the view never renders them, the
+    // terminals do. The Message becomes a Command writing into the registry.
+    // The one thing the Model keeps is the unread-error tally for panes the
+    // user is not looking at.
+    ReceivedLog: ({ id, data, live }) => ({
+      model:
         live && id !== model.active && ERROR_PATTERN.test(data)
-          ? evo(model, { unread: (unread) => ({ ...unread, [id]: (unread[id] ?? 0) + 1 }) })
+          ? modifyFields(model, {
+              unread: (unread) => ({ ...unread, [id]: (unread[id] ?? 0) + 1 })
+            })
           : model,
-        [WriteTerminal({ id, data })]
-      ],
+      commands: [WriteTerminal({ id, data })]
+    }),
 
-      MountedTerminal: ({ id }) => [
-        evo(model, { mounted: (mounted) => [...mounted, id] }),
-        // Size it if it is on screen (the active pane, or any pane in grid).
-        visibleIds(model).includes(id) ? [FitTerminals({ ids: [id], focus: model.active })] : []
-      ],
-      TypedInput: ({ id, data }) => [model, [PostInput({ id, data })]],
+    MountedTerminal: ({ id }) => ({
+      model: modifyFields(model, { mounted: (mounted) => [...mounted, id] }),
+      // Size it if it is on screen (the active pane, or any pane in grid).
+      commands: visibleIds(model).includes(id)
+        ? [FitTerminals({ ids: [id], focus: model.active })]
+        : []
+    }),
+    TypedInput: ({ id, data }) => ({ model, commands: [PostInput({ id, data })] }),
 
-      ClickedProc: ({ id }) => activate(model, id),
-      ClickedPaneAction: ({ id, action }) => paneAction(model, id, action),
-      // Restart is stop+start on the server, so it also brings up stopped procs.
-      ClickedRestartAll: () => [
-        model,
-        model.procs.map((info) => PostAction({ id: info.id, action: "restart" }))
-      ],
-      ClickedStopAll: () => [
-        model,
-        model.procs
-          .filter((info) => !isIdle(info.status.state))
-          .map((info) => PostAction({ id: info.id, action: "stop" }))
-      ],
-      ClickedShutdown: () => [model, [Shutdown()]],
-      ShutDown: () => [evo(model, { shutdown: () => true, switcher: () => undefined }), []],
-      ToggledSwitcher: () =>
-        model.switcher === undefined
-          ? [model, [FetchInstances()]]
-          : [evo(model, { switcher: () => undefined }), []],
-      GotInstances: ({ instances }) => [evo(model, { switcher: () => instances }), []],
+    ClickedProc: ({ id }) => activate(model, id),
+    ClickedPaneAction: ({ id, action }) => paneAction(model, id, action),
+    // Restart is stop+start on the server, so it also brings up stopped procs.
+    ClickedRestartAll: () => ({
+      model,
+      commands: model.procs.map((info) => PostAction({ id: info.id, action: "restart" }))
+    }),
+    ClickedStopAll: () => ({
+      model,
+      commands: model.procs
+        .filter((info) => !isIdle(info.status.state))
+        .map((info) => PostAction({ id: info.id, action: "stop" }))
+    }),
+    ClickedShutdown: () => ({ model, commands: [Shutdown()] }),
+    ShutDown: () => ({
+      model: modifyFields(model, { shutdown: () => true, switcher: () => undefined })
+    }),
+    ToggledSwitcher: () =>
+      model.switcher === undefined
+        ? { model, commands: [FetchInstances()] }
+        : { model: modifyFields(model, { switcher: () => undefined }) },
+    GotInstances: ({ instances }) => ({
+      model: modifyFields(model, { switcher: () => instances })
+    }),
 
-      ChoseLayout: ({ layout }) => setLayout(model, layout),
-      ZoomedProc: ({ id }) => zoomTo(model, id),
-      ToggledZoom: () =>
-        model.layout === "single"
-          ? setLayout(model, "grid")
-          : model.active === undefined
-            ? [model, []]
-            : zoomTo(model, model.active),
-      CycledLayout: () =>
-        setLayout(model, LAYOUTS[(LAYOUTS.indexOf(model.layout) + 1) % LAYOUTS.length]!),
-      ToggledPin: ({ id }) => togglePin(model, id),
-      PressedPin: () => togglePin(model, model.active),
+    ChoseLayout: ({ layout }) => setLayout(model, layout),
+    ZoomedProc: ({ id }) => zoomTo(model, id),
+    ToggledZoom: () =>
+      model.layout === "single"
+        ? setLayout(model, "grid")
+        : model.active === undefined
+          ? { model }
+          : zoomTo(model, model.active),
+    CycledLayout: () =>
+      setLayout(model, LAYOUTS[(LAYOUTS.indexOf(model.layout) + 1) % LAYOUTS.length]!),
+    ToggledPin: ({ id }) => togglePin(model, id),
+    PressedPin: () => togglePin(model, model.active),
 
-      // Turning the bell on asks the browser (a user gesture, so it may
-      // prompt); off is just the flag — the permission stays for next time.
-      ToggledNotifications: () =>
-        model.notifications
-          ? [evo(model, { notifications: () => false }), []]
-          : [evo(model, { notifications: () => true }), [RequestNotifyPermission()]],
-      GotNotifyPermission: ({ permission }) => [
-        evo(model, { notifyPermission: () => permission }),
-        []
-      ],
+    // Turning the bell on asks the browser (a user gesture, so it may
+    // prompt); off is just the flag — the permission stays for next time.
+    ToggledNotifications: () =>
+      model.notifications
+        ? { model: modifyFields(model, { notifications: () => false }) }
+        : {
+            model: modifyFields(model, { notifications: () => true }),
+            commands: [RequestNotifyPermission()]
+          },
+    GotNotifyPermission: ({ permission }) => ({
+      model: modifyFields(model, { notifyPermission: () => permission })
+    }),
 
-      ChoseTheme: ({ theme }) => [evo(model, { theme: () => theme }), []],
-      SystemSchemeChanged: ({ dark }) => [evo(model, { systemDark: () => dark }), []],
+    ChoseTheme: ({ theme }) => ({ model: modifyFields(model, { theme: () => theme }) }),
+    SystemSchemeChanged: ({ dark }) => ({
+      model: modifyFields(model, { systemDark: () => dark })
+    }),
 
-      SelectedProcOffset: ({ delta }) => {
-        if (model.procs.length === 0) return [model, []]
-        const index = model.procs.findIndex((info) => info.id === model.active)
-        const next = model.procs[(index + delta + model.procs.length) % model.procs.length]!
-        return activate(model, next.id)
-      },
-      PressedRestart: () => paneAction(model, model.active, "restart"),
-      PressedToggle: () => {
-        const active = model.procs.find((info) => info.id === model.active)
-        if (active === undefined) return [model, []]
-        return paneAction(model, active.id, isIdle(active.status.state) ? "start" : "stop")
-      },
-      PressedClear: () => paneAction(model, model.active, "clear"),
+    SelectedProcOffset: ({ delta }) => {
+      if (model.procs.length === 0) return { model }
+      const index = model.procs.findIndex((info) => info.id === model.active)
+      const next = model.procs[(index + delta + model.procs.length) % model.procs.length]!
+      return activate(model, next.id)
+    },
+    PressedRestart: () => paneAction(model, model.active, "restart"),
+    PressedToggle: () => {
+      const active = model.procs.find((info) => info.id === model.active)
+      if (active === undefined) return { model }
+      return paneAction(model, active.id, isIdle(active.status.state) ? "start" : "stop")
+    },
+    PressedClear: () => paneAction(model, model.active, "clear"),
 
-      OpenedSearch: () => [
-        evo(model, { search: (search) => search ?? "" }),
-        // Also fires when the box is already open: ⌘F refocuses and selects.
-        [FocusSearch()]
-      ],
-      ChangedSearch: ({ query }) => [
-        evo(model, { search: () => query }),
+    OpenedSearch: () => ({
+      model: modifyFields(model, { search: (search) => search ?? "" }),
+      // Also fires when the box is already open: ⌘F refocuses and selects.
+      commands: [FocusSearch()]
+    }),
+    ChangedSearch: ({ query }) => ({
+      model: modifyFields(model, { search: () => query }),
+      commands:
         model.active === undefined
           ? []
           : [FindInTerminal({ id: model.active, query, mode: "incremental" })]
-      ],
-      SteppedSearch: ({ backwards }) =>
-        model.active === undefined || model.search === undefined || model.search === ""
-          ? [model, []]
-          : [
-              model,
-              [
-                FindInTerminal({
-                  id: model.active,
-                  query: model.search,
-                  mode: backwards ? "previous" : "next"
-                })
-              ]
-            ],
-      ClosedSearch: () => [
-        evo(model, { search: () => undefined }),
-        model.active === undefined ? [] : [EndSearch({ id: model.active })]
-      ],
-      ResizedWindow: () => (model.active === undefined ? [model, []] : [model, [refit(model)]]),
+    }),
+    SteppedSearch: ({ backwards }) =>
+      model.active === undefined || model.search === undefined || model.search === ""
+        ? { model }
+        : {
+            model,
+            commands: [
+              FindInTerminal({
+                id: model.active,
+                query: model.search,
+                mode: backwards ? "previous" : "next"
+              })
+            ]
+          },
+    ClosedSearch: () => ({
+      model: modifyFields(model, { search: () => undefined }),
+      commands: model.active === undefined ? [] : [EndSearch({ id: model.active })]
+    }),
+    ResizedWindow: () =>
+      model.active === undefined ? { model } : { model, commands: [refit(model)] },
 
-      PolledTraffic: () => [model, [FetchTraffic({ sinceSeq: model.trafficSeq })]],
-      GotTraffic: ({ entries, nextSeq }) => [
-        evo(model, {
-          traffic: (traffic) =>
-            entries.length === 0 ? traffic : [...traffic, ...entries].slice(-TRAFFIC_CAP),
-          trafficSeq: (cursor) => ({ ...cursor, ...nextSeq })
-        }),
-        []
-      ],
-      ChoseTrafficKind: ({ kind }) => [evo(model, { trafficKind: () => kind }), []],
-      ToggledTrafficErrors: () => [
-        evo(model, { trafficErrorsOnly: (errorsOnly) => !errorsOnly }),
-        []
-      ],
-      ChoseTrafficProc: ({ id }) => [evo(model, { trafficProc: () => id }), []],
-      ToggledTrafficRow: ({ key }) => [
-        evo(model, { trafficOpen: (open) => (open === key ? undefined : key) }),
-        []
-      ],
-      // Keeps the cursor: what was on screen goes away, only news comes back.
-      ClearedTraffic: () => [evo(model, { traffic: () => [], trafficOpen: () => undefined }), []],
-      ToggledTrafficPause: () => [evo(model, { trafficPaused: (paused) => !paused }), []],
+    PolledTraffic: () => ({ model, commands: [FetchTraffic({ sinceSeq: model.trafficSeq })] }),
+    GotTraffic: ({ entries, nextSeq }) => ({
+      model: modifyFields(model, {
+        traffic: (traffic) =>
+          entries.length === 0 ? traffic : [...traffic, ...entries].slice(-TRAFFIC_CAP),
+        trafficSeq: (cursor) => ({ ...cursor, ...nextSeq })
+      })
+    }),
+    ChoseTrafficKind: ({ kind }) => ({ model: modifyFields(model, { trafficKind: () => kind }) }),
+    ToggledTrafficErrors: () => ({
+      model: modifyFields(model, { trafficErrorsOnly: (errorsOnly) => !errorsOnly })
+    }),
+    ChoseTrafficProc: ({ id }) => ({ model: modifyFields(model, { trafficProc: () => id }) }),
+    ToggledTrafficRow: ({ key }) => ({
+      model: modifyFields(model, { trafficOpen: (open) => (open === key ? undefined : key) })
+    }),
+    // Keeps the cursor: what was on screen goes away, only news comes back.
+    ClearedTraffic: () => ({
+      model: modifyFields(model, { traffic: () => [], trafficOpen: () => undefined })
+    }),
+    ToggledTrafficPause: () => ({
+      model: modifyFields(model, { trafficPaused: (paused) => !paused })
+    }),
 
-      InstallBecameAvailable: () => [evo(model, { installable: () => true }), []],
-      ClickedInstall: () => [model, [PromptInstall()]],
-      PromptedInstall: () => [evo(model, { installable: () => false }), []],
-      Installed: () => [evo(model, { installable: () => false }), []],
+    InstallBecameAvailable: () => ({ model: modifyFields(model, { installable: () => true }) }),
+    ClickedInstall: () => ({ model, commands: [PromptInstall()] }),
+    PromptedInstall: () => ({ model: modifyFields(model, { installable: () => false }) }),
+    Installed: () => ({ model: modifyFields(model, { installable: () => false }) }),
 
-      Ticked: ({ now }) => [evo(model, { now: () => now }), []],
+    Ticked: ({ now }) => ({ model: modifyFields(model, { now: () => now }) }),
 
-      CompletedRequest: () => [model, []]
-    })
-  )
+    CompletedRequest: () => ({ model })
+  })
 
 /**
  * `step` plus the effects that follow from *what changed*, not from which
@@ -330,7 +344,7 @@ const step = (model: Model, message: Message): Result =>
  * - the deck started or stopped wanting attention → favicon badge on/off.
  */
 export const update = (model: Model, message: Message): Result => {
-  const [next, commands] = step(model, message)
+  const { model: next, commands = [] } = step(model, message)
   const persist =
     next.layout !== model.layout ||
     next.active !== model.active ||
@@ -340,9 +354,9 @@ export const update = (model: Model, message: Message): Result => {
   const repaint = next.theme !== model.theme || resolveScheme(next) !== resolveScheme(model)
   const attention = attentionCount(next) > 0
   const rebadge = attention !== attentionCount(model) > 0
-  return [
-    next,
-    [
+  return {
+    model: next,
+    commands: [
       ...commands,
       ...(persist
         ? [
@@ -358,7 +372,7 @@ export const update = (model: Model, message: Message): Result => {
       ...(repaint ? [ApplyTheme({ theme: next.theme, scheme: resolveScheme(next) })] : []),
       ...(rebadge ? [SetFaviconBadge({ on: attention })] : [])
     ]
-  ]
+  }
 }
 
 export const init = (): Result => {
@@ -393,8 +407,12 @@ export const init = (): Result => {
   }
   // The inline script in index.html already painted the scheme before the
   // first frame; this keeps the theme-color meta honest if it did not run.
-  return [
+  return {
     model,
-    [FetchProcs(), FetchDeck(), ApplyTheme({ theme: model.theme, scheme: resolveScheme(model) })]
-  ]
+    commands: [
+      FetchProcs(),
+      FetchDeck(),
+      ApplyTheme({ theme: model.theme, scheme: resolveScheme(model) })
+    ]
+  }
 }

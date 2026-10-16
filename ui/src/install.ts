@@ -1,7 +1,6 @@
 import { Effect, Queue, Stream } from "effect"
 import { Command } from "foldkit"
-import { InstallBecameAvailable, Installed, PromptedInstall } from "./message.ts"
-import type { Message } from "./message.ts"
+import { Message } from "./message.ts"
 
 /**
  * Web-app install ("add to Dock"). Chromium fires `beforeinstallprompt` when
@@ -26,11 +25,11 @@ export const installStream: Stream.Stream<Message> = Stream.callback<Message>((q
       const onPrompt = (event: Event) => {
         event.preventDefault()
         deferred = event as BeforeInstallPromptEvent
-        Queue.offerUnsafe(queue, InstallBecameAvailable())
+        Queue.offerUnsafe(queue, Message.InstallBecameAvailable())
       }
       const onInstalled = () => {
         deferred = undefined
-        Queue.offerUnsafe(queue, Installed())
+        Queue.offerUnsafe(queue, Message.Installed())
       }
       window.addEventListener("beforeinstallprompt", onPrompt)
       window.addEventListener("appinstalled", onInstalled)
@@ -50,7 +49,7 @@ export const installStream: Stream.Stream<Message> = Stream.callback<Message>((q
  * offers a fresh event on a later load.
  */
 export const PromptInstall = Command.define("PromptInstall", {
-  messages: [PromptedInstall],
+  messages: [Message.PromptedInstall],
   execute: Effect.promise(async () => {
     const event = deferred
     deferred = undefined
@@ -58,6 +57,6 @@ export const PromptInstall = Command.define("PromptInstall", {
       await event.prompt()
       await event.userChoice.catch(() => undefined)
     }
-    return PromptedInstall()
+    return Message.PromptedInstall()
   })
 })

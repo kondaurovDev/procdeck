@@ -1,13 +1,5 @@
 import type { Html, HtmlBuilder } from "foldkit/html"
-import type { Message } from "./message.ts"
-import {
-  ChoseTrafficKind,
-  ChoseTrafficProc,
-  ClearedTraffic,
-  ToggledTrafficErrors,
-  ToggledTrafficPause,
-  ToggledTrafficRow
-} from "./message.ts"
+import { Message } from "./message.ts"
 import type { Model, TrafficKind } from "./model.ts"
 import type { TrafficEntry } from "./schema.ts"
 
@@ -104,7 +96,7 @@ const row = (entry: TrafficEntry, open: boolean, h: HtmlBuilder<Message>): Array
       [
         h.Key(key),
         h.Class(open ? "traffic-row open" : "traffic-row"),
-        h.OnClick(ToggledTrafficRow({ key }))
+        h.OnClick(Message.ToggledTrafficRow({ key }))
       ],
       [
         h.span([h.Class("meta")], [clock(entry.ts)]),
@@ -133,7 +125,7 @@ const toolbar = (model: Model, shownCount: number, h: HtmlBuilder<Message>): Htm
             [
               h.Class(model.trafficKind === kind ? "on" : ""),
               h.Title(hint),
-              h.OnClick(ChoseTrafficKind({ kind }))
+              h.OnClick(Message.ChoseTrafficKind({ kind }))
             ],
             [label]
           )
@@ -143,7 +135,7 @@ const toolbar = (model: Model, shownCount: number, h: HtmlBuilder<Message>): Htm
         [
           h.Class(model.trafficErrorsOnly ? "on" : ""),
           h.Title("only 4xx / 5xx / refused"),
-          h.OnClick(ToggledTrafficErrors())
+          h.OnClick(Message.ToggledTrafficErrors())
         ],
         ["errors"]
       ),
@@ -153,7 +145,7 @@ const toolbar = (model: Model, shownCount: number, h: HtmlBuilder<Message>): Htm
           h.button(
             [
               h.Class(model.trafficProc === undefined ? "on" : ""),
-              h.OnClick(ChoseTrafficProc({ id: undefined }))
+              h.OnClick(Message.ChoseTrafficProc({ id: undefined }))
             ],
             ["all procs"]
           ),
@@ -161,7 +153,7 @@ const toolbar = (model: Model, shownCount: number, h: HtmlBuilder<Message>): Htm
             h.button(
               [
                 h.Class(model.trafficProc === info.id ? "on" : ""),
-                h.OnClick(ChoseTrafficProc({ id: info.id }))
+                h.OnClick(Message.ChoseTrafficProc({ id: info.id }))
               ],
               [info.id]
             )
@@ -174,12 +166,12 @@ const toolbar = (model: Model, shownCount: number, h: HtmlBuilder<Message>): Htm
         [
           h.Class(model.trafficPaused ? "on" : ""),
           h.Title(model.trafficPaused ? "resume capture display" : "pause capture display"),
-          h.OnClick(ToggledTrafficPause())
+          h.OnClick(Message.ToggledTrafficPause())
         ],
         [model.trafficPaused ? "▶" : "⏸"]
       ),
       h.button(
-        [h.Title("clear the list (capture keeps running)"), h.OnClick(ClearedTraffic())],
+        [h.Title("clear the list (capture keeps running)"), h.OnClick(Message.ClearedTraffic())],
         ["⌫"]
       )
     ]

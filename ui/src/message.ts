@@ -1,157 +1,108 @@
 import { Schema as S } from "effect"
-import { m } from "foldkit/message"
+import { defineMessageUnion } from "foldkit/message"
 import { Layout, NotifyPermission, Theme, TrafficKind } from "./model.ts"
 import { DeckInfo, InstanceInfo, ProcInfo, ProcStatus, TrafficEntry } from "./schema.ts"
 
-// Server data arriving
-export const GotDeck = m("GotDeck", { deck: DeckInfo })
-export const GotProcs = m("GotProcs", { procs: S.Array(ProcInfo) })
-export const FailedFetchProcs = m("FailedFetchProcs", { error: S.String })
-/**
- * `live` is false for events replayed from the server's ring buffer right
- * after (re)connect — replayed chunks land in the terminal but must not count
- * as unread, and a replayed crash must not notify again.
- */
-export const ReceivedStatus = m("ReceivedStatus", { status: ProcStatus, live: S.Boolean })
-export const ReceivedLog = m("ReceivedLog", { id: S.String, data: S.String, live: S.Boolean })
-/** The SSE feed (re)connected / dropped — drives the "reconnecting" banner. */
-export const StreamOpened = m("StreamOpened")
-export const StreamDropped = m("StreamDropped")
-
-// Terminal lifecycle and input
-export const MountedTerminal = m("MountedTerminal", { id: S.String })
-export const TypedInput = m("TypedInput", { id: S.String, data: S.String })
-
-// User intent
-export const ClickedProc = m("ClickedProc", { id: S.String })
 /** Pane-header buttons — each pane carries its own controls. */
 export const PaneAction = S.Literals(["start", "stop", "restart", "clear"])
-export const ClickedPaneAction = m("ClickedPaneAction", { id: S.String, action: PaneAction })
-export const ClickedRestartAll = m("ClickedRestartAll")
-export const ClickedStopAll = m("ClickedStopAll")
-/** The ⏻ button: the whole deck, not one proc. `ShutDown` = the server said ok. */
-export const ClickedShutdown = m("ClickedShutdown")
-export const ShutDown = m("ShutDown")
-/** Deck name in the bar toggles the switcher; `GotInstances` fills it. */
-export const ToggledSwitcher = m("ToggledSwitcher")
-export const GotInstances = m("GotInstances", { instances: S.Array(InstanceInfo) })
-export const ResizedWindow = m("ResizedWindow")
 
-// Layout
-export const ChoseLayout = m("ChoseLayout", { layout: Layout })
-/** Grid tile double-click / tray click: single with that pane active. */
-export const ZoomedProc = m("ZoomedProc", { id: S.String })
-/** ⌥Z: grid → single on the active pane, single → grid. */
-export const ToggledZoom = m("ToggledZoom")
-/** Pin icon on a pane header / sidebar row / tray item. */
-export const ToggledPin = m("ToggledPin", { id: S.String })
-/** ⌥P: pin/unpin the active pane. */
-export const PressedPin = m("PressedPin")
+/**
+ * Every Message the UI handles, one record: the key is the tag, the value its
+ * fields. `Message.X(...)` constructs, `Message.match` dispatches exhaustively.
+ */
+export const Message = defineMessageUnion({
+  // Server data arriving
+  GotDeck: { deck: DeckInfo },
+  GotProcs: { procs: S.Array(ProcInfo) },
+  FailedFetchProcs: { error: S.String },
+  /**
+   * `live` is false for events replayed from the server's ring buffer right
+   * after (re)connect — replayed chunks land in the terminal but must not
+   * count as unread, and a replayed crash must not notify again.
+   */
+  ReceivedStatus: { status: ProcStatus, live: S.Boolean },
+  ReceivedLog: { id: S.String, data: S.String, live: S.Boolean },
+  /** The SSE feed (re)connected / dropped — drives the "reconnecting" banner. */
+  StreamOpened: {},
+  StreamDropped: {},
 
-// Notifications
-export const ToggledNotifications = m("ToggledNotifications")
-export const GotNotifyPermission = m("GotNotifyPermission", { permission: NotifyPermission })
+  // Terminal lifecycle and input
+  MountedTerminal: { id: S.String },
+  TypedInput: { id: S.String, data: S.String },
 
-// Theme
-export const ChoseTheme = m("ChoseTheme", { theme: Theme })
-/** The OS flipped light/dark (matchMedia change). */
-export const SystemSchemeChanged = m("SystemSchemeChanged", { dark: S.Boolean })
+  // User intent
+  ClickedProc: { id: S.String },
+  ClickedPaneAction: { id: S.String, action: PaneAction },
+  ClickedRestartAll: {},
+  ClickedStopAll: {},
+  /** The ⏻ button: the whole deck, not one proc. `ShutDown` = the server said ok. */
+  ClickedShutdown: {},
+  ShutDown: {},
+  /** Deck name in the bar toggles the switcher; `GotInstances` fills it. */
+  ToggledSwitcher: {},
+  GotInstances: { instances: S.Array(InstanceInfo) },
+  ResizedWindow: {},
 
-// Hotkeys — all act on the active pane
-export const SelectedProcOffset = m("SelectedProcOffset", { delta: S.Number })
-/** ⌥R */
-export const PressedRestart = m("PressedRestart")
-/** ⌥S: stop the active proc if it is busy, start it if it is idle. */
-export const PressedToggle = m("PressedToggle")
-/** ⌘K */
-export const PressedClear = m("PressedClear")
-/** ⌥G: step to the next layout mode. */
-export const CycledLayout = m("CycledLayout")
+  // Layout
+  ChoseLayout: { layout: Layout },
+  /** Grid tile double-click / tray click: single with that pane active. */
+  ZoomedProc: { id: S.String },
+  /** ⌥Z: grid → single on the active pane, single → grid. */
+  ToggledZoom: {},
+  /** Pin icon on a pane header / sidebar row / tray item. */
+  ToggledPin: { id: S.String },
+  /** ⌥P: pin/unpin the active pane. */
+  PressedPin: {},
 
-// Log search
-export const OpenedSearch = m("OpenedSearch")
-export const ChangedSearch = m("ChangedSearch", { query: S.String })
-export const SteppedSearch = m("SteppedSearch", { backwards: S.Boolean })
-export const ClosedSearch = m("ClosedSearch")
+  // Notifications
+  ToggledNotifications: {},
+  GotNotifyPermission: { permission: NotifyPermission },
 
-// Traffic view (the layout's "http" position) — a 1s poll of GET /http with
-// a per-proc seq cursor, active only while the view is open and not paused.
-export const PolledTraffic = m("PolledTraffic")
-export const GotTraffic = m("GotTraffic", {
-  entries: S.Array(TrafficEntry),
-  nextSeq: S.Record(S.String, S.Number)
+  // Theme
+  ChoseTheme: { theme: Theme },
+  /** The OS flipped light/dark (matchMedia change). */
+  SystemSchemeChanged: { dark: S.Boolean },
+
+  // Hotkeys — all act on the active pane
+  SelectedProcOffset: { delta: S.Number },
+  /** ⌥R */
+  PressedRestart: {},
+  /** ⌥S: stop the active proc if it is busy, start it if it is idle. */
+  PressedToggle: {},
+  /** ⌘K */
+  PressedClear: {},
+  /** ⌥G: step to the next layout mode. */
+  CycledLayout: {},
+
+  // Log search
+  OpenedSearch: {},
+  ChangedSearch: { query: S.String },
+  SteppedSearch: { backwards: S.Boolean },
+  ClosedSearch: {},
+
+  // Traffic view (the layout's "http" position) — a 1s poll of GET /http with
+  // a per-proc seq cursor, active only while the view is open and not paused.
+  PolledTraffic: {},
+  GotTraffic: { entries: S.Array(TrafficEntry), nextSeq: S.Record(S.String, S.Number) },
+  ChoseTrafficKind: { kind: TrafficKind },
+  ToggledTrafficErrors: {},
+  ChoseTrafficProc: { id: S.UndefinedOr(S.String) },
+  /** Click a row to expand its bodies/headers; clicking again closes it. */
+  ToggledTrafficRow: { key: S.String },
+  ClearedTraffic: {},
+  ToggledTrafficPause: {},
+
+  // Web-app install (see install.ts)
+  InstallBecameAvailable: {},
+  ClickedInstall: {},
+  PromptedInstall: {},
+  Installed: {},
+
+  // Uptime clock — fires once a second while anything is running
+  Ticked: { now: S.Number },
+
+  // Fire-and-forget Command acknowledgements (update no-ops on it; keeps the
+  // side effect visible to DevTools and tests)
+  CompletedRequest: {}
 })
-export const ChoseTrafficKind = m("ChoseTrafficKind", { kind: TrafficKind })
-export const ToggledTrafficErrors = m("ToggledTrafficErrors")
-export const ChoseTrafficProc = m("ChoseTrafficProc", { id: S.UndefinedOr(S.String) })
-/** Click a row to expand its bodies/headers; clicking again closes it. */
-export const ToggledTrafficRow = m("ToggledTrafficRow", { key: S.String })
-export const ClearedTraffic = m("ClearedTraffic")
-export const ToggledTrafficPause = m("ToggledTrafficPause")
-
-// Web-app install (see install.ts)
-export const InstallBecameAvailable = m("InstallBecameAvailable")
-export const ClickedInstall = m("ClickedInstall")
-export const PromptedInstall = m("PromptedInstall")
-export const Installed = m("Installed")
-
-// Uptime clock — fires once a second while anything is running
-export const Ticked = m("Ticked", { now: S.Number })
-
-// Fire-and-forget Command acknowledgements (update no-ops on it; keeps the
-// side effect visible to DevTools and tests)
-export const CompletedRequest = m("CompletedRequest")
-
-export const Message = S.Union([
-  GotDeck,
-  GotProcs,
-  FailedFetchProcs,
-  ReceivedStatus,
-  ReceivedLog,
-  StreamOpened,
-  StreamDropped,
-  MountedTerminal,
-  TypedInput,
-  ClickedProc,
-  ClickedPaneAction,
-  ClickedRestartAll,
-  ClickedStopAll,
-  ClickedShutdown,
-  ShutDown,
-  ToggledSwitcher,
-  GotInstances,
-  ResizedWindow,
-  ChoseLayout,
-  ZoomedProc,
-  ToggledZoom,
-  ToggledPin,
-  PressedPin,
-  ToggledNotifications,
-  GotNotifyPermission,
-  ChoseTheme,
-  SystemSchemeChanged,
-  SelectedProcOffset,
-  PressedRestart,
-  PressedToggle,
-  PressedClear,
-  CycledLayout,
-  OpenedSearch,
-  ChangedSearch,
-  SteppedSearch,
-  ClosedSearch,
-  PolledTraffic,
-  GotTraffic,
-  ChoseTrafficKind,
-  ToggledTrafficErrors,
-  ChoseTrafficProc,
-  ToggledTrafficRow,
-  ClearedTraffic,
-  ToggledTrafficPause,
-  InstallBecameAvailable,
-  ClickedInstall,
-  PromptedInstall,
-  Installed,
-  Ticked,
-  CompletedRequest
-])
 export type Message = typeof Message.Type

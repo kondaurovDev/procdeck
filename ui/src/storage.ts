@@ -1,6 +1,6 @@
 import { Effect, Option as O, Schema as S } from "effect"
 import { Command } from "foldkit"
-import { CompletedRequest } from "./message.ts"
+import { Message } from "./message.ts"
 import { Layout, Theme } from "./model.ts"
 
 /**
@@ -45,7 +45,7 @@ export const SaveUiState = Command.define("SaveUiState", {
     pinned: S.Array(S.String),
     notifications: S.Boolean
   },
-  messages: [CompletedRequest],
+  messages: [Message.CompletedRequest],
   execute: (state) =>
     Effect.sync(() => {
       try {
@@ -53,6 +53,6 @@ export const SaveUiState = Command.define("SaveUiState", {
       } catch {
         // Storage unavailable — the UI still works, it just won't remember.
       }
-      return CompletedRequest()
+      return Message.CompletedRequest()
     })
 })

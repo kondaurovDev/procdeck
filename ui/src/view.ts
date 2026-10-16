@@ -1,23 +1,6 @@
 import { Option as O } from "effect"
 import type { Document, Html, HtmlBuilder } from "foldkit/html"
-import type { Message } from "./message.ts"
-import {
-  ChangedSearch,
-  ChoseLayout,
-  ChoseTheme,
-  ClickedInstall,
-  ClickedPaneAction,
-  ClickedProc,
-  ClickedRestartAll,
-  ClickedShutdown,
-  ClickedStopAll,
-  ClosedSearch,
-  SteppedSearch,
-  ToggledNotifications,
-  ToggledPin,
-  ToggledSwitcher,
-  ZoomedProc
-} from "./message.ts"
+import { Message } from "./message.ts"
 import { attentionCount, gridIds } from "./model.ts"
 import type { Layout, Model, Theme } from "./model.ts"
 import type { ProcInfo, ProcStatus } from "./schema.ts"
@@ -111,7 +94,7 @@ const pinButton = (id: string, pinned: boolean, h: HtmlBuilder<Message>): Html =
     [
       h.Class(pinned ? "pin on" : "pin"),
       h.Title(pinned ? "unpin from grid (⌥P)" : "pin to grid (⌥P)"),
-      h.OnClick(ToggledPin({ id }))
+      h.OnClick(Message.ToggledPin({ id }))
     ],
     ["📌"]
   )
@@ -143,7 +126,7 @@ const procRow = (
     [
       h.Key(info.id),
       h.Class(isActive ? "proc active" : "proc"),
-      h.OnClick(ClickedProc({ id: info.id }))
+      h.OnClick(Message.ClickedProc({ id: info.id }))
     ],
     [
       h.span([h.Class(`dot ${info.status.state}`)], []),
@@ -168,7 +151,7 @@ const paneActions = (info: ProcInfo, pinned: boolean, h: HtmlBuilder<Message>): 
   const idle = state === "stopped" || state === "exited" || state === "blocked"
   const busy = state === "running" || state === "starting"
   const action = (action: "start" | "stop" | "restart" | "clear") =>
-    ClickedPaneAction({ id: info.id, action })
+    Message.ClickedPaneAction({ id: info.id, action })
   return h.span(
     [h.Class("pane-actions")],
     [
@@ -202,7 +185,7 @@ const tile = (info: ProcInfo, model: Model, h: HtmlBuilder<Message>): Html => {
       h.Key(info.id),
       h.Class(isActive ? "tile active" : "tile"),
       h.Hidden(!shown),
-      h.OnClick(ClickedProc({ id: info.id }))
+      h.OnClick(Message.ClickedProc({ id: info.id }))
     ],
     [
       // Double-click zooms only from the header: inside xterm it selects a word.
@@ -210,7 +193,7 @@ const tile = (info: ProcInfo, model: Model, h: HtmlBuilder<Message>): Html => {
         [
           h.Class("tile-head"),
           h.Title(model.layout === "grid" ? "double-click to zoom" : ""),
-          h.OnDoubleClick(ZoomedProc({ id: info.id }))
+          h.OnDoubleClick(Message.ZoomedProc({ id: info.id }))
         ],
         [
           h.span([h.Class(`dot ${info.status.state}`)], []),
@@ -252,7 +235,7 @@ const tray = (model: Model, h: HtmlBuilder<Message>): Array<Html> => {
               [
                 h.Class(info.id === model.active ? "peek active" : "peek"),
                 h.Title("peek: show only this pane"),
-                h.OnClick(ZoomedProc({ id: info.id }))
+                h.OnClick(Message.ZoomedProc({ id: info.id }))
               ],
               [
                 h.span([h.Class(`dot ${info.status.state}`)], []),
@@ -284,7 +267,7 @@ const layoutSwitch = (model: Model, h: HtmlBuilder<Message>): Html =>
         [
           h.Class(model.layout === layout ? "on" : ""),
           h.Title(`${hint} (⌥G)`),
-          h.OnClick(ChoseLayout({ layout }))
+          h.OnClick(Message.ChoseLayout({ layout }))
         ],
         [label]
       )
@@ -305,7 +288,7 @@ const themeSwitch = (model: Model, h: HtmlBuilder<Message>): Html =>
         [
           h.Class(model.theme === theme ? "on" : ""),
           h.Title(`theme: ${hint}`),
-          h.OnClick(ChoseTheme({ theme }))
+          h.OnClick(Message.ChoseTheme({ theme }))
         ],
         [label]
       )
@@ -392,12 +375,12 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
               h.Placeholder("find…"),
               h.Title("Enter next · ⇧Enter prev · Esc close"),
               h.Autofocus(true),
-              h.OnInput((query) => ChangedSearch({ query })),
+              h.OnInput((query) => Message.ChangedSearch({ query })),
               h.OnKeyDownPreventDefault((key, modifiers) =>
                 key === "Enter"
-                  ? O.some(SteppedSearch({ backwards: modifiers.shiftKey }))
+                  ? O.some(Message.SteppedSearch({ backwards: modifiers.shiftKey }))
                   : key === "Escape"
-                    ? O.some(ClosedSearch())
+                    ? O.some(Message.ClosedSearch())
                     : O.none()
               )
             ])
@@ -414,7 +397,7 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
                   [
                     h.Class("install"),
                     h.Title("install procdeck as an app: own window, Dock icon"),
-                    h.OnClick(ClickedInstall())
+                    h.OnClick(Message.ClickedInstall())
                   ],
                   ["⤓ install"]
                 )
@@ -424,12 +407,12 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
             [
               h.Disabled(model.procs.length === 0),
               h.Title("restart every proc (stopped ones start)"),
-              h.OnClick(ClickedRestartAll())
+              h.OnClick(Message.ClickedRestartAll())
             ],
             ["↻ all"]
           ),
           h.button(
-            [h.Disabled(!anyBusy), h.Title("stop every proc"), h.OnClick(ClickedStopAll())],
+            [h.Disabled(!anyBusy), h.Title("stop every proc"), h.OnClick(Message.ClickedStopAll())],
             ["■ all"]
           ),
           h.button(
@@ -439,7 +422,7 @@ const globalBar = (model: Model, h: HtmlBuilder<Message>): Html => {
               h.Title(
                 "shut down procdeck: every proc is terminated (`procdeck up` brings it back)"
               ),
-              h.OnClick(ClickedShutdown())
+              h.OnClick(Message.ClickedShutdown())
             ],
             ["⏻"]
           )
@@ -464,7 +447,7 @@ const deckSwitcher = (model: Model, name: string, h: HtmlBuilder<Message>): Html
         [
           h.Class("deck-name"),
           h.Title("other decks running on this machine"),
-          h.OnClick(ToggledSwitcher())
+          h.OnClick(Message.ToggledSwitcher())
         ],
         [name, h.span([h.Class("caret")], ["▾"])]
       ),
@@ -532,7 +515,7 @@ const notifyBell = (model: Model, h: HtmlBuilder<Message>): Array<Html> => {
       [
         h.Class(denied ? "bell denied" : model.notifications ? "bell on" : "bell"),
         h.Title(hint),
-        h.OnClick(ToggledNotifications())
+        h.OnClick(Message.ToggledNotifications())
       ],
       [denied ? "🔕" : "🔔"]
     )

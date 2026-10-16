@@ -1,7 +1,6 @@
 import { Effect, Queue, Stream } from "effect"
 import type { ITheme } from "@xterm/xterm"
-import { SystemSchemeChanged } from "./message.ts"
-import type { Message } from "./message.ts"
+import { Message } from "./message.ts"
 import type { Model, Scheme } from "./model.ts"
 
 /**
@@ -77,7 +76,7 @@ export const systemSchemeStream: Stream.Stream<Message> = Stream.callback<Messag
     Effect.sync(() => {
       const query = darkQuery()
       const onChange = (event: MediaQueryListEvent) => {
-        Queue.offerUnsafe(queue, SystemSchemeChanged({ dark: event.matches }))
+        Queue.offerUnsafe(queue, Message.SystemSchemeChanged({ dark: event.matches }))
       }
       query.addEventListener("change", onChange)
       return { query, onChange }

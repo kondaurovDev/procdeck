@@ -1,6 +1,6 @@
 import { Effect, Schema as S } from "effect"
 import { Command } from "foldkit"
-import { CompletedRequest, GotNotifyPermission } from "./message.ts"
+import { Message } from "./message.ts"
 import type { NotifyPermission } from "./model.ts"
 
 /**
@@ -18,11 +18,11 @@ export const currentNotifyPermission = (): NotifyPermission =>
 
 /** Ask the browser; must run from a user gesture (the bell click) to get a prompt. */
 export const RequestNotifyPermission = Command.define("RequestNotifyPermission", {
-  messages: [GotNotifyPermission],
+  messages: [Message.GotNotifyPermission],
   execute: Effect.promise(async () => {
-    if (!supported()) return GotNotifyPermission({ permission: "unsupported" })
+    if (!supported()) return Message.GotNotifyPermission({ permission: "unsupported" })
     const permission = await Notification.requestPermission().catch(() => "denied" as const)
-    return GotNotifyPermission({ permission })
+    return Message.GotNotifyPermission({ permission })
   })
 })
 
@@ -33,31 +33,31 @@ export const RequestNotifyPermission = Command.define("RequestNotifyPermission",
  */
 export const Notify = Command.define("Notify", {
   args: { title: S.String, body: S.String, tag: S.String },
-  messages: [CompletedRequest],
+  messages: [Message.CompletedRequest],
   execute: ({ title, body, tag }) =>
     Effect.sync(() => {
       const watching = !document.hidden && document.hasFocus()
       if (!supported() || Notification.permission !== "granted" || watching) {
-        return CompletedRequest()
+        return Message.CompletedRequest()
       }
       const notification = new Notification(title, { body, tag, icon: "/icon-192.png" })
       notification.onclick = () => {
         window.focus()
         notification.close()
       }
-      return CompletedRequest()
+      return Message.CompletedRequest()
     })
 })
 
 /** Swap the favicon between the plain icon and the badged one. */
 export const SetFaviconBadge = Command.define("SetFaviconBadge", {
   args: { on: S.Boolean },
-  messages: [CompletedRequest],
+  messages: [Message.CompletedRequest],
   execute: ({ on }) =>
     Effect.sync(() => {
       document
         .querySelector<HTMLLinkElement>('link[rel="icon"]')
         ?.setAttribute("href", on ? "/icon-alert.svg" : "/icon.svg")
-      return CompletedRequest()
+      return Message.CompletedRequest()
     })
 })
