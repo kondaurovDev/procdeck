@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -25,6 +26,18 @@ func parseError(t *testing.T, source, want string) {
 	}
 	if !strings.Contains(err.Error(), want) {
 		t.Fatalf("Parse(%s): error %q, want it to contain %q", source, err, want)
+	}
+}
+
+// parseErrorMatching is parseError for an error whose exact wording varies.
+func parseErrorMatching(t *testing.T, source, pattern string) {
+	t.Helper()
+	_, err := Parse([]byte(source))
+	if err == nil {
+		t.Fatalf("Parse(%s): no error, want one matching %q", source, pattern)
+	}
+	if !regexp.MustCompile(pattern).MatchString(err.Error()) {
+		t.Fatalf("Parse(%s): error %q, want it to match %q", source, err, pattern)
 	}
 }
 
@@ -56,7 +69,9 @@ func TestAcceptsCommentsAndTrailingCommas(t *testing.T) {
 
 func TestRejectsMalformed(t *testing.T) {
 	parseError(t, `{"port": 1}`, `missing "procs"`)
-	parseError(t, `{"procs": [{"id": 42, "shell": "x"}]}`, "procs.id: expected string, got number")
+	// encoding/json names the element in the path from Go 1.27 on
+	// (procs.0.id); before, only the field (procs.id).
+	parseErrorMatching(t, `{"procs": [{"id": 42, "shell": "x"}]}`, `^procs(\.0)?\.id: expected string, got number$`)
 	parseError(t, `{"procs": [{"id": "x", "shell": "x", "env": {"A": 1}}]}`, "expected string")
 	parseError(t, `{"procs": [{"id": "x", "shell": "x", "need": ["y"]}]}`, `unknown field "need"`)
 	parseError(t, `{ procs: [ }`, "")
