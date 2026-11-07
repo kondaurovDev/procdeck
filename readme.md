@@ -209,7 +209,8 @@ templates. See [`example/`](https://github.com/kondaurovDev/procdeck/tree/main/e
 | [agents.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/agents.md)             | The verify loop and the CLI verbs for coding agents.   |
 | [traffic.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/traffic.md)           | What the HTTP observer captures, and what it cannot.   |
 | [architecture.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/architecture.md) | How the code is put together.                          |
-| [design/](https://github.com/kondaurovDev/procdeck/tree/main/docs/design/)                 | Engineering notes behind the bigger features.          |
+| [design/](https://github.com/kondaurovDev/procdeck/tree/main/docs/design/)                 | The decisions behind the bigger features, and why.     |
+| [plan.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/plan.md)                 | What is agreed on and not built yet.                   |
 
 ## Status
 

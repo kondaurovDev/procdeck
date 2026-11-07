@@ -85,6 +85,9 @@ Internal-only changes (refactors, tests, tooling) need no entry.
 - Branch off `main`, keep the diff to one concern.
 - Say why in the description; link the issue if there is one.
 - Update the docs in the same PR — a feature that is not in
-  [`docs/`](docs/) does not exist for anyone but you.
+  [`docs/`](docs/) does not exist for anyone but you. [`docs/design/`](docs/design/)
+  holds durable decisions and the reasons behind them, one topic per file;
+  [`docs/plan.md`](docs/plan.md) is the backlog of agreed, unbuilt work. What
+  shipped and why it was hard belongs in git history, not in either.
 - Commit messages: a short imperative subject, then the reasoning. Look at
   `git log` for the register.

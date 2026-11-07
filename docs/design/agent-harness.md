@@ -37,7 +37,7 @@ HTTP API (`GET /logs`, `POST /marks`) via the instance registry. The shared
 prerequisite landed with it: per-proc **line** buffers (`internal/lines`,
 256 KB each, ANSI stripped, `\r` progress bars keep only their final state,
 per-proc `seq` as a stable cursor) — the same buffers the merged view and
-grep mode in plan.md want.
+grep mode in docs/plan.md want.
 
 - `procdeck status --json` (shipped) — deck + procs + an `attention` list
   (crashed / blocked / alerting, with reasons). `{"up": false}` + exit 1
@@ -131,8 +131,8 @@ agents` (idempotent, so an update is one command).
 ## Dependencies and open questions
 
 - ~~Per-proc **line** buffers on the server~~ — shipped with Phase 1
-  (`internal/lines`); the merged view and grep mode in plan.md can now build
-  on them.
+  (`internal/lines`); the merged view and grep mode in docs/plan.md can now
+  build on them.
 - ~~Stack-trace parsing for `errors`~~ — shipped as planned: dumb heuristics
   (`internal/errscan`), not language completeness; `logs --grep` is the
   fallback.
