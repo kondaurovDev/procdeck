@@ -199,7 +199,9 @@ pnpm dev          # builds the UI, embeds it, runs the example stack on the Go p
 Then open <http://localhost:4840> for the panes, and
 <http://web.localhost:4840> / <http://api.localhost:4840> — the example's
 servers found each other, and their own ports, entirely through `${port}`
-templates. See [`example/`](https://github.com/kondaurovDev/procdeck/tree/main/example).
+templates. The `lab` group sits idle until `procdeck start lab` (from
+`example/`), the way one project's slice of a monorepo deck would. See
+[`example/`](https://github.com/kondaurovDev/procdeck/tree/main/example).
 
 ## Docs
 

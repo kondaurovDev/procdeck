@@ -10,9 +10,14 @@
 //   per-frame with direction and text.
 // - `web` serves the shop page: browser calls to `api.localhost`, a live
 //   chat widget on `chat.localhost`.
-// - `clock` never listens, so readiness is "it spawned" (`readyWhen`).
-// - `flaky` shows alerts: when its output matches a pattern, the pane gets a
-//   badge in the UI.
+// - `shop` is a group: `api`, `worker` and `web` belong together, and the
+//   sidebar and `procdeck status` show them as one section.
+// - `lab` is a group that does not autostart — the way a monorepo deck holds
+//   every project's processes but runs only the slice you work on:
+//   `procdeck start lab` brings up both, `procdeck stop lab` parks them
+//   again, the deck stays up. Inside it, `clock` never listens, so readiness
+//   is "it spawned" (`readyWhen`), and `flaky` shows alerts: when its output
+//   matches a pattern, the pane gets a badge in the UI.
 //
 // Run `pnpm dev` from the repo root, open http://localhost:4840 — then
 // http://web.localhost:4840 (every pane is also reachable at a stable
@@ -24,6 +29,7 @@
 //     procdeck http --status 5xx   # the cursed product
 //     procdeck http --ws --body    # the chat messages, with text
 //     procdeck errors api          # parsed + deduplicated error output
+//     procdeck start lab           # the idle group; `stop lab` parks it again
 //
 // And the verify loop: `procdeck mark` → click a button on the web page →
 // `procdeck http --since-mark default --body`.
@@ -35,6 +41,7 @@
   "procs": [
     {
       "id": "api",
+      "group": "shop",
       "cmd": ["node", "servers/api.mjs"],
       // The public side of `${port}` stays exactly 4831; the observer still
       // captures the traffic behind it.
@@ -43,6 +50,7 @@
     },
     {
       "id": "worker",
+      "group": "shop",
       "cmd": ["node", "servers/worker.mjs"],
       "env": { "API_URL": "http://localhost:${port:api}" },
       "needs": ["api"],
@@ -62,17 +70,23 @@
     },
     {
       "id": "web",
+      "group": "shop",
       "cmd": ["node", "servers/web.mjs"],
       "env": { "PORT": "${port}", "API_URL": "http://localhost:${port:api}" },
       "needs": ["api"]
     },
+    // The idle slice: nothing here runs until `procdeck start lab`.
     {
       "id": "clock",
+      "group": "lab",
+      "autostart": false,
       "shell": "while true; do date; sleep 1; done",
       "readyWhen": "started"
     },
     {
       "id": "flaky",
+      "group": "lab",
+      "autostart": false,
       "shell": "sleep 3; echo 'ERROR: something odd happened'; sleep 600",
       "readyWhen": "started",
       "alerts": [{ "pattern": "ERROR", "label": "check me" }]
