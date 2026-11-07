@@ -1,17 +1,6 @@
 # procdeck
 
-## Unreleased
-
-### Major Changes
-
-- **The MCP server is gone**: `procdeck mcp` and its tools (`deck_status`,
-  `get_logs`, `get_http`, `get_errors`, `set_mark`, `wait_for`, `timeline`,
-  and the `--mutations` trio). Every one of them was a CLI verb over the same
-  deck API, and agents call a CLI fine; the duplicate surface cost a
-  dependency, a test suite and a page of docs, and its tool descriptions sat
-  in the agent's context whether or not it needed the deck. If you registered
-  it, `claude mcp remove procdeck`; `procdeck agents` gives the agent the CLI
-  instead (a `## procdeck` section in CLAUDE.md / AGENTS.md and a skill).
+## 2.1.0
 
 ### Minor Changes
 
@@ -22,6 +11,14 @@
   `start`, `stop` and `restart` take a proc id, a group name or a quoted glob
   over ids (`'*-native'`), several at a time. Ids do not change; `procdeck
 status` and the UI's sidebar show each group as a section.
+- **The MCP server is gone**: `procdeck mcp` and its tools (`deck_status`,
+  `get_logs`, `get_http`, `get_errors`, `set_mark`, `wait_for`, `timeline`,
+  and the `--mutations` trio). Every one of them was a CLI verb over the same
+  deck API, and agents call a CLI fine; the duplicate surface cost a
+  dependency, a test suite and a page of docs, and its tool descriptions sat
+  in the agent's context whether or not it needed the deck. If you registered
+  it, `claude mcp remove procdeck`; `procdeck agents` gives the agent the CLI
+  instead (a `## procdeck` section in CLAUDE.md / AGENTS.md and a skill).
 
 ## 2.0.1
 
