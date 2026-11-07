@@ -1,5 +1,17 @@
 # procdeck
 
+## Unreleased
+
+### Minor Changes
+
+- A monorepo deck can hold every project's processes and run only the slice
+  you are working on. `"group": "career"` on a proc, `"autostart": false`,
+  and then `procdeck start career` brings up every proc in the group,
+  `procdeck stop career` puts them back to idle while the deck stays up.
+  `start`, `stop` and `restart` take a proc id, a group name or a quoted glob
+  over ids (`'*-native'`), several at a time. Ids do not change; `procdeck
+  status` and the UI's sidebar show each group as a section.
+
 ## 2.0.1
 
 ### Patch Changes
