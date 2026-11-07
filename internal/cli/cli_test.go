@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/kondaurovDev/procdeck/internal/supervisor"
 )
 
 func TestParseDuration(t *testing.T) {
@@ -49,6 +51,24 @@ func TestTable(t *testing.T) {
 		"  web  exit 1   http://web.localhost:4820  ⚠ needs login"
 	if got != want {
 		t.Errorf("table:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestStatusRowsGroupTheProcs(t *testing.T) {
+	info := func(id, group string) supervisor.Info {
+		return supervisor.Info{ID: id, Group: group, Status: supervisor.Status{State: supervisor.Stopped}}
+	}
+	got := table(statusRows([]supervisor.Info{
+		info("career", "career"), info("garage", ""), info("career-native", "career"), info("sbagri-native", "sbagri"),
+	}))
+	want := "  garage           stopped\n" +
+		"  career\n" +
+		"    career         stopped\n" +
+		"    career-native  stopped\n" +
+		"  sbagri\n" +
+		"    sbagri-native  stopped"
+	if got != want {
+		t.Errorf("statusRows:\n%s\nwant:\n%s", got, want)
 	}
 }
 

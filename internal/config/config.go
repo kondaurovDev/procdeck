@@ -102,6 +102,9 @@ type Proc struct {
 	Env map[string]string `json:"env,omitempty"`
 	// Autostart defaults to true; false leaves the pane idle until Start.
 	Autostart *bool `json:"autostart,omitempty"`
+	// Group names a slice of the deck: `procdeck start <group>` starts every
+	// proc in it, and the UI shows them as a section. Ids stay as they are.
+	Group string `json:"group,omitempty"`
 	// URL is shown in the UI as a link and pins readiness to its port.
 	URL string `json:"url,omitempty"`
 	// Port pins the assigned `${port}` to a fixed public number.
@@ -180,7 +183,7 @@ func (c *Config) validate() error {
 			return err
 		}
 	}
-	return firstErr(validateGraph(c.Procs), validatePortTemplates(c.Procs), validatePinnedPorts(c))
+	return firstErr(validateGraph(c.Procs), validateGroups(c.Procs), validatePortTemplates(c.Procs), validatePinnedPorts(c))
 }
 
 func firstErr(errs ...error) error {
@@ -282,6 +285,24 @@ func validateGraph(procs []Proc) error {
 	for _, proc := range procs {
 		if err := visit(proc.ID); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// validateGroups: a group name goes where an id goes on the command line.
+// `{ "id": "career", "group": "career" }` is the natural spelling for a
+// slice named after its main proc, so a group may share a proc's name —
+// but only when that proc is in it; otherwise `start career` would mean two
+// different things.
+func validateGroups(procs []Proc) error {
+	groupOf := make(map[string]string, len(procs))
+	for _, proc := range procs {
+		groupOf[proc.ID] = proc.Group
+	}
+	for _, proc := range procs {
+		if group, isID := groupOf[proc.Group]; isID && group != proc.Group {
+			return fmt.Errorf("group %q is also a proc id, but proc %q is not in that group", proc.Group, proc.Group)
 		}
 	}
 	return nil

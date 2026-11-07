@@ -33,6 +33,8 @@ export type ProcStatus = typeof ProcStatus.Type
 
 export const ProcInfo = S.Struct({
   id: S.String,
+  /** The config's `group`, when the proc is in one — a sidebar section. */
+  group: S.optionalKey(S.String),
   command: S.String,
   url: S.optionalKey(S.String),
   assignedPort: S.optionalKey(S.Number),

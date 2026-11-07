@@ -47,7 +47,22 @@ beforeAll(() => {
       port: PORT,
       procs: [
         { id: "sleeper", cmd: ["node", "-e", "setInterval(() => {}, 1000)"] },
-        { id: "done", cmd: ["node", "-e", "process.exit(0)"] }
+        { id: "done", cmd: ["node", "-e", "process.exit(0)"] },
+        // A slice of the deck that only runs when asked for: `start career`.
+        {
+          id: "career",
+          group: "career",
+          autostart: false,
+          cmd: ["node", "-e", "setInterval(() => {}, 1000)"]
+        },
+        {
+          id: "career-native",
+          group: "career",
+          autostart: false,
+          needs: ["career"],
+          readyWhen: "started",
+          cmd: ["node", "-e", "setInterval(() => {}, 1000)"]
+        }
       ]
     })
   )
@@ -102,9 +117,11 @@ describe("cli", () => {
     expect(status.out).toContain(`clitest · http://localhost:${PORT}`)
     expect(status.out).toMatch(/sleeper\s+running/)
     expect(status.out).toMatch(/done\s+exit 0/)
+    // The group is a section: its name on a line, its procs indented under it.
+    expect(status.out).toMatch(/\n  career\n    career\s+stopped.*\n    career-native\s+stopped/)
 
     const ls = await procdeck("ls")
-    expect(ls.out).toMatch(/clitest\s+:4877\s+up \d+s\s+1\/2 running/)
+    expect(ls.out).toMatch(/clitest\s+:4877\s+up \d+s\s+1\/4 running/)
 
     // Idempotent — and reports the existing pid.
     const again = await procdeck("up", "--no-open")
@@ -134,6 +151,55 @@ describe("cli", () => {
     const open = await procdeck("open")
     expect(open.code).toBe(1)
     expect(open.out).toContain("`procdeck up` first")
+  }, 40_000)
+
+  test("start / stop take an id, a group or a glob", async () => {
+    const up = await procdeck("up", "--no-open")
+    expect(up.code, up.out).toBe(0)
+    const states = async () => {
+      const procs = (await fetch(`http://localhost:${PORT}/__procdeck/api/procs`).then((response) =>
+        response.json()
+      )) as Array<{ id: string; status: { state: string } }>
+      return Object.fromEntries(procs.map((info) => [info.id, info.status.state]))
+    }
+    expect(await states()).toMatchObject({ career: "stopped", "career-native": "stopped" })
+
+    // The group name starts both. `career-native` needs `career`, which never
+    // opens a port here, so it parks in "waiting" — a launch in progress…
+    const start = await procdeck("start", "career")
+    expect(start.code, start.out).toBe(0)
+    expect(start.out).toContain("procdeck: started career, career-native")
+    expect(await states()).toMatchObject({ career: "running", "career-native": "waiting" })
+
+    // …which is exactly what a glob stop has to interrupt.
+    const stop = await procdeck("stop", "*-native")
+    expect(stop.code, stop.out).toBe(0)
+    expect(stop.out).toBe("procdeck: stopped career-native\n")
+    expect(await states()).toMatchObject({ career: "running", "career-native": "stopped" })
+
+    const unknown = await procdeck("start", "sbagri")
+    expect(unknown.code).toBe(1)
+    expect(unknown.out).toContain(
+      'unknown proc "sbagri" — one of: sleeper, done, career, career-native (groups: career)'
+    )
+    const empty = await procdeck("stop", "*-ghost")
+    expect(empty.code).toBe(1)
+    expect(empty.out).toContain('nothing matches "*-ghost"')
+
+    // Several arguments, mixed kinds, and the group stop ends the slice.
+    const restart = await procdeck("restart", "sleeper", "career")
+    expect(restart.code, restart.out).toBe(0)
+    expect(restart.out).toContain("procdeck: restarted sleeper, career, career-native")
+    const stopGroup = await procdeck("stop", "career")
+    expect(stopGroup.out).toContain("procdeck: stopped career, career-native")
+    expect(await states()).toMatchObject({
+      sleeper: "running",
+      career: "stopped",
+      "career-native": "stopped"
+    })
+
+    const down = await procdeck("down")
+    expect(down.code, down.out).toBe(0)
   }, 40_000)
 
   test("restart --all: every registered deck is stopped and detached again", async () => {
@@ -269,7 +335,7 @@ describe("cli", () => {
       // the fresh run's startup line.
       const restart = await inAgent("restart", "ticker")
       expect(restart.code, restart.out + restart.err).toBe(0)
-      expect(restart.out).toContain('"ticker" restarted')
+      expect(restart.out).toContain("procdeck: restarted ticker — `procdeck wait-for ticker`")
       const fresh = await inAgent(
         "wait-for",
         "ticker",

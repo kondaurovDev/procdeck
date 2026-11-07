@@ -5,7 +5,6 @@ package server
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -16,6 +15,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kondaurovDev/procdeck/internal/httplog"
@@ -214,6 +214,10 @@ func (h *handler) events(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// action is `POST /procs/{id}/{action}`. For start / stop / restart the id
+// may also be a group name or a glob — the answer lists the procs it meant.
+// Several procs are handled at once: stopping a tree takes up to the
+// terminate grace, and a group should not pay it per member.
 func (h *handler) action(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var body struct {
@@ -223,27 +227,29 @@ func (h *handler) action(w http.ResponseWriter, r *http.Request) {
 	}
 	readBody(w, r, &body)
 
-	var err error
-	switch r.PathValue("action") {
-	case "start":
-		err = h.sup.Start(id)
-	case "stop":
-		err = h.sup.Stop(id)
-	case "restart":
-		err = h.sup.Restart(id)
+	lifecycle := map[string]func(string) error{"start": h.sup.Start, "stop": h.sup.Stop, "restart": h.sup.Restart}
+	switch action := r.PathValue("action"); action {
+	case "start", "stop", "restart":
+		ids, err := h.sup.Select(id)
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+		var wg sync.WaitGroup
+		for _, id := range ids {
+			wg.Go(func() { lifecycle[action](id) })
+		}
+		wg.Wait()
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "procs": ids})
 	case "resize":
 		h.sup.Resize(id, body.Cols, body.Rows)
+		writeJSON(w, http.StatusOK, ok)
 	case "input":
 		h.sup.Write(id, body.Data)
+		writeJSON(w, http.StatusOK, ok)
 	default:
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown action"})
-		return
 	}
-	if errors.Is(err, supervisor.ErrUnknownProc) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, ok)
 }
 
 func (h *handler) mark(w http.ResponseWriter, r *http.Request) {

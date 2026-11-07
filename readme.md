@@ -128,6 +128,8 @@ procdeck init               # write procdeck.config.json from what the project a
 procdeck up [config]        # start (detached) and open the UI — idempotent
 procdeck down               # stop: every process tree is terminated
 procdeck restart [proc]     # one proc, or the whole deck; --all for every deck on this machine
+procdeck start <proc|group> # start idle procs — a group from the config, or a glob like '*-native'
+procdeck stop <proc|group>  # stop them again; the deck stays up
 procdeck status             # address, uptime, every proc's state (--json for agents)
 procdeck ls                 # every running deck on this machine
 procdeck open               # open the UI — no port to remember

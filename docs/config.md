@@ -69,7 +69,8 @@ or backreferences, linear time on any output.
 | `cmd`       | `string[]`                  | —                     | argv, executed directly without a shell. One process less in the tree.                                               |
 | `cwd`       | `string`                    | config's dir          | Working directory.                                                                                                   |
 | `env`       | `Record<string, string>`    | —                     | Extra environment on top of the inherited one. Values may use `${port}` templates.                                   |
-| `autostart` | `boolean`                   | `true`                | `false` leaves the pane idle until someone presses Start.                                                            |
+| `autostart` | `boolean`                   | `true`                | `false` leaves the pane idle until `procdeck start <id>` or the UI's Start.                                          |
+| `group`     | `string`                    | —                     | A slice of the deck: `procdeck start <group>` starts every proc in it. See [Groups](#groups).                        |
 | `url`       | `string`                    | —                     | URL this process serves, shown as a link in the UI. Also pins readiness to that URL's port.                          |
 | `port`      | `number`                    | random free           | Pin the assigned `${port}` to this exact public number. See [Assigned ports](#assigned-ports).                       |
 | `needs`     | `string[]`                  | —                     | Ids that must be ready before this proc spawns.                                                                      |
@@ -157,6 +158,32 @@ child does not count as ready.
 
 Processes that never listen (queue workers, watchers) declare
 `readyWhen: "started"`.
+
+## Groups
+
+A monorepo deck can hold every project's processes while only a few are
+worked on at a time. `autostart: false` keeps a proc idle until asked, and
+`group` names the slice that gets asked for together:
+
+```jsonc
+{ "id": "garage-api", "shell": "pnpm --filter garage-api dev", "env": { "PORT": "${port}" } },
+{ "id": "career",        "group": "career", "autostart": false, "shell": "pnpm --filter career dev" },
+{ "id": "career-native", "group": "career", "autostart": false, "shell": "pnpm --filter career-native start", "needs": ["career"] }
+```
+
+```sh
+procdeck up               # garage-api comes up; the career procs sit idle
+procdeck start career     # both career procs — the native one waits for `career` as usual
+procdeck logs career      # an id is still just an id
+procdeck stop career      # back to idle; the deck stays up
+procdeck stop '*-native'  # a glob over ids, for "every Metro" — quote it
+```
+
+Ids do not change and get no prefix. A group name goes where an id goes on
+the command line — in `start`, `stop`, `restart` and the MCP tools of the
+same names — so a group may carry the name of its main proc, as above, as
+long as that proc is in it. `procdeck status` and the UI's sidebar show
+each group as a section.
 
 ## Preflight gates
 

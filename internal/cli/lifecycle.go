@@ -1,10 +1,8 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -134,19 +132,18 @@ func restartCmd() *cobra.Command {
 	var flags upFlags
 	var all bool
 	cmd := &cobra.Command{
-		Use:   "restart [proc]",
-		Short: "Restart one proc, the whole deck, or every deck",
-		Long:  "Restart one proc (`restart api`), the whole deck (`restart`), or every deck on this machine (`restart --all`) — the deck-wide forms after updating procdeck or editing the config.",
-		Args:  cobra.MaximumNArgs(1),
+		Use:   "restart [proc|group|glob]...",
+		Short: "Restart procs, the whole deck, or every deck",
+		Long:  "Restart procs (`restart api`, `restart career`), the whole deck (`restart`), or every deck on this machine (`restart --all`) — the deck-wide forms after updating procdeck or editing the config. " + selectorHelp,
+		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			proc := firstArg(args)
 			switch {
-			case all && proc != "":
-				return fail("--all restarts every deck — drop %q", proc)
+			case all && len(args) > 0:
+				return fail("--all restarts every deck — drop %q", strings.Join(args, " "))
 			case all:
 				return restartAll()
-			case proc != "":
-				return restartProc(cmd.Context(), proc)
+			case len(args) > 0:
+				return actOnProcs(cmd.Context(), "restart", args)
 			}
 			if err := runDown(""); err != nil {
 				return err
@@ -157,29 +154,6 @@ func restartCmd() *cobra.Command {
 	flags.register(cmd)
 	cmd.Flags().BoolVar(&all, "all", false, "restart every deck on this machine (e.g. after updating procdeck)")
 	return cmd
-}
-
-func restartProc(ctx context.Context, proc string) error {
-	instance, err := requireInstance("")
-	if err != nil {
-		return err
-	}
-	var procs []supervisor.Info
-	if err := deckclient.Get(ctx, instance, "/procs", &procs); err != nil {
-		return fail("%s", err)
-	}
-	var ids []string
-	for _, info := range procs {
-		ids = append(ids, info.ID)
-	}
-	if !slices.Contains(ids, proc) {
-		return fail("unknown proc %q — one of: %s", proc, strings.Join(ids, ", "))
-	}
-	if err := deckclient.Post(ctx, instance, "/procs/"+url.PathEscape(proc)+"/restart", struct{}{}, nil); err != nil {
-		return fail("%s", err)
-	}
-	fmt.Printf("procdeck: %q restarted — `procdeck wait-for %s` to await readiness\n", proc, proc)
-	return nil
 }
 
 // restartAll stops and detaches again every deck in the registry, straight
@@ -269,20 +243,43 @@ func statusCmd() *cobra.Command {
 			if len(procs) == 0 {
 				return nil
 			}
-			var rows [][]string
-			for _, info := range procs {
-				alert := ""
-				if info.Status.Alert != "" {
-					alert = "⚠ " + info.Status.Alert
-				}
-				rows = append(rows, []string{"  " + info.ID, deckclient.DescribeProc(info), info.ProxyURL, alert})
-			}
-			fmt.Println(table(rows))
+			fmt.Println(table(statusRows(procs)))
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "machine-readable output (for agents and scripts)")
 	return cmd
+}
+
+// statusRows lays the procs out as the table: ungrouped ones first, then
+// each group under its name, members indented — the sections of the UI's
+// sidebar in text.
+func statusRows(procs []supervisor.Info) [][]string {
+	row := func(indent string, info supervisor.Info) []string {
+		alert := ""
+		if info.Status.Alert != "" {
+			alert = "⚠ " + info.Status.Alert
+		}
+		return []string{indent + info.ID, deckclient.DescribeProc(info), info.ProxyURL, alert}
+	}
+	var rows [][]string
+	var groups []string
+	for _, info := range procs {
+		if info.Group == "" {
+			rows = append(rows, row("  ", info))
+		} else if !slices.Contains(groups, info.Group) {
+			groups = append(groups, info.Group)
+		}
+	}
+	for _, group := range groups {
+		rows = append(rows, []string{"  " + group})
+		for _, info := range procs {
+			if info.Group == group {
+				rows = append(rows, row("    ", info))
+			}
+		}
+	}
+	return rows
 }
 
 func lsCmd() *cobra.Command {

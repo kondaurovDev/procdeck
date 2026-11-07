@@ -1,6 +1,6 @@
 // Package cli is procdeck's command line: the deck lifecycle (up, down,
-// restart, status, ls, open, init) and the agent-facing commands (logs,
-// mark, wait-for, errors, agents).
+// restart, start, stop, status, ls, open, init) and the agent-facing commands
+// (logs, mark, wait-for, errors, agents).
 package cli
 
 import (
@@ -72,7 +72,7 @@ func newRoot() *cobra.Command {
 	root.SetVersionTemplate("procdeck v{{.Version}}\n")
 	up.register(root)
 	root.AddCommand(
-		initCmd(), upCmd(), downCmd(), restartCmd(), statusCmd(), lsCmd(), openCmd(),
+		initCmd(), upCmd(), downCmd(), restartCmd(), startCmd(), stopCmd(), statusCmd(), lsCmd(), openCmd(),
 		logsCmd(), httpCmd(), markCmd(), waitForCmd(), errorsCmd(), agentsCmd(), mcpCmd(),
 	)
 	return root

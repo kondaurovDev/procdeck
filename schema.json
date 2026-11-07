@@ -105,7 +105,12 @@
           },
           "autostart": {
             "type": "boolean",
-            "description": "Spawn on startup. Defaults to true; false leaves the pane idle until Start."
+            "description": "Spawn on startup. Defaults to true; false leaves the pane idle until Start (`procdeck start <id>`, the UI, or MCP)."
+          },
+          "group": {
+            "type": "string",
+            "description": "A slice of the deck this proc belongs to: `procdeck start <group>` / `stop <group>` act on every proc in it, and the UI shows the group as a section. Ids stay as they are. A group may carry the name of its main proc (`{ \"id\": \"career\", \"group\": \"career\" }`) as long as that proc is in it.",
+            "examples": ["career"]
           },
           "url": {
             "type": "string",

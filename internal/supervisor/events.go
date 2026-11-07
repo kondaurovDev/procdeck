@@ -43,7 +43,9 @@ type Status struct {
 
 // Info is the static description of a proc plus its current status.
 type Info struct {
-	ID      string `json:"id"`
+	ID string `json:"id"`
+	// Group is the config's `group`, when the proc is in one.
+	Group   string `json:"group,omitempty"`
 	Command string `json:"command"`
 	URL     string `json:"url,omitempty"`
 	// AssignedPort is the port procdeck assigned (specs using `${port}`).

@@ -59,7 +59,8 @@ accidentally pull a megabyte of scrollback into its context.
 | `procdeck http [proc]`     | The captured HTTP and WebSocket traffic — see [traffic.md](traffic.md).                                                                                             |
 | `procdeck mark [name]`     | Drops a named marker at "now" in every proc's stream.                                                                                                               |
 | `procdeck wait-for <proc>` | Blocks until the proc listens (or `--pattern` matches). Fails fast with the log tail if it crashes instead; exit 2 on timeout.                                      |
-| `procdeck restart <proc>`  | Restarts one process. Without an id, the whole deck.                                                                                                                |
+| `procdeck restart <proc>`  | Restarts one process. Without an id, the whole deck. A `group` from the config or a quoted glob (`'*-native'`) names several.                                       |
+| `procdeck start <proc>`    | Starts an idle process (`autostart: false`, or stopped earlier); `procdeck stop <proc>` stops it, the deck stays up. Same group / glob arguments.                   |
 
 Narrowing flags, shared by `logs`, `errors` and `http`:
 

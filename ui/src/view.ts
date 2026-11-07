@@ -145,6 +145,23 @@ const procRow = (
   )
 }
 
+/**
+ * The sidebar's sections: procs without a `group` first, in config order,
+ * then each group under its name, in order of first appearance. The same
+ * shape `procdeck status` prints.
+ */
+const sidebarSections = (
+  procs: ReadonlyArray<ProcInfo>
+): Array<{ group: string | undefined; procs: Array<ProcInfo> }> => {
+  const groups = [
+    ...new Set(procs.flatMap((info) => (info.group === undefined ? [] : [info.group])))
+  ]
+  return [
+    { group: undefined, procs: procs.filter((info) => info.group === undefined) },
+    ...groups.map((group) => ({ group, procs: procs.filter((info) => info.group === group) }))
+  ].filter((section) => section.procs.length > 0)
+}
+
 /** Pin + Restart / Stop-or-Start / Clear for one pane, as compact icon buttons. */
 const paneActions = (info: ProcInfo, pinned: boolean, h: HtmlBuilder<Message>): Html => {
   const { state } = info.status
@@ -547,16 +564,21 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => ({
         [
           h.div(
             [],
-            model.procs.map((info) =>
-              procRow(
-                info,
-                info.id === model.active,
-                model.pinned.includes(info.id),
-                model.unread[info.id] ?? 0,
-                model.now,
-                h
+            sidebarSections(model.procs).flatMap(({ group, procs }) => [
+              ...(group === undefined
+                ? []
+                : [h.div([h.Key(`group:${group}`), h.Class("group")], [group])]),
+              ...procs.map((info) =>
+                procRow(
+                  info,
+                  info.id === model.active,
+                  model.pinned.includes(info.id),
+                  model.unread[info.id] ?? 0,
+                  model.now,
+                  h
+                )
               )
-            )
+            ])
           ),
           h.div(
             [h.Class("hints")],

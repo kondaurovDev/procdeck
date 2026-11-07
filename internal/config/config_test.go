@@ -86,6 +86,22 @@ func TestRejectsGraphProblems(t *testing.T) {
 	parseError(t, `{"procs": [{"id": "a", "shell": "x"}, {"id": "a", "shell": "y"}]}`, "duplicate proc ids")
 }
 
+func TestGroups(t *testing.T) {
+	config := mustParse(t, `{"procs": [
+		{"id": "career", "shell": "x", "group": "career", "autostart": false},
+		{"id": "career-native", "shell": "x", "group": "career", "needs": ["career"], "autostart": false},
+		{"id": "garage", "shell": "x"}
+	]}`)
+	if config.Procs[1].Group != "career" || config.Procs[2].Group != "" {
+		t.Fatalf("procs = %+v", config.Procs)
+	}
+	// A group may be named after a proc only when that proc is in it.
+	parseError(t, `{"procs": [
+		{"id": "career", "shell": "x", "group": "mobile"},
+		{"id": "career-native", "shell": "x", "group": "career"}
+	]}`, `group "career" is also a proc id, but proc "career" is not in that group`)
+}
+
 func TestPreflightAndAlerts(t *testing.T) {
 	config := mustParse(t, `{"procs": [{
 		"id": "api", "shell": "pnpm dev",

@@ -136,6 +136,37 @@ func TestUnknownProc(t *testing.T) {
 	}
 }
 
+func TestSelect(t *testing.T) {
+	off := false
+	s := start(t,
+		config.Proc{ID: "career", Shell: longRunner, Group: "career", Autostart: &off},
+		config.Proc{ID: "career-native", Shell: longRunner, Group: "career", Autostart: &off},
+		config.Proc{ID: "sbagri-native", Shell: longRunner, Group: "sbagri", Autostart: &off},
+		config.Proc{ID: "garage", Shell: longRunner, Autostart: &off},
+	)
+	cases := map[string][]string{
+		"garage":        {"garage"},
+		"career":        {"career", "career-native"}, // id and group: the group
+		"sbagri":        {"sbagri-native"},
+		"*-native":      {"career-native", "sbagri-native"},
+		"career*":       {"career", "career-native"},
+		"[gs]*":         {"sbagri-native", "garage"},
+		"career-native": {"career-native"},
+	}
+	for selector, want := range cases {
+		got, err := s.Select(selector)
+		if err != nil || !slices.Equal(got, want) {
+			t.Errorf("Select(%q) = %v, %v; want %v", selector, got, err, want)
+		}
+	}
+	if _, err := s.Select("ghost"); err == nil || err.Error() != `unknown proc "ghost" — one of: career, career-native, sbagri-native, garage (groups: career, sbagri)` {
+		t.Errorf("unknown: %v", err)
+	}
+	if _, err := s.Select("*-ghost"); err == nil || !strings.Contains(err.Error(), `nothing matches "*-ghost"`) {
+		t.Errorf("empty glob: %v", err)
+	}
+}
+
 func TestFailingProcMarksItself(t *testing.T) {
 	s := start(t,
 		config.Proc{ID: "broken", Cmd: []string{"definitely-not-a-real-binary-xyz"}},

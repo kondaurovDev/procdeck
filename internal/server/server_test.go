@@ -67,7 +67,7 @@ func TestProcsAndDeck(t *testing.T) {
 
 func TestActions(t *testing.T) {
 	srv, sup := serve(t, config.Proc{ID: "api", Shell: "exec sleep 1000"})
-	if code, body := call(t, srv, "POST", api+"/procs/api/stop", "{}"); code != 200 || body != "{\"ok\":true}\n" {
+	if code, body := call(t, srv, "POST", api+"/procs/api/stop", "{}"); code != 200 || body != "{\"ok\":true,\"procs\":[\"api\"]}\n" {
 		t.Fatalf("stop: %d %s", code, body)
 	}
 	if state := sup.List()[0].Status.State; state != supervisor.Stopped {
@@ -82,6 +82,41 @@ func TestActions(t *testing.T) {
 	// Input and resize to a stopped or unknown proc are harmless.
 	if code, _ := call(t, srv, "POST", api+"/procs/api/input", `{"data":"x"}`); code != 200 {
 		t.Fatalf("input: %d", code)
+	}
+}
+
+// A group name or a glob in place of the id acts on every proc it names.
+func TestActionsOnGroupsAndGlobs(t *testing.T) {
+	off := false
+	srv, sup := serve(t,
+		config.Proc{ID: "career", Shell: "exec sleep 1000", Group: "career", Autostart: &off},
+		config.Proc{ID: "career-native", Shell: "exec sleep 1000", Group: "career", Autostart: &off},
+		config.Proc{ID: "garage", Shell: "exec sleep 1000"},
+	)
+	states := func() string {
+		var out []string
+		for _, info := range sup.List() {
+			out = append(out, info.ID+"="+string(info.Status.State))
+		}
+		return strings.Join(out, " ")
+	}
+	if code, body := call(t, srv, "POST", api+"/procs/career/start", ""); code != 200 || body != "{\"ok\":true,\"procs\":[\"career\",\"career-native\"]}\n" {
+		t.Fatalf("start group: %d %s", code, body)
+	}
+	if got := states(); got != "career=running career-native=running garage=running" {
+		t.Fatalf("after start career: %s", got)
+	}
+	if code, body := call(t, srv, "POST", api+"/procs/*-native/stop", ""); code != 200 || body != "{\"ok\":true,\"procs\":[\"career-native\"]}\n" {
+		t.Fatalf("stop glob: %d %s", code, body)
+	}
+	if got := states(); got != "career=running career-native=stopped garage=running" {
+		t.Fatalf("after stop *-native: %s", got)
+	}
+	if code, body := call(t, srv, "POST", api+"/procs/*-ghost/stop", ""); code != 404 || !strings.Contains(body, `nothing matches \"*-ghost\"`) {
+		t.Fatalf("empty glob: %d %s", code, body)
+	}
+	if code, body := call(t, srv, "POST", api+"/procs/sbagri/start", ""); code != 404 || !strings.Contains(body, `(groups: career)`) {
+		t.Fatalf("unknown name should list groups: %d %s", code, body)
 	}
 }
 

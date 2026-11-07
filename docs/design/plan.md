@@ -126,8 +126,12 @@ Grafana/Datadog "fit vs scroll"):
 - **Status filter chips** in the global bar — running / exited / alerts
   (Docker Desktop, k9s). Cheap; answers "show me only what's broken". Not
   built yet.
-- **Groups from config** (`group: "frontend"`) as collapsible grid sections
-  and sidebar sections — later, when a deck outgrows pins.
+- **Groups from config** (`group: "career"`) — shipped as the CLI's unit of
+  work (`procdeck start|stop|restart <group>`, also a glob over ids) and as
+  sidebar sections; `procdeck status` prints the same sections. The use case
+  is a monorepo deck where only one project's slice runs at a time
+  (`autostart: false` + `start <group>`). Collapsible grid sections: not
+  built — pins cover the grid for now.
 - **Drag-to-reorder** — nice-to-have; not before pins have proven insufficient.
 - **⌥1…⌥9** — jump to the N-th proc (mprocs/tmux habit).
 

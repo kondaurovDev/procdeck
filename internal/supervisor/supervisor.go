@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -761,6 +762,7 @@ func (s *Supervisor) List() []Info {
 		}
 		infos = append(infos, Info{
 			ID:           r.spec.ID,
+			Group:        r.spec.Group,
 			Command:      proc.Describe(r.resolved),
 			URL:          link,
 			AssignedPort: r.assignedPort,
@@ -804,6 +806,41 @@ func (s *Supervisor) HTTPRecorder(id string) interpose.Record {
 		return nil
 	}
 	return func(c httplog.Capture) { s.recordHTTP(r, c) }
+}
+
+// Select resolves what a command line names into proc ids, in config order:
+// an id, a group (every proc in it), or a glob such as `*-native`. A name
+// that is both an id and a group means the group — the config guarantees
+// that proc is in it.
+func (s *Supervisor) Select(selector string) ([]string, error) {
+	var ids, groups []string
+	for _, r := range s.order {
+		if r.spec.ID == selector || r.spec.Group == selector {
+			ids = append(ids, r.spec.ID)
+		}
+		if r.spec.Group != "" && !slices.Contains(groups, r.spec.Group) {
+			groups = append(groups, r.spec.Group)
+		}
+	}
+	if len(ids) > 0 {
+		return ids, nil
+	}
+	if strings.ContainsAny(selector, "*?[") {
+		for _, r := range s.order {
+			if matched, _ := path.Match(selector, r.spec.ID); matched {
+				ids = append(ids, r.spec.ID)
+			}
+		}
+		if len(ids) > 0 {
+			return ids, nil
+		}
+		return nil, fmt.Errorf("%w: nothing matches %q — procs: %s", ErrUnknownProc, selector, strings.Join(s.IDs(), ", "))
+	}
+	known := "one of: " + strings.Join(s.IDs(), ", ")
+	if len(groups) > 0 {
+		known += " (groups: " + strings.Join(groups, ", ") + ")"
+	}
+	return nil, fmt.Errorf("%w %q — %s", ErrUnknownProc, selector, known)
 }
 
 // IDs lists the proc ids in config order.

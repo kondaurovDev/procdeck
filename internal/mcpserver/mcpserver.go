@@ -13,7 +13,8 @@
 // agent runs in (cwd → config walk → registry), per call — the server
 // outlives deck restarts and can start before the deck is up.
 //
-// Read-only by default; --mutations also exposes restart/stop/start.
+// Read-only by default; --mutations also exposes restart/stop/start, which
+// take an id, a group or a glob like the CLI verbs.
 package mcpserver
 
 import (
@@ -155,7 +156,7 @@ type waitInput struct {
 }
 
 type procInput struct {
-	Proc string `json:"proc" jsonschema:"proc id"`
+	Proc string `json:"proc" jsonschema:"proc id, a group name from the config (every proc in it), or a glob over ids such as *-native"`
 }
 
 // waitResult is wait_for's answer: a success with a message, or a failure
@@ -288,9 +289,9 @@ func New(version string, mutations bool) *mcp.Server {
 
 	if mutations {
 		for _, action := range []struct{ name, verb, description string }{
-			{"restart_proc", "restart", "Restart one process of the deck by id (stop, then start). Follow with wait_for before exercising it."},
-			{"stop_proc", "stop", "Stop one process of the deck by id (the whole process tree)."},
-			{"start_proc", "start", "Start one stopped process of the deck by id."},
+			{"restart_proc", "restart", "Restart processes of the deck (stop, then start): one by id, a whole group by its name, or a glob over ids. Follow with wait_for before exercising them. The answer lists the procs it reached."},
+			{"stop_proc", "stop", "Stop processes of the deck (the whole process tree of each): one by id, a group by its name, or a glob over ids. The deck stays up; the panes stay, idle."},
+			{"start_proc", "start", "Start stopped processes of the deck: one by id, a group by its name (the way to bring up the slice of a monorepo you are working on), or a glob over ids."},
 		} {
 			tool(server, &mcp.Tool{Name: action.name, Description: action.description}, func(ctx context.Context, i registry.Instance, in procInput) (any, error) {
 				var answer map[string]any
