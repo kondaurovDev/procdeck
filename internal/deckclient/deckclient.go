@@ -1,6 +1,5 @@
-// Package deckclient asks a running deck over its HTTP API — shared by the
-// CLI commands and the MCP server. One implementation of "ask the deck", two
-// front doors.
+// Package deckclient asks a running deck over its HTTP API — one
+// implementation of "ask the deck" for every CLI command.
 package deckclient
 
 import (
@@ -99,8 +98,8 @@ func DescribeProc(info supervisor.Info) string {
 	}
 }
 
-// AttentionOf says why a proc deserves a look, if it does — the CLI/MCP twin
-// of the UI badge.
+// AttentionOf says why a proc deserves a look, if it does — the CLI twin of
+// the UI badge.
 func AttentionOf(info supervisor.Info) string {
 	st := info.Status
 	switch {
@@ -122,8 +121,7 @@ type Attention struct {
 	Reason string `json:"reason"`
 }
 
-// StatusReport is `status --json` and the `deck_status` MCP tool — an
-// agent's first question.
+// StatusReport is `status --json` — an agent's first question.
 type StatusReport struct {
 	Up        bool          `json:"up"`
 	Name      string        `json:"name"`

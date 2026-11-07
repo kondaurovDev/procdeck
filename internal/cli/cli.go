@@ -73,7 +73,7 @@ func newRoot() *cobra.Command {
 	up.register(root)
 	root.AddCommand(
 		initCmd(), upCmd(), downCmd(), restartCmd(), startCmd(), stopCmd(), statusCmd(), lsCmd(), openCmd(),
-		logsCmd(), httpCmd(), markCmd(), waitForCmd(), errorsCmd(), agentsCmd(), mcpCmd(),
+		logsCmd(), httpCmd(), markCmd(), waitForCmd(), errorsCmd(), agentsCmd(),
 	)
 	return root
 }

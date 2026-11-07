@@ -33,8 +33,6 @@ That is why:
   login would imply it is safe to expose, and it is not.
 - The `*.localhost` reverse proxy is reachable on that same port, and so are
   the deck's HTTP API and the captured traffic.
-- `procdeck mcp` is **read-only by default**; `--mutations` is what adds
-  restart/stop/start for an agent.
 
 ## The traffic observer
 
@@ -49,8 +47,8 @@ through each proc's assigned `${port}`. What that means for secrets:
 - Request and response **bodies are captured** when the content type is text,
   up to 16 kB each. If your dev traffic carries tokens or personal data in
   bodies, that data is readable by anything that can reach the deck — including
-  a coding agent you gave the MCP tools to. Set `"observe": false` on a proc to
-  turn its capture off.
+  a coding agent with a shell. Set `"observe": false` on a proc to turn its
+  capture off.
 
 ## Other notes
 

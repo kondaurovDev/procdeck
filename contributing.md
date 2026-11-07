@@ -41,8 +41,8 @@ process-group kills, SIGTERM-ignoring survivors, teardown. Mocking that would
 test the mock. They need a real PTY (`/dev/ptmx`), so they will not run inside
 a sandbox that blocks PTY allocation.
 
-[`e2e/`](e2e/) drives the built binary from the outside — the CLI, the HTTP
-API, an MCP session — and builds it first unless `PROCDECK_BIN` names one.
+[`e2e/`](e2e/) drives the built binary from the outside — the CLI and the HTTP
+API — and builds it first unless `PROCDECK_BIN` names one.
 
 ## Style
 
@@ -52,8 +52,8 @@ API, an MCP session — and builds it first unless `PROCDECK_BIN` names one.
   it is what editors show. A field added to the Go structs in
   [`internal/config`](internal/config/) needs its entry there —
   `TestSchemaMatchesTheStructs` fails until the two agree.
-- New capability? It usually needs three surfaces kept in step: the CLI verb,
-  the MCP tool, and the docs page.
+- New capability? It usually needs the CLI verb and the docs page kept in
+  step — and `schema.json` when a config field is involved.
 
 [`docs/architecture.md`](docs/architecture.md) maps the codebase — read it
 before a change that crosses files.

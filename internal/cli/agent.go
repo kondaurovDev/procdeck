@@ -360,7 +360,6 @@ func agentsCmd() *cobra.Command {
 			for _, action := range actions {
 				fmt.Println("  " + action)
 			}
-			fmt.Println("tip:  `claude mcp add procdeck -- procdeck mcp` adds the MCP tools in every procdeck project at once")
 			return nil
 		},
 	}

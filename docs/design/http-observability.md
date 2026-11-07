@@ -6,7 +6,7 @@ them, and today that is invisible unless someone printed it. The goal: see
 the traffic itself — "POST /orders returned 422 with this body" — for the
 agent (via the harness verbs) and for the human (a network view per pane).
 Companion to docs/design/agent-harness.md; reuses its machinery (byte-bounded ring
-buffers, marks, the CLI/MCP twin surfaces).
+buffers, marks, the CLI surface).
 
 ## Why not CDP (Chrome DevTools Protocol)
 
@@ -86,9 +86,9 @@ than log lines: the actual status and body caused by the change.
   request (token economy).
 - **Digest**: `procdeck http --digest` (or a separate verb) — 4xx/5xx
   grouped by route with counts, the `errors` analog for traffic.
-- **MCP**: `get_http` mirroring the CLI verb 1:1 (+ `since_last` cursors and
-  `timeline` gaining http events, so the agent can pivot error → moment →
-  requests around it).
+- ~~**MCP**: `get_http` mirroring the CLI verb 1:1~~ — shipped, then removed
+  with the MCP server (agent-harness.md has the decision). The server side
+  it needed — `sinceMs`/`untilMs` windows on `GET /http` — stays.
 - **UI**: shipped as a deck-wide traffic view — the third position of the
   layout switch (⇄), not a per-pane tab: one interleaved, newest-first
   stream with kind/proc/errors filters, click-to-expand bodies, pause and
@@ -121,9 +121,8 @@ than log lines: the actual status and body caused by the change.
    UI proxy forwards into the observer for interposed procs and records only
    for opted-out ones — every exchange counts exactly once.
 3. ~~**Agent surfaces**~~ — shipped: `procdeck http [proc] [--status 5xx]
-[--path RE] [--since-mark] [--body] [--digest] [--json]`, the `get_http`
-   MCP tool (with its own `since_last` cursor), marks carry `httpSeqs`
-   alongside line seqs, `timeline` returns the window's exchanges too.
+[--path RE] [--since-mark] [--body] [--digest] [--json]`; marks carry
+   `httpSeqs` alongside line seqs.
    Redaction on at capture time (auth/cookie headers never enter the ring);
    digest normalizes routes (`/users/:id`) like error signatures.
 4. ~~**WebSocket frame capture**~~ — shipped: the RFC 6455 parser

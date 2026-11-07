@@ -18,7 +18,7 @@ allocator, the log viewer and the network tab of your dev environment:
 - **Sees the traffic.** The HTTP and WebSocket requests _between_ your
   services — the half a browser's DevTools never shows.
 - **Answers from the CLI.** `procdeck logs --since-mark fix`, `http --digest`,
-  `status --json` — for you, or for a coding agent over MCP.
+  `status --json` — for you, or for a coding agent.
 
 ## Quick start
 
@@ -114,10 +114,9 @@ procdeck logs --since-mark before-fix # only what the change caused
 procdeck http --since-mark before-fix # only the requests it caused
 ```
 
-Everything takes `--json` and is bounded by default. The same verbs are served
-over MCP — `claude mcp add procdeck -- procdeck mcp`, once, globally: the
-instance registry finds the right deck per project. `procdeck agents` writes
-the discovery section into CLAUDE.md / AGENTS.md.
+Everything takes `--json` and is bounded by default. `procdeck agents` writes
+the discovery section into CLAUDE.md / AGENTS.md and a Claude Code skill, so
+the agent knows the deck exists and how to ask it.
 
 See [docs/agents.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/agents.md).
 
@@ -177,7 +176,7 @@ variables of a dotenv file. Full field reference:
 ## Upgrading from 1.x
 
 2.0 is the same tool rewritten in Go — the CLI verbs, their flags and `--json`
-shapes, the MCP tools and the addresses stay. What changes:
+shapes and the addresses stay. What changes:
 
 - **Configs are JSON.** A `procdeck.config.ts` becomes `procdeck.config.jsonc`:
   quote the keys, drop the `import` and `defineConfig(…)`, keep the comments.
@@ -207,7 +206,7 @@ templates. See [`example/`](https://github.com/kondaurovDev/procdeck/tree/main/e
 | Doc                                                                                        | What                                                   |
 | ------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
 | [config.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/config.md)             | Every config field, port templating, readiness, gates. |
-| [agents.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/agents.md)             | The verify loop, the CLI verbs, the MCP tools.         |
+| [agents.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/agents.md)             | The verify loop and the CLI verbs for coding agents.   |
 | [traffic.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/traffic.md)           | What the HTTP observer captures, and what it cannot.   |
 | [architecture.md](https://github.com/kondaurovDev/procdeck/blob/main/docs/architecture.md) | How the code is put together.                          |
 | [design/](https://github.com/kondaurovDev/procdeck/tree/main/docs/design/)                 | Engineering notes behind the bigger features.          |

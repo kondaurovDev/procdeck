@@ -180,9 +180,8 @@ procdeck stop '*-native'  # a glob over ids, for "every Metro" — quote it
 ```
 
 Ids do not change and get no prefix. A group name goes where an id goes on
-the command line — in `start`, `stop`, `restart` and the MCP tools of the
-same names — so a group may carry the name of its main proc, as above, as
-long as that proc is in it. `procdeck status` and the UI's sidebar show
+the command line — in `start`, `stop` and `restart` — so a group may carry
+the name of its main proc, as above, as long as that proc is in it. `procdeck status` and the UI's sidebar show
 each group as a section.
 
 ## Preflight gates

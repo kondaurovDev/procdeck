@@ -37,8 +37,8 @@ func stopCmd() *cobra.Command {
 }
 
 // actOnProcs runs one lifecycle verb over every selector, in order, and
-// reports which procs it reached. The deck resolves the names, so the CLI,
-// the UI and the MCP tools agree on what "career" means.
+// reports which procs it reached. The deck resolves the names, so the CLI
+// and the UI agree on what "career" means.
 func actOnProcs(ctx context.Context, verb string, selectors []string) error {
 	instance, err := requireInstance("")
 	if err != nil {

@@ -50,6 +50,5 @@ alerting) so you skip log-reading when everything is green.
   that; a single proc is cheaper when the code changed.
 - Each proc may have a stable address: `http://<id>.localhost:<ui-port>`
   (see `proxyUrl` in status output).
-- MCP alternative: `claude mcp add procdeck -- procdeck mcp` exposes these
-  as tools (deck_status, get_logs, get_http, get_errors, set_mark, wait_for,
-  timeline) in every procdeck project at once.
+- `procdeck start <proc|group>` / `stop <proc|group>` bring one project's
+  slice of a monorepo deck up or down without touching the rest.

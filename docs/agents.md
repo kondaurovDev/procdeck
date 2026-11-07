@@ -6,8 +6,9 @@ dev server — duplicate processes, port fights — or asks you to paste logs.
 
 procdeck already owns those processes: their output, their ports, their
 restart lifecycle, the traffic between them. Every one of those is available
-as a bounded, machine-readable command. The same verbs are served over MCP,
-so an agent that speaks MCP needs no shell at all.
+as a bounded, machine-readable command — and agents are fluent in a shell, so
+a CLI is the whole interface: no server to register, nothing in the agent's
+context until it asks.
 
 ## The verify loop
 
@@ -37,14 +38,9 @@ file if absent) and installs a Claude Code skill that teaches the loop above.
 Idempotent — run it again after an update. `procdeck init` does the same for a
 fresh project.
 
-For MCP, one global registration covers every project:
-
-```sh
-claude mcp add procdeck -- procdeck mcp
-```
-
-The instance registry finds the right deck for whatever project the agent is
-working in, so there is nothing per-project to configure.
+Every command finds the deck from the current directory (the config is
+located walking up, like git finds its root), so there is nothing
+per-project to configure beyond that section.
 
 ## Commands
 
@@ -75,27 +71,6 @@ Narrowing flags, shared by `logs`, `errors` and `http`:
 `procdeck logs --self [-f]` is a different thing: procdeck's own daemon log
 (startup, shutdown, its own errors), not pane output.
 
-## MCP
-
-`procdeck mcp` serves the same verbs over stdio. Read-only by default:
-
-| Tool          | Notes                                                                                                                                                  |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `deck_status` | The `attention` list first; call it before reading logs.                                                                                               |
-| `get_logs`    | `proc`, `lines`, `grep`, `since_seconds`, `since_mark`, `since_last`.                                                                                  |
-| `get_http`    | `status`, `path`, `kind` (`http` / `ws`), `bodies`, plus the same cursors.                                                                             |
-| `get_errors`  | Deduplicated stack traces.                                                                                                                             |
-| `set_mark`    | The marker half of the verify loop.                                                                                                                    |
-| `wait_for`    | `proc`, `pattern`, `timeout_seconds`.                                                                                                                  |
-| `timeline`    | Output of several procs _and_ the HTTP exchanges around a moment in time: "the frontend threw a 500 at T — what were api and worker doing right then?" |
-
-`since_last: true` returns only what arrived after that tool's previous call in
-the same session — a cursor the agent does not have to maintain.
-
-`procdeck mcp --mutations` additionally exposes `restart_proc`, `stop_proc` and
-`start_proc`. That is opt-in on purpose: read-only is the safe default for a
-tool registered globally across every project.
-
 ## What it does not see
 
 - Outbound calls to the internet, and traffic of procs that bind a hardcoded
@@ -104,5 +79,5 @@ tool registered globally across every project.
 
 Marks live in memory and die with the deck; re-marking the same name moves it.
 
-The design notes behind all of this are in
+The design notes behind all of this — and why there is no MCP server — are in
 [design/agent-harness.md](design/agent-harness.md).

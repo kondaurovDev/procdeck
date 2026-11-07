@@ -89,6 +89,6 @@ than for a browser tab.
 - **HTTPS upstreams.** Local dev is plain HTTP; procdeck does not terminate TLS.
 - **Binary bodies** are counted and sized, never stored.
 
-Agents read the same captures through `procdeck http --json` or the `get_http`
-MCP tool — see [agents.md](agents.md). The design notes are in
+Agents read the same captures through `procdeck http --json` — see
+[agents.md](agents.md). The design notes are in
 [design/http-observability.md](design/http-observability.md).

@@ -7,7 +7,7 @@ How procdeck is put together, for anyone reading or changing the code.
 | `main.go`     | The `procdeck` command.                                                                                                    |
 | `internal/`   | Everything else in Go — packages the compiler keeps private to this module.                                                |
 | `ui/`         | [Foldkit](https://foldkit.dev) (Elm-on-Effect) app; vite builds it straight into `internal/webui`, embedded in the binary. |
-| `e2e/`        | Black-box suites (vitest) driving the built binary: the CLI, the HTTP observer, an MCP session.                            |
+| `e2e/`        | Black-box suites (vitest) driving the built binary: the CLI and the HTTP observer.                                         |
 | `npm/`        | The npm distribution: the launcher package, and `build.mjs` assembling the per-platform packages at release.               |
 | `example/`    | A self-contained demo stack (Node one-liners) exercising every feature.                                                    |
 | `schema.json` | The config's JSON Schema for editors; `TestSchemaMatchesTheStructs` keeps it in step with `internal/config`.               |
@@ -33,9 +33,8 @@ How procdeck is put together, for anyone reading or changing the code.
 | Package               | What                                                                                                                                                                              |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `internal/lines`      | Per-proc **line** buffers: ANSI stripped, `\r` progress bars reduced to their final state, byte-bounded, `seq`-cursored. The machine-readable twin of the terminal chunk backlog. |
-| `internal/deckclient` | The client for a running deck's HTTP API — one implementation of "ask the deck", used by both front doors.                                                                        |
+| `internal/deckclient` | The client for a running deck's HTTP API — one implementation of "ask the deck" behind every CLI verb.                                                                            |
 | `internal/errscan`    | Heuristic error extraction over the line buffers: find an error's first line, attach its frames, deduplicate by signature.                                                        |
-| `internal/mcpserver`  | `procdeck mcp` on the official Go SDK: the same verbs as MCP tools over stdio. Read-only unless `--mutations`.                                                                    |
 | `internal/discover`   | `procdeck agents`: the `## procdeck` section in CLAUDE.md / AGENTS.md and the Claude Code skill, embedded verbatim.                                                               |
 
 ## The traffic observer

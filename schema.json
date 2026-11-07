@@ -105,7 +105,7 @@
           },
           "autostart": {
             "type": "boolean",
-            "description": "Spawn on startup. Defaults to true; false leaves the pane idle until Start (`procdeck start <id>`, the UI, or MCP)."
+            "description": "Spawn on startup. Defaults to true; false leaves the pane idle until Start (`procdeck start <id>` or the UI)."
           },
           "group": {
             "type": "string",

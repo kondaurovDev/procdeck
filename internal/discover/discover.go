@@ -1,12 +1,10 @@
 // Package discover is how a coding agent learns procdeck exists.
 //
-// MCP tools are self-describing, but the plain CLI is invisible until
-// something tells the agent about it. `procdeck agents` (and `procdeck init`
-// when the project already has agent instructions) plants that knowledge: a
-// short section in CLAUDE.md / AGENTS.md ("know I exist, ask status first")
-// and a Claude Code skill teaching the whole verify loop. The same workflow
-// text as the MCP tool descriptions — distributed into the project instead of
-// served over the protocol.
+// A CLI is invisible until something tells the agent about it; after that,
+// agents handle a well-`--help`ed CLI fine. `procdeck agents` (and `procdeck
+// init` when the project already has agent instructions) plants that
+// knowledge: a short section in CLAUDE.md / AGENTS.md ("know I exist, ask
+// status first") and a Claude Code skill teaching the whole verify loop.
 package discover
 
 import (

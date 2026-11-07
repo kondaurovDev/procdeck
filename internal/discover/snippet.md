@@ -1,7 +1,7 @@
 ## procdeck
 
 Dev processes (servers, watchers) run under procdeck — a process manager with
-a web UI, CLI and MCP server. Never start dev servers in ad-hoc terminals:
+a web UI and a CLI. Never start dev servers in ad-hoc terminals:
 the deck already runs them (`procdeck up` brings it back if it is down).
 
 - `procdeck status --json` — ask this first: the `attention` list names
